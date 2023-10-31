@@ -1,4 +1,3 @@
-# Test modification
 # Laboratorio Sur
 # Ecuaciones de Lotka-Volterra generalizado
 
