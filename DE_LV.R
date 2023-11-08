@@ -148,7 +148,7 @@ generate <- function(N,seeds,C){
 
 
 #Population graphs
-Pgraph <- function(output, specs){
+Pobl_plot <- function(output, specs){
   
   library(ggplot2)
   library(reshape2)
@@ -202,8 +202,8 @@ red <- function(params){
   
 }
 
-#Calcular negativos output
-scan_neg <- function(output, params, ID){
+# Calcular negativos output
+Scan_neg <- function(output, params, ID){
   
   # Contar AL MENOS UN NEGATIVO
   start_col <- 2  # Primera columna es la segunda, ya que primer es tiempo
@@ -241,8 +241,7 @@ scan_neg <- function(output, params, ID){
   }
 }
 
-#Plot interactions-negative end
-
+# Plot interactions-negative end
 Scan_plot <- function() {
   
   setwd("~/Documents/LAB_ECO") # Set Working Directory
@@ -258,21 +257,42 @@ Scan_plot <- function() {
 }
 
 #Leer parametros
-Params_R <- function(ID){
+Read_params <- function(ID){
+  
+  library(readr)
   
   setwd("~/Documents/LAB_ECO") # Set Working Directory
   
-  # Read table 
-  path <- paste("~/Documents/LAB_ECO/Parameters/P_",ID,sep = "")
-  path <- paste("Output/O_",ID,".tsv",sep = "")
-  data <- read.table("Output/O_1438b0", sep = "\t")
+  # Generate path
+  path <- paste("Parameters/P_",ID,".tsv",sep = "")
   
-  # Read the TSV file into a character vector
+  # Leer tsv como un vector de caracteres
   tsv_lines <- readLines(path)
   
+  # Obtener lineas donde comienzan mis datos
+  Interactions_line <- grep("Interactions", tsv_lines)
+  Grows_line <- grep("Grow rates", tsv_lines)
+  Population_line <- grep("Initial population", tsv_lines)
+  Seed_line <- grep("Seeds", tsv_lines)
+  
+  # Obtener tabla de interacciones
+  tmp <- tsv_lines[(Interactions_line + 1):Grows_line-1]
+  Interacs <- read.table(text = tmp, sep = "\t", skip=1, header=TRUE, row.names = 1)
+  
+  # Obtener tabla de grows rates
+  tmp <- tsv_lines[(Grows_line + 1):Population_line-1]
+  Grows <- read.table(text = tmp, sep = "\t", skip=1, header=TRUE, row.names = 1)
+  
+  # Obtener tablas de poblaciones iniciales
+  tmp <- tsv_lines[(Population_line + 1):Seed_line-1]
+  Pobl <- read.table(text = tmp, sep = "\t", skip=1, header=TRUE, row.names = 1)
+  
+  result <- list(Interacs, Grows, Pobl)
+  return(result)
+  
 }
+
 #---------------------------Generar simulacion----------------------------------
-# rm(list=setdiff(ls(), c("GLV", "save", "generate", "Pgraph", "red")))
 
 # Generar las semillas posibles
 library (random)
@@ -308,12 +328,18 @@ scan_neg(output, params, ID)
 # Plot interacciones negativas (x) especies que terminan en netivas (y)
 Scan_plot ()   
 
-# Grafica poblacion
+# Graficar poblaciones
 esp <- c("time", "1","3")
 Pgraph(output, esp)
 
-# Graficar redes
+# Graficar red de interaccion
 red(params)
+
+# Obtener los parametros nuevamente
+# [1] contiene la matriz de interacciones
+# [2] contiene los crecimientos
+# [3] contiene las poblaciones iniciales
+Read_params(ID)
 
 #-----------------------------EJEMPLO ARTICULO----------------------------------
 
@@ -389,7 +415,6 @@ Intentar con 20 especies
 - Hacer operaciones en vez de vector como matriz
 - Para las poblaciones iniciales generarlas de una uniforme de .1 a 1
 - Parametros sacados del articulo que me mandaron LEERLO
-- FUNCION READ PARA LEER PARAMETROS INICIALES
 
 - 20 generaciones
 - Especies constantes
@@ -408,5 +433,7 @@ COMPLETADO
 
 - Añadir un parametro C que simule el numero de interacciones promedio que sean diferentes a 0, fuera de la diagonal. 
 C es un parametro que yo añado
+- FUNCION READ PARA LEER PARAMETROS INICIALES
+
 
 "
