@@ -17,7 +17,7 @@ GLV = function(t,state,params){
     # Calculate the rate of change for each species
     for (i in 1:n) {
       result <- (params$r[i] * state[i]) + (state[i] * sum(params$alpha[i, ] * state))
-      #result <- (params$r * state) + (state * sum(params$alpha * state))
+      #result <- (params$r * state) + (state * sum(params$alpha %*% state))
       dN[i] <- result
     }
     return(list(dN)) # Return
@@ -413,11 +413,14 @@ Intentar con 20 especies
 - Para la diagonal intentar con 1.
 - ki = 1
 - Hacer operaciones en vez de vector como matriz
-- Para las poblaciones iniciales generarlas de una uniforme de .1 a 1
 
 - 20 generaciones
 - Especies constantes
 - Por cada red que genere, calcular cuanto son positivos y cuantos son negativos. Tambien lo mismo con la matriz de interaciones
+
+- Añadir numero de especies totales en el TSV de scan
+- corregir parametro C y como funciona
+- 20 especies a 100 generaciones, ve estabilidad 
 
 COMPLETADO
 - Hacer una funcion para las graficas de las especies, tomando en cuenta las especies que queremos.
@@ -433,6 +436,7 @@ COMPLETADO
 - Añadir un parametro C que simule el numero de interacciones promedio que sean diferentes a 0, fuera de la diagonal. 
 C es un parametro que yo añado
 - FUNCION READ PARA LEER PARAMETROS INICIALES
+- Para las poblaciones iniciales generarlas de una uniforme de .1 a 1
 
 
 "
