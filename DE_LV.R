@@ -2,7 +2,7 @@
 # Limpiar memoria
 rm(list=ls()) # Clear the memory
 
-#---------------Definir ecuacion------------------------------------------------
+#---------------Definir ecuaciones----
 
 GLV = function(t,state,params){
 
@@ -23,8 +23,7 @@ GLV = function(t,state,params){
   })
 }
 
-#-----------------------------Guardar resultados--------------------------------
-
+#Guardar resultados
 save = function(output,params, Pobl, Semilla){
   
   library(ids)
@@ -37,10 +36,10 @@ save = function(output,params, Pobl, Semilla){
   
   # Especificar el path del output
   out <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
-  pms <- paste("./Parameters/A_", ID , ".tsv", sep = "") #Parameters
+  pms <- paste("./Parameters/P_", ID , ".tsv", sep = "") #Parameters
   
   # Revisar si un archivo con ese ID existe
-  exist <- file.exists(pms) # Bandera
+  exist <- file.exists(out) # Bandera
   while (exist==TRUE) { # False-> NO EXISTE
     
     # Generar el ID nuevo
@@ -97,11 +96,8 @@ save = function(output,params, Pobl, Semilla){
   return(ID)
 }
 
-
-
-
-#------------------------------Generar datos------------------------------------
-generate <- function(N,seeds){
+#Generar datos
+generate <- function(N,seeds,C){
   
   # Sample from the vector 'a' 1 element.
   S_p <- sample(seeds, 1)
@@ -113,20 +109,26 @@ generate <- function(N,seeds){
   set.seed(S_p)
   for (i in 1:N) {
     Pobl[i] <- round(abs(rnorm(1, 10, 5)))
+    # Opcion 2
+    # Pobl[i] <- round(abs(rnorm(1, 10, 5)))
   }
   
   # Hacer tabla de interacciones
+  values <- seq(0, 1, by = 0.01)
+  probs <- c(C, rep(1 - C,length(values)-1))
+  
+  # Sample a value based on the defined probabilities
+  result <- sample(values, size = 1, prob = probs)
   inter <- matrix(nrow = N, ncol = N)
   set.seed(S_i)
   for (r in 1:N) { # column
     for (c in 1:N){ # row
-      
-      # Diagonal
-      if (r==c) { 
+      if (r==c) { # Diagonal
         #inter [r,c] <- -runif(1)
         inter [r,c] <- rnorm(1, mean = 0, sd = 1)
       } else {
-        inter [r,c] <- rnorm(1, mean = 0, sd = 1)
+        #inter [r,c] <- rnorm(1, mean = 0, sd = 1)
+        inter [r,c]  <- sample(values, size = 1, prob = probs)
       }
     }
   }
@@ -145,8 +147,7 @@ generate <- function(N,seeds){
 }
 
 
-#----------------------Population graphs-------------------------------------------------
-
+#Population graphs
 Pgraph <- function(output, specs){
   
   library(ggplot2)
@@ -168,7 +169,7 @@ Pgraph <- function(output, specs){
     labs(title = "Population change", x = "Time", y = "Population")
 }
 
-#----------------------------------Graficar redes nodos-------------------------------
+#Graficar redes nodos
 red <- function(params){
   
   # Graficar redes
@@ -201,8 +202,7 @@ red <- function(params){
   
 }
 
-#----------------------------Calcular negativos output--------------------------
-
+#Calcular negativos output
 scan_neg <- function(output, params, ID){
   
   # Contar AL MENOS UN NEGATIVO
@@ -241,7 +241,7 @@ scan_neg <- function(output, params, ID){
   }
 }
 
-#------------------------Plot interactions-negative end-------------------------
+#Plot interactions-negative end
 
 Scan_plot <- function() {
   
@@ -257,6 +257,20 @@ Scan_plot <- function() {
   
 }
 
+#Leer parametros
+Params_R <- function(ID){
+  
+  setwd("~/Documents/LAB_ECO") # Set Working Directory
+  
+  # Read table 
+  path <- paste("~/Documents/LAB_ECO/Parameters/P_",ID,sep = "")
+  path <- paste("Output/O_",ID,".tsv",sep = "")
+  data <- read.table("Output/O_1438b0", sep = "\t")
+  
+  # Read the TSV file into a character vector
+  tsv_lines <- readLines(path)
+  
+}
 #---------------------------Generar simulacion----------------------------------
 # rm(list=setdiff(ls(), c("GLV", "save", "generate", "Pgraph", "red")))
 
@@ -268,7 +282,8 @@ seeds <- randomNumbers(n=100, min=1, max=200)
 N <- 3
 
 # Generar datos y extraerlos
-res <- generate(N,seeds)
+C <- 0.05 # Probabilidad de interacción=0
+res <- generate(N,seeds,C)
 V_inter <- unlist(res[1])
 params <- list(
   r = unlist(res[2]), # Grow rates
@@ -366,13 +381,19 @@ unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE)
 NUEVAS:
 Para las alphas una distribucion uniforme runif de 0 a 1.
 READR PARA TABLAS 
+Para los growth rate modificarlos para que sean >0 y <1, con runif u otra
+Intentar la diagonal con 1 
+Intentar con 20 especies
+- Para la diagonal intentar con 1.
+- ki = 1
+- Hacer operaciones en vez de vector como matriz
+- Para las poblaciones iniciales generarlas de una uniforme de .1 a 1
+- Parametros sacados del articulo que me mandaron LEERLO
+- FUNCION READ PARA LEER PARAMETROS INICIALES
 
 - 20 generaciones
 - Especies constantes
 - Por cada red que genere, calcular cuanto son positivos y cuantos son negativos. Tambien lo mismo con la matriz de interaciones
-
-En cuantas generaciones se convierten en negativos.
-Hacer una correlación entre el numero de simulaciones negativas
 
 COMPLETADO
 - Hacer una funcion para las graficas de las especies, tomando en cuenta las especies que queremos.
@@ -384,5 +405,8 @@ COMPLETADO
 - Plot con el numero de interacciones negativas (y) y el numero de especies que terminan en negativas (x)
 - Para fuera de la diagonal en la matriz de interacciones una distribucion normal estandar.
 - Para la diagonal usar una version normal y otra con negativos (runif)
+
+- Añadir un parametro C que simule el numero de interacciones promedio que sean diferentes a 0, fuera de la diagonal. 
+C es un parametro que yo añado
 
 "
