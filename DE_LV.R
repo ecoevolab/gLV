@@ -108,12 +108,10 @@ generate <- function(N,seeds,C){
   Pobl <- vector("numeric", length = N)
   set.seed(S_p)
   for (i in 1:N) {
-    Pobl[i] <- round(abs(rnorm(1, 10, 5)))
-    # Opcion 2
-    # Pobl[i] <- round(abs(rnorm(1, 10, 5)))
+    Pobl[i] <- runif(1, min = 0.1, max = 1)
   }
   
-  # Hacer tabla de interacciones
+  # Hacer tabla de INTERACCIONES
   values <- seq(0, 1, by = 0.01)
   probs <- c(C, rep(1 - C,length(values)-1))
   
@@ -124,10 +122,9 @@ generate <- function(N,seeds,C){
   for (r in 1:N) { # column
     for (c in 1:N){ # row
       if (r==c) { # Diagonal
-        #inter [r,c] <- -runif(1)
         inter [r,c] <- rnorm(1, mean = 0, sd = 1)
       } else {
-        #inter [r,c] <- rnorm(1, mean = 0, sd = 1)
+        #inter [r,c]  <- runif(1, min = -1, max = 1)
         inter [r,c]  <- sample(values, size = 1, prob = probs)
       }
     }
@@ -137,7 +134,7 @@ generate <- function(N,seeds,C){
   Grow <- vector("numeric", length = N)
   set.seed(S_g)
   for (i in 1:N){
-    Grow[i] <- sample.int(n=100, size=1)
+    Grow[i] <- runif(1, min = 0.001, max = 1)
   }
   
   seed = c(S_p, S_i, S_g)
@@ -406,7 +403,6 @@ unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE)
 "
 NUEVAS:
 Para las alphas una distribucion uniforme runif de 0 a 1.
-READR PARA TABLAS 
 Para los growth rate modificarlos para que sean >0 y <1, con runif u otra
 Intentar la diagonal con 1 
 Intentar con 20 especies
@@ -414,7 +410,6 @@ Intentar con 20 especies
 - ki = 1
 - Hacer operaciones en vez de vector como matriz
 - Para las poblaciones iniciales generarlas de una uniforme de .1 a 1
-- Parametros sacados del articulo que me mandaron LEERLO
 
 - 20 generaciones
 - Especies constantes
