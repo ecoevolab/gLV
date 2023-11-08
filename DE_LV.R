@@ -17,6 +17,7 @@ GLV = function(t,state,params){
     # Calculate the rate of change for each species
     for (i in 1:n) {
       result <- (params$r[i] * state[i]) + (state[i] * sum(params$alpha[i, ] * state))
+      #result <- (params$r * state) + (state * sum(params$alpha * state))
       dN[i] <- result
     }
     return(list(dN)) # Return
@@ -230,11 +231,11 @@ Scan_neg <- function(output, params, ID){
   Vec_scan <- data.frame(ID, least_1neg, end_n, neg_int, pos_int)
   
   #Si el archivo esta vacio añadir nombres de columnas
-  if (file.info(scn)$size == 0) {
-    write.table(Vec_scan, file = scn, sep = "\t", col.names = TRUE, row.names = FALSE, append = TRUE)
+  if (file.info(scn1)$size == 0) {
+    write.table(Vec_scan, file = scn1, sep = "\t", col.names = TRUE, row.names = FALSE, append = TRUE)
     
   } else {
-      write.table(Vec_scan, file = scn, sep = "\t", col.names = FALSE, row.names = FALSE, append = TRUE)
+      write.table(Vec_scan, file = scn1, sep = "\t", col.names = FALSE, row.names = FALSE, append = TRUE)
   }
 }
 
@@ -293,35 +294,40 @@ Read_params <- function(ID){
 
 # Generar las semillas posibles
 library (random)
-seeds <- randomNumbers(n=100, min=1, max=200)
+seeds <- randomNumbers(n=300, min=1, max=6000)
 
-# Introducir el numero de especies
-N <- 3
+ITERS <- 30 # Introducir numero de simulaciones
+N <- 200 # Introducir el numero de especies
+C <- 0.75 # Probabilidad de interacción=0
 
-# Generar datos y extraerlos
-C <- 0.05 # Probabilidad de interacción=0
-res <- generate(N,seeds,C)
-V_inter <- unlist(res[1])
-params <- list(
-  r = unlist(res[2]), # Grow rates
-  alpha = matrix(V_inter, nrow = N, ncol = N) # Interaction
-)
-Pobl <- unlist(res[3])
-Semilla <- unlist(res[4])
+for (i in 1:ITERS) {
+  
+  # Generar datos y extraerlos
+  res <- generate(N,seeds,C)
+  V_inter <- unlist(res[1])
+  params <- list(
+    r = unlist(res[2]), # Grow rates
+    alpha = matrix(V_inter, nrow = N, ncol = N) # Interaction
+  )
+  Pobl <- unlist(res[3])
+  Semilla <- unlist(res[4])
+  
+  
+  # Evaluar la euacion
+  library(deSolve)
+  times <- seq(0, 20, by = 1)
+  output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "lsoda", atol = 1e+1, rtol = 1e+1,
+                maxsteps = 200)
+  
+  # Guardar resultados
+  ID <- save(output, params, Pobl, Semilla)
+  
+  # Contar negativos
+  Scan_neg(output, params, ID)
+  
+}
 
-
-# Evaluar la euacion
-library(deSolve)
-times <- seq(0, 20, by = 1)
-output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "lsoda", atol = 1e+1, rtol = 1e+1,
-              maxsteps = 100)
-
-# Guardar resultados
-ID <- save(output, params, Pobl, Semilla)
-
-# Contar negativos
-scan_neg(output, params, ID)
-
+####
 # Plot interacciones negativas (x) especies que terminan en netivas (y)
 Scan_plot ()   
 
@@ -365,20 +371,18 @@ params <- list(
 output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "lsoda", atol = 1e+1, rtol = 1e+1,
               maxsteps = 100)
 
-Semilla <- c(12,52,3)
-
-# Grafica poblacion
-esp <- c("time", "1","3")
-Pgraph(output, esp)
-
-# Graficar redes
-red(params)
-
 # Guardar resultados ANTES QUE SCAN
 save(output, params, Pobl, Semilla)
 
 # Contar negativos
 scan <- scan_neg(output, params, ID)
+
+# Graficar redes
+red(params)
+
+# Grafica poblacion
+esp <- c("time", "1","3")
+Pgraph(output, esp)
 
 #------------------------------Limpiar carpetas---------------------------------
 
