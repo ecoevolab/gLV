@@ -394,18 +394,6 @@ unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE)
 
 "
 NUEVAS:
-Para las alphas una distribucion uniforme runif de 0 a 1.
-Para los growth rate modificarlos para que sean >0 y <1, con runif u otra
-Intentar la diagonal con 1 
-Intentar con 20 especies
-- Para la diagonal intentar con 1.
-- ki = 1
-- Hacer operaciones en vez de vector como matriz
-
-- 20 generaciones
-- Especies constantes
-- Por cada red que genere, calcular cuanto son positivos y cuantos son negativos. Tambien lo mismo con la matriz de interaciones
-
 - 20 especies a 100 generaciones, ve estabilidad 
 
 COMPLETADO
