@@ -32,9 +32,6 @@ save = function(output,params, Pobl, Semilla){
   # Generar el ID
   ID <- ids::random_id(1, 3)
   
-  # Set Working Directory
-  setwd("~/Documents/LAB_ECO")
-  
   # Especificar el path del output
   out <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
   pms <- paste("./Parameters/P_", ID , ".tsv", sep = "") #Parameters
@@ -113,23 +110,10 @@ generate <- function(N,seeds,C){
   }
   
   # Hacer tabla de INTERACCIONES
-  values <- seq(0, 1, by = 0.01)
-  probs <- c(C, rep(1 - C,length(values)-1))
-  
-  # Sample a value based on the defined probabilities
-  result <- sample(values, size = 1, prob = probs)
-  inter <- matrix(nrow = N, ncol = N)
   set.seed(S_i)
-  for (r in 1:N) { # column
-    for (c in 1:N){ # row
-      if (r==c) { # Diagonal
-        inter [r,c] <- rnorm(1, mean = 0, sd = 1)
-      } else {
-        #inter [r,c]  <- runif(1, min = -1, max = 1)
-        inter [r,c]  <- sample(values, size = 1, prob = probs)
-      }
-    }
-  }
+  vec <- rbinom(n=N*N,size=1,p=1-C)*runif(n=N*N)
+  inter <- matrix(vec, nrow = N, ncol = N) 
+  diag(inter) <- rnorm(N, mean = 0, sd = 1)
   
   # Vector de crecimiento de especies
   Grow <- vector("numeric", length = N)
@@ -139,7 +123,6 @@ generate <- function(N,seeds,C){
   }
   
   seed = c(S_p, S_i, S_g)
-  
   result <- list(inter, Grow, Pobl, seed)
   return(result)
 }
@@ -201,7 +184,7 @@ red <- function(params){
 }
 
 # Calcular negativos output
-Scan_neg <- function(output, params, ID){
+Scan_neg <- function(output, params, ID, N, C){
   
   # Contar AL MENOS UN NEGATIVO
   start_col <- 2  # Primera columna es la segunda, ya que primer es tiempo
@@ -220,15 +203,23 @@ Scan_neg <- function(output, params, ID){
   pos_int <- sum(params$alpha > 0)
   
   # Guardar SCANEO 
-  setwd("~/Documents/LAB_ECO") # Set Working Directory
   scn1 <- "./Scan/Scan_res.tsv" #Scan path
  
   if (file.exists(scn1)!=TRUE) { # False-> NO EXISTE
      system(paste("touch", scn1))
   }
   
+  # Guardar NUMERO ESPECIES
+  N_species <- N
+  
+  # Guardar PROBABILIDAD DE 0
+  Prob_0 <- C
+  
+  # Guardar INTERACCIONES=0
+  interac_0 <- sum(params$alpha==0)
+    
   # Generar data frame
-  Vec_scan <- data.frame(ID, least_1neg, end_n, neg_int, pos_int)
+  Vec_scan <- data.frame(ID, least_1neg, end_n, neg_int, pos_int, N_species, Prob_0, interac_0)
   
   #Si el archivo esta vacio añadir nombres de columnas
   if (file.info(scn1)$size == 0) {
@@ -242,12 +233,10 @@ Scan_neg <- function(output, params, ID){
 # Plot interactions-negative end
 Scan_plot <- function() {
   
-  setwd("~/Documents/LAB_ECO") # Set Working Directory
   scn <- "./Scan/Scan_res.tsv"
   data <- read.table(scn, header = TRUE, sep = "\t")
   
   library(ggplot2) 
-  
   ggplot(data, aes(x=neg_int, y=end_n)) +
     geom_point() +                 # Add points
     labs(x = "# Negative interactions",  y = "# species end negative")   
@@ -258,8 +247,6 @@ Scan_plot <- function() {
 Read_params <- function(ID){
   
   library(readr)
-  
-  setwd("~/Documents/LAB_ECO") # Set Working Directory
   
   # Generate path
   path <- paste("Parameters/P_",ID,".tsv",sep = "")
@@ -293,12 +280,14 @@ Read_params <- function(ID){
 #---------------------------Generar simulacion----------------------------------
 
 # Generar las semillas posibles
+setwd("~/Documents/LAB_ECO") # Set Working Directory
 library (random)
 seeds <- randomNumbers(n=300, min=1, max=6000)
 
-ITERS <- 30 # Introducir numero de simulaciones
-N <- 200 # Introducir el numero de especies
-C <- 0.75 # Probabilidad de interacción=0
+ITERS <- 10 # Introducir numero de simulaciones
+N <- 20 # Introducir el numero de especies
+C <- 0.45 # Probabilidad de interacción=0
+times <- seq(0, 100, by = 1) # Numero de generaciones
 
 for (i in 1:ITERS) {
   
@@ -315,7 +304,6 @@ for (i in 1:ITERS) {
   
   # Evaluar la euacion
   library(deSolve)
-  times <- seq(0, 20, by = 1)
   output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "lsoda", atol = 1e+1, rtol = 1e+1,
                 maxsteps = 200)
   
@@ -323,7 +311,7 @@ for (i in 1:ITERS) {
   ID <- save(output, params, Pobl, Semilla)
   
   # Contar negativos
-  Scan_neg(output, params, ID)
+  Scan_neg(output, params, ID, N, C)
   
 }
 
@@ -418,8 +406,6 @@ Intentar con 20 especies
 - Especies constantes
 - Por cada red que genere, calcular cuanto son positivos y cuantos son negativos. Tambien lo mismo con la matriz de interaciones
 
-- Añadir numero de especies totales en el TSV de scan
-- corregir parametro C y como funciona
 - 20 especies a 100 generaciones, ve estabilidad 
 
 COMPLETADO
@@ -438,5 +424,7 @@ C es un parametro que yo añado
 - FUNCION READ PARA LEER PARAMETROS INICIALES
 - Para las poblaciones iniciales generarlas de una uniforme de .1 a 1
 
+- Añadir numero de especies totales en el TSV de scan
+- corregir parametro C y como funciona
 
 "
