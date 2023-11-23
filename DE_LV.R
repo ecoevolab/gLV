@@ -8,18 +8,9 @@ GLV = function(t,state,params){
 
   with(as.list(c(state, params)),{ # Access the names of the variables in the function Pobl
     
-    # Extraer numero de especies
-    n <- length(state)
+    dN <- params$r * state + params$alpha %*% matrix(state, ncol = 1)
+    dN <- as.vector(dN)
     
-    # Vector para guardar cambio de especies
-    dN <- numeric(length = n)
-    
-    # Calculate the rate of change for each species
-    for (i in 1:n) {
-      result <- (params$r[i] * state[i]) + (state[i] * sum(params$alpha[i, ] * state))
-      #result <- (params$r * state) + (state * sum(params$alpha %*% state))
-      dN[i] <- result
-    }
     return(list(dN)) # Return
   })
 }
@@ -289,10 +280,13 @@ N <- 20 # Introducir el numero de especies
 C <- 0.45 # Probabilidad de interacción=0
 times <- seq(0, 100, by = 1) # Numero de generaciones
 
-for (i in 1:ITERS) {
+
+
+#for (i in 1:ITERS) {
   
   # Generar datos y extraerlos
   res <- generate(N,seeds,C)
+
   V_inter <- unlist(res[1])
   params <- list(
     r = unlist(res[2]), # Grow rates
@@ -305,7 +299,7 @@ for (i in 1:ITERS) {
   # Evaluar la euacion
   library(deSolve)
   output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "lsoda", atol = 1e+1, rtol = 1e+1,
-                maxsteps = 200)
+                maxsteps = 300)
   
   # Guardar resultados
   ID <- save(output, params, Pobl, Semilla)
@@ -313,9 +307,27 @@ for (i in 1:ITERS) {
   # Contar negativos
   Scan_neg(output, params, ID, N, C)
   
-}
+  # Graficar poblaciones
+  library(reshape2)
+  library(ggplot2)
+  library(tidyverse)
+  
+  output <- as.data.frame(output)
+  df_long <- output %>% gather(key = "species", value = "population", -time)
+  ggplot(df_long, aes(x = time, y = population, color = species)) + geom_line(size = 1.5) + 
+    labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
+    theme_minimal()
+  
+  # 
+  # temp <- params$alpha
+  # diag(temp) <- NA
+  # temp <- as.vector(temp)
+  # temp <- temp[!is.na(temp)]
+  # hist(temp)
+  # summary(temp)
+  
+#}
 
-####
 # Plot interacciones negativas (x) especies que terminan en netivas (y)
 Scan_plot ()   
 
@@ -332,6 +344,8 @@ red(params)
 # [3] contiene las poblaciones iniciales
 Read_params(ID)
 
+esp <- c("time", "1")
+  Pobl_plot(output, esp)
 #-----------------------------EJEMPLO ARTICULO----------------------------------
 
 
