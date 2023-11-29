@@ -86,7 +86,7 @@ save = function(output,params, Pobl, Semilla){
 }
 
 #Generar datos
-generate <- function(N,seeds,C){
+generate <- function(N,seeds,C0,CN){
   
   # Sample from the vector 'a' 1 element.
   S_p <- sample(seeds, 1)
@@ -102,9 +102,34 @@ generate <- function(N,seeds,C){
   
   # Hacer tabla de INTERACCIONES
   set.seed(S_i)
-  vec <- rbinom(n=N*N,size=1,p=1-C)*runif(n=N*N)
-  inter <- matrix(vec, nrow = N, ncol = N) 
-  diag(inter) <- rnorm(N, mean = 0, sd = 1)
+  # vec <- rbinom(n=N*N,size=1,p=1-C)*runif(n=N*N) # Generar interacciones
+  # inter <- matrix(vec, nrow = N, ncol = N) # Hacerlo matriz
+  # diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
+  
+  flag <- FALSE
+  vec <- vector("numeric", length = 0)
+  counter <- 0
+  while (flag==FALSE) {
+      
+      P_neg <- rbinom(n=1,size=1,p=1-CN) #p=1-C2 SUCCES (1)
+      
+      if (P_neg!=0) { # Not neg
+        tmp <- rbinom(n=1,size=1,p=1-C0)*runif(n=1)
+      } else  { #Is neg
+        tmp <- rbinom(n=1,size=1,p=1-C0)*-runif(n=1)
+      }
+    
+      vec <- c(vec, tmp)
+      counter <- counter + 1 #contador
+      
+      if (counter==N*N){
+        flag=TRUE
+      }
+  }
+  
+  inter <- matrix(vec, nrow = N, ncol = N) # Hacerlo matriz
+  diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
+  
   
   # Vector de crecimiento de especies
   Grow <- vector("numeric", length = N)
@@ -277,15 +302,16 @@ seeds <- randomNumbers(n=300, min=1, max=6000)
 
 ITERS <- 10 # Introducir numero de simulaciones
 N <- 20 # Introducir el numero de especies
-C <- 0.45 # Probabilidad de interacción=0
-times <- seq(0, 100, by = 1) # Numero de generaciones
+C0 <- 0.45 # Probabilidad de interacción=0
+CN <- 0.2 # Probabilidad de interaccion negativa
+times <- seq(0, 200, by = 1) # Numero de generaciones
 
 
 
 #for (i in 1:ITERS) {
   
   # Generar datos y extraerlos
-  res <- generate(N,seeds,C)
+  res <- generate(N,seeds,C0, CN)
 
   V_inter <- unlist(res[1])
   params <- list(
@@ -317,14 +343,6 @@ times <- seq(0, 100, by = 1) # Numero de generaciones
   ggplot(df_long, aes(x = time, y = population, color = species)) + geom_line(size = 1.5) + 
     labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
     theme_minimal()
-  
-  # 
-  # temp <- params$alpha
-  # diag(temp) <- NA
-  # temp <- as.vector(temp)
-  # temp <- temp[!is.na(temp)]
-  # hist(temp)
-  # summary(temp)
   
 #}
 
@@ -399,16 +417,13 @@ unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE)
 
 #--------------------------------Notas----------------------------------------------
 
-"
-1. Cuando tengo una seed de 20 hay un error, en esta matriz hay negativos en la diagonal de las interacciones.
-2. Las poblaciones llegan a alcanzar negativos, esto no debe ser posible
-3. No me permite tener una tolerancia maxima menor a e+1, lo mismo sucede con rtol
-4. El numero de maxsteps depende mucho de las poblaciones iniciales
-"
 
 "
 NUEVAS:
 - 20 especies a 100 generaciones, ve estabilidad 
+
+- Añadir un parametro que controle el numero de interacciones negativas
+- 
 
 COMPLETADO
 - Hacer una funcion para las graficas de las especies, tomando en cuenta las especies que queremos.
