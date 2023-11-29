@@ -8,7 +8,7 @@ GLV = function(t,state,params){
 
   with(as.list(c(state, params)),{ # Access the names of the variables in the function Pobl
     
-    dN <- params$r * state + params$alpha %*% matrix(state, ncol = 1)
+    dN <- (params$r * state ) + ( (params$alpha %*% matrix(state, ncol = 1)) * state )
     dN <- as.vector(dN)
     
     return(list(dN)) # Return
@@ -106,6 +106,9 @@ generate <- function(N,seeds,C0,CN){
   # inter <- matrix(vec, nrow = N, ncol = N) # Hacerlo matriz
   # diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
   
+  flag_neg <- TRUE
+  while(flag_neg){
+  
   flag <- FALSE
   vec <- vector("numeric", length = 0)
   counter <- 0
@@ -130,6 +133,10 @@ generate <- function(N,seeds,C0,CN){
   inter <- matrix(vec, nrow = N, ncol = N) # Hacerlo matriz
   diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
   
+  
+  flag_neg <- any(rowSums(inter < 0) < 1)
+  
+  }
   
   # Vector de crecimiento de especies
   Grow <- vector("numeric", length = N)
@@ -313,7 +320,7 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
   # Generar datos y extraerlos
   res <- generate(N,seeds,C0, CN)
 
-  V_inter <- unlist(res[1])
+  V_inter <- unlist(res[[1]])
   params <- list(
     r = unlist(res[2]), # Grow rates
     alpha = matrix(V_inter, nrow = N, ncol = N) # Interaction
@@ -324,7 +331,7 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
   
   # Evaluar la euacion
   library(deSolve)
-  output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "lsoda", atol = 1e+1, rtol = 1e+1,
+  output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "ode23", atol = 1e+1, rtol = 1e+1,
                 maxsteps = 300)
   
   # Guardar resultados
@@ -342,7 +349,9 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
   df_long <- output %>% gather(key = "species", value = "population", -time)
   ggplot(df_long, aes(x = time, y = population, color = species)) + geom_line(size = 1.5) + 
     labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
-    theme_minimal()
+    ylim(c(-1,1)) +
+    xlim(c(0, 5)) +
+    theme_minimal() 
   
 #}
 
@@ -421,9 +430,8 @@ unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE)
 "
 NUEVAS:
 - 20 especies a 100 generaciones, ve estabilidad 
-
-- Añadir un parametro que controle el numero de interacciones negativas
-- 
+- Intentar con bdf_d para integrar numericamente, metodos con stiff
+- Tambien intentar con el paquete pracma y ode23s.
 
 COMPLETADO
 - Hacer una funcion para las graficas de las especies, tomando en cuenta las especies que queremos.
@@ -443,5 +451,7 @@ C es un parametro que yo añado
 
 - Añadir numero de especies totales en el TSV de scan
 - corregir parametro C y como funciona
+
+- Añadir un parametro que controle el numero de interacciones negativas
 
 "
