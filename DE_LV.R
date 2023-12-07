@@ -2,7 +2,7 @@
 # Limpiar memoria
 rm(list=ls()) # Clear the memory
 
-#---------------Definir ecuaciones----
+#-----------------------------------------Definir ecuaciones------------------------------------------------------------
 
 GLV = function(t,state,params){
 
@@ -329,11 +329,11 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
   Semilla <- unlist(res[4])
   
   
-  # Evaluar la euacion
+  # Evaluar la euacion METHOD 1
   library(deSolve)
   output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "ode23", atol = 1e+1, rtol = 1e+1,
                 maxsteps = 300)
-  
+ 
   # Guardar resultados
   ID <- save(output, params, Pobl, Semilla)
   
@@ -345,16 +345,67 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
   library(ggplot2)
   library(tidyverse)
   
+  #Method 1  
   output <- as.data.frame(output)
   df_long <- output %>% gather(key = "species", value = "population", -time)
   ggplot(df_long, aes(x = time, y = population, color = species)) + geom_line(size = 1.5) + 
     labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
-    ylim(c(-1,1)) +
-    xlim(c(0, 5)) +
+    ylim(c(-100,100)) +
+    xlim(c(0, 50)) +
     theme_minimal() 
   
-#}
+  #--------------- METHOD 2------------------------------------------------------------
+  output2  <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "bdf", atol = 1e+1, rtol = 1e+1,
+                  maxsteps = 300)
+  
+  # Guardar resultados
+  ID <- save(output2, params, Pobl, Semilla)
+  
+  # Contar negativos
+  Scan_neg(output2, params, ID, N, C)
+  
+  # Graficar poblaciones
+  library(reshape2)
+  library(ggplot2)
+  library(tidyverse)
+  
+  output2 <- as.data.frame(output2)
+  df_long <- output2 %>% gather(key = "species", value = "population", -time)
+  ggplot(df_long, aes(x = time, y = population, color = species)) + geom_line(size = 1.5) + 
+    labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
+    ylim(c(-100,100)) +
+    xlim(c(0, 101)) +
+    theme_minimal() 
+  
+  #----------------------------------------METHOD 3-------------------------------------------------------------------
+  f <- function(t,y) {
+      (r * Pobl ) + ( (alpha %*% matrix(Pobl, ncol = 1)) * Pobl ) 
+    
+  }
+  r <- params$r
+  alpha <- params$alpha
+  
+  library(pracma)
+  output3 <- pracma::ode23s(f, t0=0, tfinal=100, y0=Pobl, rtol = 1e+1, atol= 1e+1, hmax=300)
+  
+  # Guardar resultados
+  ID <- save(output3, params, Pobl, Semilla)
+  
+  # Contar negativos
+  Scan_neg(output2, params, ID, N, C)
+  
+  # Graficar poblaciones
+  library(reshape2)
+  library(ggplot2)
+  library(tidyverse)
+  
+  output3 <- as.data.frame(output3)
+  
 
+  
+
+###########################################################################
+  
 # Plot interacciones negativas (x) especies que terminan en netivas (y)
 Scan_plot ()   
 
@@ -373,6 +424,12 @@ Read_params(ID)
 
 esp <- c("time", "1")
   Pobl_plot(output, esp)
+  
+  
+  
+  
+  
+  
 #-----------------------------EJEMPLO ARTICULO----------------------------------
 
 
