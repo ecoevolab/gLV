@@ -282,7 +282,8 @@ Read_params <- function(ID){
   Grows_line <- grep("Grow rates", tsv_lines)
   Population_line <- grep("Initial population", tsv_lines)
   Seed_line <- grep("Seeds", tsv_lines)
-  
+  last_line <- grep("Seed_grow", tsv_lines)
+    
   # Obtener tabla de interacciones
   tmp <- tsv_lines[(Interactions_line + 1):Grows_line-1]
   Interacs <- read.table(text = tmp, sep = "\t", skip=1, header=TRUE, row.names = 1)
@@ -295,7 +296,11 @@ Read_params <- function(ID){
   tmp <- tsv_lines[(Population_line + 1):Seed_line-1]
   Pobl <- read.table(text = tmp, sep = "\t", skip=1, header=TRUE, row.names = 1)
   
-  result <- list(Interacs, Grows, Pobl)
+  # Obtener tablas de semillas
+  tmp <- tsv_lines[(Seed_line):last_line]
+  Seed <- read.table(text = tmp, sep = "\t", skip=1, header=TRUE, row.names = 1)
+  
+  result <- list(Interacs, Grows, Pobl, Seed)
   return(result)
   
 }
@@ -305,31 +310,26 @@ Read_params <- function(ID){
 # Generar las semillas posibles
 setwd("~/Documents/LAB_ECO") # Set Working Directory
 library (random)
-seeds <- randomNumbers(n=300, min=1, max=6000)
+seeds <- randomNumbers(n=300, min=1, max=100)
 
-ITERS <- 10 # Introducir numero de simulaciones
-N <- 20 # Introducir el numero de especies
-C0 <- 0.45 # Probabilidad de interacción=0
-CN <- 0.2 # Probabilidad de interaccion negativa
-times <- seq(0, 200, by = 1) # Numero de generaciones
+N <- 20 # Number of species
+C0 <- 0.45 # Prob. interaction =0
+CN <- 0.2 # Prob. interaction <0
+times <- seq(0, 200, by = 1) # Generations
 
+# Generar datos y extraerlos
+res <- generate(N,seeds,C0, CN) # Results
 
-
-#for (i in 1:ITERS) {
+# V_inter <- unlist(res[[1]]) 
+params <- list(
+  r = unlist(res[2]), # Grow rates
+  alpha = matrix(unlist(res[[1]]) , nrow = N, ncol = N) # Interaction
+)
+Pobl <- unlist(res[3])
+Semilla <- unlist(res[4])
   
-  # Generar datos y extraerlos
-  res <- generate(N,seeds,C0, CN)
 
-  V_inter <- unlist(res[[1]])
-  params <- list(
-    r = unlist(res[2]), # Grow rates
-    alpha = matrix(V_inter, nrow = N, ncol = N) # Interaction
-  )
-  Pobl <- unlist(res[3])
-  Semilla <- unlist(res[4])
-  
-  
-  # Evaluar la euacion METHOD 1
+#--------------------------------------METHOD1 ode::ode23---------------------------------------------------------------
   library(deSolve)
   output <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "ode23", atol = 1e+1, rtol = 1e+1,
                 maxsteps = 300)
@@ -345,7 +345,6 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
   library(ggplot2)
   library(tidyverse)
   
-  #Method 1  
   output <- as.data.frame(output)
   df_long <- output %>% gather(key = "species", value = "population", -time)
   ggplot(df_long, aes(x = time, y = population, color = species)) + geom_line(size = 1.5) + 
@@ -354,7 +353,7 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
     xlim(c(0, 50)) +
     theme_minimal() 
   
-  #--------------- METHOD 2------------------------------------------------------------
+#-------------------------------------------METHOD2 ode::bdf------------------------------------------------------------
   output2  <- ode(y = Pobl, times = times, func = GLV, parms = params,  method = "bdf", atol = 1e+1, rtol = 1e+1,
                   maxsteps = 300)
   
@@ -377,32 +376,80 @@ times <- seq(0, 200, by = 1) # Numero de generaciones
     xlim(c(0, 101)) +
     theme_minimal() 
   
-  #----------------------------------------METHOD 3-------------------------------------------------------------------
-  f <- function(t,y) {
-      (r * Pobl ) + ( (alpha %*% matrix(Pobl, ncol = 1)) * Pobl ) 
-    
-  }
-  r <- params$r
-  alpha <- params$alpha
-  
-  library(pracma)
-  output3 <- pracma::ode23s(f, t0=0, tfinal=100, y0=Pobl, rtol = 1e+1, atol= 1e+1, hmax=300)
-  
-  # Guardar resultados
-  ID <- save(output3, params, Pobl, Semilla)
-  
-  # Contar negativos
-  Scan_neg(output2, params, ID, N, C)
-  
-  # Graficar poblaciones
-  library(reshape2)
-  library(ggplot2)
-  library(tidyverse)
-  
-  output3 <- as.data.frame(output3)
-  
+#----------------------------------------PRACMA method-------------------------------------------------------------------
 
+# READ PARAMETERS
+setwd("~/Documents/LAB_ECO")
+ID <- "0e3425"
+R_params <- Read_params(ID)
+
+r <- unlist(R_params[2]) # Grows
+alpha <- as.matrix(R_params[[1]]) # Interactions
+Pobl <- unlist(R_params[3]) # Poblation
+
+
+# y <- Poblaciones iniciales
+Prac_GLV <- function(t,y, ...) {
+    (r * y ) + ( (alpha %*% y) * y ) 
   
+}
+
+library(pracma)
+alpha <- as.matrix(alpha)
+y0 <- as.matrix(Pobl)
+t0 <-0; tf <-100
+output3 <- pracma::ode23s(Prac_GLV, t0, tf, y0, rtol = 1e+1, atol= 1e+1, hmax=300, ...=c(alpha, r))
+
+# Organizar en un dataframe
+times <- output3[["t"]]
+out <- output3[["y"]]
+MAT_out <- as.matrix(out, nrows=length(times))
+
+
+
+rownames(MAT_out) <- times
+
+
+# Save results
+params <- list(
+  r = r , # Grow rates
+  alpha = alpha # Interaction
+)
+Semilla <- unlist(R_params[4])
+
+
+ID <- save(output3, params, Pobl, Semilla)
+Scan_neg(output3, params, ID, N, C)
+
+# Population Graph
+library(reshape2)
+library(ggplot2)
+library(tidyverse)
+
+result_matrix <- cbind(MAT_out, times) #Add column of time
+result_matrix <- as.data.frame(result_matrix)
+df_long <- result_matrix %>% gather(key = "species", value = "population", -times)
+ggplot(df_long, aes(x = times, y = population, color = species)) + geom_line(size = 1.5) + 
+  labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
+  ylim(c(-100,100)) +
+  xlim(c(0, 50)) +
+  theme_minimal() 
+
+
+
+
+#--------------------------------------------Readers-------------------------------------------------------------------- 
+# READ PARAMETERS
+setwd("~/Documents/LAB_ECO")
+ID <- "0e3425"
+R_params <- Read_params(ID)
+
+# READ OUTPUT
+Out_ID <- paste("./Outputs/O_", ID, ".tsv", sep="")
+R_output <- read.csv(Out_ID, sep = "\t")
+
+
+#-------------------------------------------EXTRA-----------------------------------------------------------------------
 
 ###########################################################################
   
