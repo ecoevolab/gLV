@@ -404,11 +404,13 @@ output3 <- pracma::ode23s(Prac_GLV, t0, tf, y0, rtol = 1e+1, atol= 1e+1, hmax=30
 times <- output3[["t"]]
 out <- output3[["y"]]
 MAT_out <- as.matrix(out, nrows=length(times))
-
-
-
 rownames(MAT_out) <- times
 
+# Compare
+setwd("~/Documents/LAB_ECO")
+ID <- "0e3425"
+Out_ID <- paste("./Outputs/O_", ID, ".tsv", sep="")
+R_output <- read.csv(Out_ID, sep = "\t")
 
 # Save results
 params <- list(
@@ -418,8 +420,8 @@ params <- list(
 Semilla <- unlist(R_params[4])
 
 
-ID <- save(output3, params, Pobl, Semilla)
-Scan_neg(output3, params, ID, N, C)
+ID <- save(MAT_out, params, Pobl, Semilla)
+Scan_neg(MAT_out, params, ID, N, C)
 
 # Population Graph
 library(reshape2)
@@ -432,7 +434,7 @@ df_long <- result_matrix %>% gather(key = "species", value = "population", -time
 ggplot(df_long, aes(x = times, y = population, color = species)) + geom_line(size = 1.5) + 
   labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
   ylim(c(-100,100)) +
-  xlim(c(0, 50)) +
+  xlim(c(0, 100)) +
   theme_minimal() 
 
 
@@ -450,32 +452,16 @@ R_output <- read.csv(Out_ID, sep = "\t")
 
 
 #-------------------------------------------EXTRA-----------------------------------------------------------------------
-
-###########################################################################
   
 # Plot interacciones negativas (x) especies que terminan en netivas (y)
 Scan_plot ()   
 
 # Graficar poblaciones
 esp <- c("time", "1","3")
-Pgraph(output, esp)
+Pobl_plot(MAT_out, esp)
 
 # Graficar red de interaccion
 red(params)
-
-# Obtener los parametros nuevamente
-# [1] contiene la matriz de interacciones
-# [2] contiene los crecimientos
-# [3] contiene las poblaciones iniciales
-Read_params(ID)
-
-esp <- c("time", "1")
-  Pobl_plot(output, esp)
-  
-  
-  
-  
-  
   
 #-----------------------------EJEMPLO ARTICULO----------------------------------
 
