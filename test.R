@@ -25,6 +25,8 @@ params <- list(
 Pobl <- unlist(res[3])
 Semilla <- unlist(res[4])
 
+# Utilizar nueva función para ver funcionamiento miaSim
+# 
 
 
 #-----------------------PRACMA------------------------------------------------------------------------------------------
@@ -66,10 +68,43 @@ result_matrix <- as.data.frame(result_matrix)
 df_long <- result_matrix %>% gather(key = "species", value = "population", -times)
 tmp <- ggplot(df_long, aes(x = times, y = population, color = species)) + geom_line(size = 1.5) + 
   labs(title = "Population Over Time", x = "Time", y = "Population", color = "Species") +
-  ylim(c(-100,300)) +
-  xlim(c(0, 200)) +
+  ylim(c(-100,200)) +
+  xlim(c(0, 150)) +
   theme_minimal() 
 
-jpeg(file="~/Documents/LAB_ECO/Poster/image1.jpeg")
-tmp
-dev.off()
+# jpeg(file="~/Documents/LAB_ECO/Poster/image1.jpeg")
+# tmp
+# dev.off()
+
+#------------------------------------------------------miaSim-----------------------------------------------------------
+
+# Para leer parametros primero correr la funcion "R_params"
+# Read paremeters
+setwd("~/Documents/LAB_ECO")
+ID <- "826ba2"
+R_params <- Read_params(ID)
+
+r <- unlist(R_params[2]) # Grows
+alpha <- as.matrix(R_params[[1]]) # Interactions
+Pobl <- unlist(R_params[3]) # Poblation
+
+#---------------------
+library(miaSim)
+library(miaViz)
+glvmodel <- simulateGLV(n_species = 20, 
+                        A = alpha, # interaction matrix
+                        x0 = Pobl, # Initial abundances
+                        growth_rates = r, # Growth rates
+                        t_start = 0, 
+                        t_store = 10, 
+                        t_end=10, 
+                        migration_p = 0,
+                        stochastic = FALSE, # Ignorar ruido
+                        norm = TRUE) # FALSE=conteo, TRUE=proporciones
+
+out <- glvmodel@assays@data@listData[["counts"]]
+
+miaViz::plotSeries(glvmodel, "time")
+
+
+
