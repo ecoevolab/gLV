@@ -28,6 +28,28 @@ Semilla <- unlist(res[4])
 # Utilizar nueva función para ver funcionamiento miaSim
 # 
 
+#-------------------------------------------New interactions function---------------------------------------------------
+library (random)
+seeds <- randomNumbers(n=300, min=1, max=100)
+
+N <- 20 # Number of species
+C0 <- 0.45 # Prob. interaction =0
+C_neg <- 0.2 # Prob. interaction <0
+
+library(miaSim)
+intrf <- Interacs(N, seeds, C0, C_neg)
+test <- randomA(20)
+
+glvmodel <- simulateGLV(n_species = 20, 
+                        A = test,
+                        t_start = 0, 
+                        t_store = 10, 
+                        t_end=10, 
+                        migration_p = 0,
+                        stochastic = FALSE, # Ignorar ruido
+                        norm = TRUE) # FALSE=conteo, TRUE=proporciones
+
+out <- glvmodel@assays@data@listData[["counts"]]
 
 #-----------------------PRACMA------------------------------------------------------------------------------------------
 
@@ -105,6 +127,48 @@ glvmodel <- simulateGLV(n_species = 20,
 out <- glvmodel@assays@data@listData[["counts"]]
 
 miaViz::plotSeries(glvmodel, "time")
+
+
+
+#-------------------------------------------Default parameters generation--------------------------------------------
+
+# El problema radica en la generación de la matriz de interacciones, esta no permite que el solver funcione correctamente
+
+library(miaSim)
+
+glvmodel <- simulateGLV(n_species = 20, 
+                        t_start = 0, 
+                        t_store = 10, 
+                        t_end=10, 
+                        migration_p = 0,
+                        stochastic = FALSE, # Ignorar ruido
+                        norm = TRUE) # FALSE=conteo, TRUE=proporciones
+
+out <- glvmodel@assays@data@listData[["counts"]]
+
+miaViz::plotSeries(glvmodel, "time")
+
+# No logre encontrar donde almacena los parametros
+
+test = randomA(
+  n_species =N,
+  names_species = NULL,
+  diagonal = -0.5,
+  connectance = 0.2,
+  scale_off_diagonal = 0.1,
+  interactions = vec,
+  symmetric = FALSE,
+  list_A = NULL
+)
+
+
+
+
+
+
+
+
+
 
 
 

@@ -4,6 +4,48 @@ rm(list=ls()) # Clear the memory
 
 #-----------------------------------------Definir ecuaciones------------------------------------------------------------
 
+# New function to generate interactions
+Interacs <- function(ns, seeds, C0, C_neg) {
+  
+  # Set seed
+  S_i <- sample(seeds, 1)
+  set.seed(S_i)
+    
+    flag <- FALSE
+    N <- ns
+    vec <- vector("numeric", length = 0)
+    counter <- 0
+    while (flag==FALSE) {
+      
+      P_neg <- rbinom(n=1,size=1,p=1-C_neg) #p=1-C2 SUCCES (1)
+      
+      if (P_neg!=0) { # Not neg
+        tmp <- rbinom(n=1,size=1,p=1-C0)*runif(n=1)
+      } else  { #Is neg
+        tmp <- rbinom(n=1,size=1,p=1-C0)*-runif(n=1)
+      }
+      
+      vec <- c(vec, tmp)
+      counter <- counter + 1 #contador
+      
+      if (counter==N*N){
+        flag=TRUE
+      }
+    }
+    
+    inter <- matrix(vec, nrow = N, ncol = N) # Hacerlo matriz
+    diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
+  
+  # Assign names
+  names_species <- paste0("sp", seq_len(ns))
+  colnames(inter) <- rownames(inter) <- names_species
+  
+  return(inter)
+  
+  
+}
+
+
 GLV = function(t,state,params){
 
   with(as.list(c(state, params)),{ # Access the names of the variables in the function Pobl
