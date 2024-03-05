@@ -5,39 +5,32 @@ rm(list=ls()) # Clear the memory
 #-----------------------------------------Definir ecuaciones------------------------------------------------------------
 
 # New function to generate interactions
-Interacs <- function(ns, seeds, C0, C_neg) {
+Interacs <- function(N, seeds, C0, C_neg) {
   
-  # Set seed
-  S_i <- sample(seeds, 1)
-  set.seed(S_i)
+    # Set seed
+    S_i <- sample(seeds, 1)
+    set.seed(S_i)
     
-    flag <- FALSE
-    N <- ns
-    vec <- vector("numeric", length = 0)
+    vec <- numeric(N * N)
     counter <- 0
-    while (flag==FALSE) {
+    
+    # Vectorized computation
+    while (counter < N * N) {
+      P_neg <- rbinom(n = 1, size = 1, prob = C_neg) 
+      tmp <- rbinom(n = 1, size = 1, prob = 1 - C0) * ifelse(P_neg != 0, runif(1, min=0, max=1), -runif(1, min=0, max=1))
       
-      P_neg <- rbinom(n=1,size=1,p=1-C_neg) #p=1-C2 SUCCES (1)
+      # Store result directly at the appropriate index
+      vec[counter + 1] <- tmp
       
-      if (P_neg!=0) { # Not neg
-        tmp <- rbinom(n=1,size=1,p=1-C0)*runif(n=1)
-      } else  { #Is neg
-        tmp <- rbinom(n=1,size=1,p=1-C0)*-runif(n=1)
-      }
-      
-      vec <- c(vec, tmp)
-      counter <- counter + 1 #contador
-      
-      if (counter==N*N){
-        flag=TRUE
-      }
+      counter <- counter + 1
     }
     
     inter <- matrix(vec, nrow = N, ncol = N) # Hacerlo matriz
-    diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
-  
+    # diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
+    diag(inter) <- -0.5
+    
   # Assign names
-  names_species <- paste0("sp", seq_len(ns))
+  names_species <- paste0("sp", seq_len(N))
   colnames(inter) <- rownames(inter) <- names_species
   
   return(inter)
@@ -45,7 +38,23 @@ Interacs <- function(ns, seeds, C0, C_neg) {
   
 }
 
-
+# New function to simulate extinctions
+extinct <- function(ID, t_ext, S_ext) {
+  
+  # Read parameters
+  R_params <- Read_params(ID)
+  r <- unlist(R_params[2]) # Grows
+  alpha <- as.matrix(R_params[[1]]) # Interactions
+  
+  # Read output
+  file <- paste("./Outputs/O_",ID,".tsv", sep = "")
+  output <- read.csv(file, sep = "\t")
+  
+  # Simulate
+  # This function is based on the syntax of miasim GLV, where columns are times and rows species
+  Pobl <- output[,1]
+}
+  
 GLV = function(t,state,params){
 
   with(as.list(c(state, params)),{ # Access the names of the variables in the function Pobl

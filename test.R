@@ -36,21 +36,45 @@ N <- 20 # Number of species
 C0 <- 0.45 # Prob. interaction =0
 C_neg <- 0.2 # Prob. interaction <0
 
+# Generate data
+res <- generate(N,seeds,C0, C_neg) # Results
+r = unlist(res[2]) # Grow rates
+Pobl <- unlist(res[3]) # Population
+
+params
+# Simulation
 library(miaSim)
 intrf <- Interacs(N, seeds, C0, C_neg)
-test <- randomA(20)
+set.seed(56)
+diagv <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
+
+test <- randomA(n_species = 20,
+                diagonal = -0.5,
+                connectance = 0.45,
+                scale_off_diagonal = 0.1,
+                )
 
 glvmodel <- simulateGLV(n_species = 20, 
-                        A = test,
+                        A = test, # Interactions matrix
+                        x0 = Pobl, # Initial abundances
+                        growth_rates = r, # Growth rates
                         t_start = 0, 
                         t_store = 10, 
                         t_end=10, 
                         migration_p = 0,
-                        stochastic = FALSE, # Ignorar ruido
+                        stochastic = FALSE, # Ignore sound
                         norm = TRUE) # FALSE=conteo, TRUE=proporciones
 
 out <- glvmodel@assays@data@listData[["counts"]]
 
+# Guardar resultados ANTES QUE SCAN
+save(out, params, Pobl, Semilla)
+
+################33
+# Compare
+negative_count <- sum(test == 0)
+count_intrf = sum(intrf < 0)
+count_test = sum(test < 0)
 #-----------------------PRACMA------------------------------------------------------------------------------------------
 
 # y <- Poblaciones iniciales
@@ -110,11 +134,10 @@ r <- unlist(R_params[2]) # Grows
 alpha <- as.matrix(R_params[[1]]) # Interactions
 Pobl <- unlist(R_params[3]) # Poblation
 
-#---------------------
 library(miaSim)
 library(miaViz)
 glvmodel <- simulateGLV(n_species = 20, 
-                        A = alpha, # interaction matrix
+                        # A = alpha, # interaction matrix
                         x0 = Pobl, # Initial abundances
                         growth_rates = r, # Growth rates
                         t_start = 0, 
@@ -127,48 +150,5 @@ glvmodel <- simulateGLV(n_species = 20,
 out <- glvmodel@assays@data@listData[["counts"]]
 
 miaViz::plotSeries(glvmodel, "time")
-
-
-
-#-------------------------------------------Default parameters generation--------------------------------------------
-
-# El problema radica en la generación de la matriz de interacciones, esta no permite que el solver funcione correctamente
-
-library(miaSim)
-
-glvmodel <- simulateGLV(n_species = 20, 
-                        t_start = 0, 
-                        t_store = 10, 
-                        t_end=10, 
-                        migration_p = 0,
-                        stochastic = FALSE, # Ignorar ruido
-                        norm = TRUE) # FALSE=conteo, TRUE=proporciones
-
-out <- glvmodel@assays@data@listData[["counts"]]
-
-miaViz::plotSeries(glvmodel, "time")
-
-# No logre encontrar donde almacena los parametros
-
-test = randomA(
-  n_species =N,
-  names_species = NULL,
-  diagonal = -0.5,
-  connectance = 0.2,
-  scale_off_diagonal = 0.1,
-  interactions = vec,
-  symmetric = FALSE,
-  list_A = NULL
-)
-
-
-
-
-
-
-
-
-
-
 
 
