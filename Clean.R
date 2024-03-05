@@ -276,7 +276,7 @@ miaViz::plotSeries(glvmodel, "time")
 ID <- save(out,params,Pobl,Semilla)
 
 #######################################
-t_ext=1
+t_ext=3
 S_ext=5
 t_gens=25
 extinct(ID, t_ext, S_ext, t_gens)
