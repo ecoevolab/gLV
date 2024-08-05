@@ -257,6 +257,7 @@ Semilla <- unlist(res[4])
 #----------------------------------------Simulate------------------------------------------------------------#
 library(miaSim)
 library(miaViz)
+interacs <- params$alpha
 glvmodel <- simulateGLV(n_species = N, 
                         A = params$alpha, # interaction matrix
                         x0 = Pobl, # Initial abundances
@@ -270,6 +271,12 @@ glvmodel <- simulateGLV(n_species = N,
 
 out <- glvmodel@assays@data@listData[["counts"]]
 miaViz::plotSeries(glvmodel, "time")
+
+####
+# Compare
+negative_count <- sum(interacs == 0)
+count_intrf = sum(interacs > 0)
+count_test = sum(interacs < 0)
 
 
 #----------------------------------------Save---------------------------------------------------------------#
