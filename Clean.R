@@ -160,6 +160,9 @@ Read_params <- function(ID){
   
 }
 
+# New function to find steady state
+
+
 # New function to simulate extinctions
 extinct <- function(ID, t_ext, S_ext, t_gens) {
   
@@ -241,7 +244,7 @@ seeds <- randomNumbers(n=300, min=1, max=100)
 N <- 20 # Number of species
 C0 <- 0.45 # Prob. interaction =0
 CN <- 0.2 # Prob. interaction <0
-times <- 30 # Generations
+times <- 3000 # Generations
 
 # Generar datos y extraerlos
 res <- generate(N,seeds,C0, CN) # Results
@@ -254,7 +257,7 @@ params <- list(
 Pobl <- unlist(res[3])
 Semilla <- unlist(res[4])
 
-#----------------------------------------Simulate------------------------------------------------------------#
+                #----------------------------------------Simulate----------------------------#
 library(miaSim)
 library(miaViz)
 interacs <- params$alpha
@@ -279,10 +282,10 @@ count_intrf = sum(interacs > 0)
 count_test = sum(interacs < 0)
 
 
-#----------------------------------------Save---------------------------------------------------------------#
+              #----------------------------------------Save-----------------------------------#
 ID <- save(out,params,Pobl,Semilla)
-
-#----------------------------------------Extinction---------------------------------------------------------#
+  
+              #----------------------------------------Extinction-----------------------------#
 t_ext=3
 S_ext=5
 t_gens=25

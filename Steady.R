@@ -2,7 +2,7 @@
 setwd("~/Documents/LAB_ECO") # Set Working Directory
 
 # Carpeta que contiene los Outputs
-ID <- "2c9a4c"
+#ID <- "2c9a4c"
 out <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
 
 
@@ -26,6 +26,7 @@ for (s in 1:specs) {
 
 # Elevar al cuadrado la matriz
 Stb_mat <- Stb_mat^2
+negative_values <- Stb_mat[Stb_mat < 0]
 
 # Dar formato
 labels_r <- paste("specie", 1:specs, sep = "")
@@ -67,6 +68,8 @@ ggplot(melted_df, aes(x = Comparison, y = Value, color = Species, group = Specie
 
 # Sumar valores de todas las columnas
 ln_mat <- log(Stb_mat)
+# negative_values <- Stb_mat[Stb_mat < 0]
+
 Stb_sum <- colSums(ln_mat)
 df <- data.frame(
   Comparison = names(Stb_sum),  # Column names are used as x-axis labels
@@ -79,6 +82,9 @@ ggplot(df, aes(x = Comparison, y = Value)) +
   geom_point() +  # Add points to the plot
   theme_minimal() +
   labs(title = "Sum of Values by Comparison", x = "Comparison", y = "Sum of Values") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  xlim(2500,3000)
 
+
+#----------------------------------------------Search for steady state--------------------------------------------------
 
