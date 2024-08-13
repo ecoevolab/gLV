@@ -238,39 +238,64 @@ extinct <- function(ID, t_ext, S_ext, t_gens) {
 
 # Generar las semillas posibles
 setwd("~/Documents/LAB_ECO") # Set Working Directory
-library (random)
-seeds <- randomNumbers(n=300, min=1, max=100)
 
-N <- 20 # Number of species
-C0 <- 0.45 # Prob. interaction =0
-CN <- 0.2 # Prob. interaction <0
-times <- 3000 # Generations
+for (simulations in 1:15) {
+  
+  library (random)
+  seeds <- randomNumbers(n=300, min=1, max=100)
+  
+  N <- 20 # Number of species
+  C0 <- 0.45 # Prob. interaction =0
+  CN <- 0.2 # Prob. interaction <0
+  times <- 3000 # Generations
+  
+  # Generar datos y extraerlos
+  res <- generate(N,seeds,C0, CN) # Results
+  
+  # V_inter <- unlist(res[[1]]) 
+  params <- list(
+    r = unlist(res[2]), # Grow rates
+    alpha = matrix(unlist(res[[1]]) , nrow = N, ncol = N) # Interaction
+  )
+  Pobl <- unlist(res[3])
+  Semilla <- unlist(res[4])
+  
+  #----------------------------------------Simulate----------------------------#
+  library(miaSim)
+  #library(miaViz)
+  interacs <- params$alpha
+  glvmodel <- simulateGLV(n_species = N, 
+                          A = params$alpha, # interaction matrix
+                          x0 = Pobl, # Initial abundances
+                          growth_rates = params$r, # Growth rates
+                          t_start = 0, 
+                          t_store = times, 
+                          t_end=times, 
+                          migration_p = 0,
+                          stochastic = FALSE, # Ignorar ruido
+                          norm = TRUE) # FALSE=conteo, TRUE=proporciones
+  
+  out <- glvmodel@assays@data@listData[["counts"]]
+  #------------------Save Simulation results-----------------------------------#
+  ID <- save(out,params,Pobl,Semilla)
+  
+  #------------------Search for ALL steady state--------------------------------#
+  individual  <- FALSE
+  tol <- 5
+  
+  result <- st_search(ID,out_path,tol,individual) # Search for steady state
+  Stb_mean <- data.frame(result$Stb_mean) # Mean of deltas 
+  st_all_save(ID, tol, Stb_mean)
+  St_time <- result$Fc # Generation where Mean_Delta < log(tolerance)
+  
+  if (simulations==1) {
+    St_time_vec <- c()
+  } else {
+    St_time_vec <- c(St_time_vec,St_time)
+  }
+ 
+}
 
-# Generar datos y extraerlos
-res <- generate(N,seeds,C0, CN) # Results
-
-# V_inter <- unlist(res[[1]]) 
-params <- list(
-  r = unlist(res[2]), # Grow rates
-  alpha = matrix(unlist(res[[1]]) , nrow = N, ncol = N) # Interaction
-)
-Pobl <- unlist(res[3])
-Semilla <- unlist(res[4])
-
-                #----------------------------------------Simulate----------------------------#
-library(miaSim)
-library(miaViz)
-interacs <- params$alpha
-glvmodel <- simulateGLV(n_species = N, 
-                        A = params$alpha, # interaction matrix
-                        x0 = Pobl, # Initial abundances
-                        growth_rates = params$r, # Growth rates
-                        t_start = 0, 
-                        t_store = times, 
-                        t_end=times, 
-                        migration_p = 0,
-                        stochastic = FALSE, # Ignorar ruido
-                        norm = TRUE) # FALSE=conteo, TRUE=proporciones
 
 out <- glvmodel@assays@data@listData[["counts"]]
 miaViz::plotSeries(glvmodel, "time")
@@ -282,8 +307,7 @@ count_intrf = sum(interacs > 0)
 count_test = sum(interacs < 0)
 
 
-              #----------------------------------------Save-----------------------------------#
-ID <- save(out,params,Pobl,Semilla)
+
   
               #----------------------------------------Extinction-----------------------------#
 t_ext=3

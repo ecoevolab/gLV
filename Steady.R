@@ -61,33 +61,6 @@ st_search = function(ID, out, tol, individual) {
         Stb_mean <- colMeans(ln_mat) # Obtener promedios 
         condition <- Stb_mean < log(tol)    # Define the condition 
         first_col <- which(condition)[1] # Find the first column where the condition is met
-        
-    #--------------------- Save Deltas-----------------------------#
-        library(readr)
-        stb_path <- paste("./Scan/Stb_ALL", ".tsv", sep = "") # output
-        exist <- file.exists(stb_path) # Bandera
-        
-        if (!exist) { # File doesnt exist
-          
-          system(paste("touch", stb_path)) # Make file
-          
-          tmp <- data.frame(id = ID, tolerance = tol) 
-          tmp_df <- cbind(tmp, time = t(Stb_mean)) # Add mean info
-          
-          write.table(tmp_df, file = stb_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
-          
-        } else {
-          
-          Rd_table <- read.delim(stb_path, sep = "\t", header = TRUE) # Read table
-          
-          tmp <- data.frame(id = ID, tolerance = tol)
-          tmp_df <- cbind(tmp, time = t(Stb_mean)) # Add mean info
-          rownames(tmp_df) <- NULL # Eliminate row names
-          
-          Join_tmp <- rbind(Rd_table, tmp_df) # Join tables
-          write.table(Join_tmp, file = stb_path, sep = "\t", row.names = TRUE, col.names = TRUE) # Save
-        }
-        
         return(list(Stb_mat = Stb_mat, Stb_mean = Stb_mean, Fc = first_col ))
     }
 }
@@ -102,7 +75,7 @@ library(ggplot2)
 setwd("~/Documents/LAB_ECO") # Set Working Directory
 #ID <- "2c9a4c"
 ID <- "e03e07" #ID output
-out <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
+out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
 
 
 individual  <- TRUE
@@ -127,7 +100,7 @@ sss_vector <- result$sss_vector
 
 individual  <- FALSE
 tol <- 5
-result <- st_search(ID,out,tol,individual)
+result <- st_search(ID,out_path,tol,individual)
   
 Stb_mat <- result$Stb_mat
 Stb_mean <- data.frame(result$Stb_mean)
@@ -162,7 +135,7 @@ St_time <- result$Fc
         rownames(tmp_df) <- NULL # Eliminate row names
         Join_tmp <- rbind(Rd_table, tmp_df) # Join tables
         
-        write.table(Join_tmp, file = stb_path, sep = "\t", row.names = TRUE, col.names = TRUE) # Save
+        write.table(Join_tmp, file = stb_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
       }
   }
 
@@ -188,3 +161,39 @@ St_time <- result$Fc
     # Revisar si el df contiene valores menores a 0
     any_non_positive <- any(Stb_mat < 0) 
     print(any_non_positive)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    #--------------------- Save Deltas-----------------------------#
+    library(readr)
+    stb_path <- paste("./Scan/Stb_ALL", ".tsv", sep = "") # output
+    exist <- file.exists(stb_path) # Bandera
+    
+    if (!exist) { # File doesnt exist
+      
+      system(paste("touch", stb_path)) # Make file
+      
+      tmp <- data.frame(id = ID, tolerance = tol) 
+      tmp_df <- cbind(tmp, time = t(Stb_mean)) # Add mean info
+      
+      write.table(tmp_df, file = stb_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
+      
+    } else {
+      
+      Rd_table <- read.delim(stb_path, sep = "\t", header = TRUE) # Read table
+      
+      tmp <- data.frame(id = ID, tolerance = tol)
+      tmp_df <- cbind(tmp, time = t(Stb_mean)) # Add mean info
+      rownames(tmp_df) <- NULL # Eliminate row names
+      
+      Join_tmp <- rbind(Rd_table, tmp_df) # Join tables
+      write.table(Join_tmp, file = stb_path, sep = "\t", row.names = TRUE, col.names = TRUE) # Save
+    }
