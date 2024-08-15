@@ -80,7 +80,7 @@ out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
 
 individual  <- TRUE
 tol <- 5
-result <- st_search(ID,out,tol,individual)
+result <- st_search(ID,out_path,tol,individual)
   
 Stb_mat <- result$Stb_mat
 sss_vector <- result$sss_vector

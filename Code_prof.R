@@ -1,11 +1,9 @@
 
-# Generar las semillas posibles
-setwd("~/Documents/LAB_ECO") # Set Working Directory
+# ----------------------------------------Function----------------------------------
 
-CPr_sim <- function(N, C0, CN, times) { 
+CPr_sim <- function(N, C0, CN, times,seeds_n, tol, individual) { 
     
   CPr_time1 <- system.time({
-    seeds_n <- 300
     seeds <- random::randomNumbers(n=seeds_n, min=1, max=100)
   })
     
@@ -37,12 +35,18 @@ CPr_sim <- function(N, C0, CN, times) {
                             stochastic = FALSE, # Ignorar ruido
                             norm = TRUE) # FALSE=conteo, TRUE=proporciones
     
-    out <- glvmodel@assays@data@listData[["counts"]]
+    output <- glvmodel@assays@data@listData[["counts"]]
   })
     
     #------------------Save Simulation results-----------------------------------#
   CPr_time4 <- system.time({
-    ID <- save(out,params,Pobl,Semilla)
+    ID <- save(output,params,Pobl,Semilla)
+  })
+  
+  #---------------------Search for steady state-----------------------------------#
+  CPr_time5 <- system.time({
+    out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
+    result <- st_search(ID,out_path,tol,individual)
   })
   
   #-----------------------------------Save Code profiling times------------------#
@@ -54,7 +58,9 @@ CPr_sim <- function(N, C0, CN, times) {
     'Seeds_time-s' = round(CPr_time1[3], 6) , 
     'GenDat_time-s' = round(CPr_time2[3], 6) ,
     'Simulation_time-s' = round(CPr_time3[3], 6) ,
-    'Save_time-s' = round(CPr_time4[3], 6)
+    'Save_time-s' = round(CPr_time4[3], 6),
+    'SSS_time-s' = round(CPr_time5[3], 6),
+    Individual = individual
   )
   
   library(readr)
@@ -71,6 +77,8 @@ CPr_sim <- function(N, C0, CN, times) {
     Join_CPr <- rbind(CPr_table, CPr_df) # Join tables
     write.table(Join_CPr, file = CPr_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
   }
+  
+  
 
 }
 
@@ -105,9 +113,17 @@ while (!STOP) {
 }
  
   
-  
-  
-  
+#------------------------------------------------------Testing----------------------------------------------------------
+N <- 50 # Number of species
+C0 <- 0.45 # Prob. interaction =0
+CN <- 0.2 # Prob. interaction <0
+times <- 3000 # Generations
+seeds_n <- 300
+tol <- 5
+individual  <- TRUE
+setwd("~/Documents/LAB_ECO") # Set Working Directory
+
+CPr_sim(N,C0,CN,times,seeds_n,tol,individual)
   
 
 
@@ -120,54 +136,55 @@ unlink("~/Documents/LAB_ECO/Scan/CPr_time.tsv", recursive = TRUE, force = TRUE) 
 
 
 
+########################################################################################################################
 
-#-----------------------------Code profiling--------------------------------------------------
-Rprof("./Scan/Cpr_code.out")
+    #----------------------------------------------Code profiling "Rprof"---------------------#
+    Rprof("./Scan/Cpr_code.out")
+    
+    testing(N, C0, CN, times)
+    
+    Rprof(NULL)
+    
+    summary <- summaryRprof("./Scan/Cpr_code.out")
+    print(summary)
 
-testing(N, C0, CN, times)
-
-Rprof(NULL)
-
-summary <- summaryRprof("./Scan/Cpr_code.out")
-print(summary)
-
-#----------------------------Code profiling--------------------------------------------------
-library(profvis)
-
-prof_data <- profvis({
-  seeds <- random::randomNumbers(n=300, min=1, max=100)
-  
-  #-----------------------------Generate data----------------------------------#
-  res <- generate(N,seeds,C0, CN) # Results
-  
-  # V_inter <- unlist(res[[1]]) 
-  params <- list(
-    r = unlist(res[2]), # Grow rates
-    alpha = matrix(unlist(res[[1]]) , nrow = N, ncol = N) # Interaction
-  )
-  Pobl <- unlist(res[3])
-  Semilla <- unlist(res[4])
-  
-  #----------------------------------------Simulate----------------------------#
-  #library(miaViz)
-  interacs <- params$alpha
-  glvmodel <- miaSim::simulateGLV(n_species = N, 
-                                  A = params$alpha, # interaction matrix
-                                  x0 = Pobl, # Initial abundances
-                                  growth_rates = params$r, # Growth rates
-                                  t_start = 0, 
-                                  t_store = times, 
-                                  t_end=times, 
-                                  migration_p = 0,
-                                  stochastic = FALSE, # Ignorar ruido
-                                  norm = TRUE) # FALSE=conteo, TRUE=proporciones
-  
-  out <- glvmodel@assays@data@listData[["counts"]]
-  
-  #------------------Save Simulation results-----------------------------------#
-  ID <- save(out,params,Pobl,Semilla)
-  
-})
-
-prof_info <- prof_data$data
-head(prof_info)
+    #-----------------------------------------Code profiling "profvis"------------------------#
+    library(profvis)
+    
+    prof_data <- profvis({
+      seeds <- random::randomNumbers(n=300, min=1, max=100)
+      
+      #-----------------------------Generate data----------------------------------#
+      res <- generate(N,seeds,C0, CN) # Results
+      
+      # V_inter <- unlist(res[[1]]) 
+      params <- list(
+        r = unlist(res[2]), # Grow rates
+        alpha = matrix(unlist(res[[1]]) , nrow = N, ncol = N) # Interaction
+      )
+      Pobl <- unlist(res[3])
+      Semilla <- unlist(res[4])
+      
+      #----------------------------------------Simulate----------------------------#
+      #library(miaViz)
+      interacs <- params$alpha
+      glvmodel <- miaSim::simulateGLV(n_species = N, 
+                                      A = params$alpha, # interaction matrix
+                                      x0 = Pobl, # Initial abundances
+                                      growth_rates = params$r, # Growth rates
+                                      t_start = 0, 
+                                      t_store = times, 
+                                      t_end=times, 
+                                      migration_p = 0,
+                                      stochastic = FALSE, # Ignorar ruido
+                                      norm = TRUE) # FALSE=conteo, TRUE=proporciones
+      
+      out <- glvmodel@assays@data@listData[["counts"]]
+      
+      #------------------Save Simulation results-----------------------------------#
+      ID <- save(out,params,Pobl,Semilla)
+      
+    })
+    
+    prof_info <- prof_data$data
+    head(prof_info)
