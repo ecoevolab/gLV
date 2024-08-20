@@ -331,6 +331,17 @@ CPr_sim(N,C0,CN,times,seeds_n,tol,individual)
 
 
 
+#------------------------------Limpiar carpetas---------------------------------
+
+# Outputs
+unlink("~/Documents/LAB_ECO/Outputs/*", recursive = TRUE, force = TRUE)
+
+# Parameters
+unlink("~/Documents/LAB_ECO/Parameters/*", recursive = TRUE, force = TRUE)
+
+# Scan
+unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE)
+
 unlink("~/Documents/LAB_ECO/Scan/CPr_time.tsv", recursive = TRUE, force = TRUE) # Remove all data from Scan 
 
 
