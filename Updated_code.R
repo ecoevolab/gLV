@@ -200,7 +200,7 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, indivdual) {
     Semilla <- unlist(res[4])
   })
   cat("Datos generados...", "\n")
-  cat("El numero de semillas es de:", Semilla, "\n")
+  cat("El numero de semillas utilizadas son:", Semilla, "\n")
   
   #----------------------------------------Simulate----------------------------#
   CPr_time3 <- system.time({
