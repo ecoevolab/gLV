@@ -123,72 +123,8 @@ generate <- function(N,seeds,C0,CN){
 
 #------------------------------------- New function to find steady state---------------------------------------------#
 
-# st_search = function(ID, out, tol, individual) {
-#   
-#   # Leer tabla
-#   library(readr)
-#   test <- read.csv(out, sep = "\t")
-#   
-#   # Buscar estabilidad
-#   gens <- ncol(test) # Times
-#   specs <- nrow(test) # Species number
-#   Stb_vec <- numeric() # Empty numerical vector
-#   Stb_mat <- rbind() # Empty matrix
-#   
-#   for (s in 1:specs) {
-# #     for (g in 1:(gens-1)) {
-# #       x <- test[s,g+1] - test[s,g] # Difference t+1-t
-# #       Stb_vec <- c(Stb_vec, x) # Save difference
-# #     }
-# #     Stb_mat <- rbind(Stb_mat, Stb_vec) # Create steady state matrix
-# #   }
-# #   
-# #   Stb_mat <- Stb_mat^2 # Square matrix
-# #   ln_mat <- ifelse(Stb_mat == 0, NA, log(Stb_mat)) # Remove 0's from df
-# #   
-# #   # Dar formato
-# #   rownames(Stb_mat) <- paste("specie", 1:specs, sep = "") # Assign rownames
-# #   #Com_lab <- paste("Cr_", 2:(gens), "-", 1:(gens-1), sep = "")
-# #   colnames(Stb_mat) <- seq(1, gens-1) # Assign colnames
-# #   
-# #   if (individual) {
-# #     
-#     steady  <- FALSE # Flag
-#     row_index <- 1 # Row to start
-#     sss_vector <- c() # Empty vector
-# 
-#     while (!steady) {
-# 
-#       # Define the condition
-#       condition <- ln_mat[row_index, ] < log(tol)
-# 
-#       # Find the first column where the condition is met
-#       first_col <- which(condition)[1]
-# 
-#       # Add first column to a vector
-#       sss_vector <- c(sss_vector, first_col)
-# 
-#       # Next row
-#       row_index <- row_index + 1
-# 
-#       # Exit condition
-#       if (row_index > nrow(ln_mat)) {
-#         steady <- TRUE
-#       }
-#     }
-# #     
-# #     return(list(Stb_mat = Stb_mat, sss_vector = sss_vector))
-# #     
-# #   } else {
-# #     
-# #     Stb_mean <- colMeans(ln_mat) # Obtener promedios 
-# #     condition <- Stb_mean < log(tol)    # Define the condition 
-# #     first_col <- which(condition)[1] # Find the first column where the condition is met
-# #     return(list(Stb_mat = Stb_mat, Stb_mean = Stb_mean, Fc = first_col ))
-# #   }
-# # }
 
-st_search <- function(ID, out_path, tol, individual) {
+SS_all <- function(ID, out_path, tol) {
   
   # Load required package
   library(data.table)
@@ -196,9 +132,7 @@ st_search <- function(ID, out_path, tol, individual) {
   # Read table
   test <- as.matrix( fread(out_path, sep = "\t") )
   
-  #------------------- Linea de prueba--------------------------#
-  #test = output
-  #-------------------------------------------------------------#
+  #------------------------Get differences------------------------#
   # Extract the number of columns and rows
   gens <- ncol(test) # Times
   specs <- nrow(test) # Species number
@@ -217,24 +151,37 @@ st_search <- function(ID, out_path, tol, individual) {
   rownames(ln_mat) <- paste("specie", 1:specs, sep = "")
   colnames(ln_mat) <- seq(1, gens-1)
   
-  if (individual) {
-    # Find the first column with values less than log(tol) for each row
-    sss_vector <- apply(ln_mat, 1, function(row) { which(row < log(tol))[1] })
+  #---------------------------Create data frame------------------------#
+  
+  Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
+  first_col <- which(Stb_mat < log(tol), arr.ind = TRUE)[1] # Generation where the mean<tolerance
+  
+  tmp_df <- data.frame(
+    ID = ID,
+    Steady_generation = first_col
+  )
+  
+  #---------------------------Save generation-------------------------#
+  SS_path <- paste("./Scan/SS_all", ".tsv", sep = "") #Parameters
+  exist <- file.exists(SS_path) # Bandera
+  
+  if (!exist) { # File doesnt exist
     
-    return(list(ln_mat = ln_mat, sss_vector = sss_vector))
-    
+    file.create(SS_path) # Make file
+    write.table(tmp_df, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
   } else {
-    # Calculate column means and find the first column with values less than log(tol)
-    Stb_mean <- colMeans(Stb_mat, na.rm = TRUE)
-    first_col <- which(Stb_mat < log(tol))[1]
     
-    return(list(Stb_mat = Stb_mat, Stb_mean = Stb_mean, Fc = first_col))
+    SS_table <- read.delim(SS_path, sep = "\t", header = TRUE) # Read table
+    Join_ss <- rbind(SS_table, tmp_df) # Join tables
+    write.table(Join_ss, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
   }
+  
+  return(list(Stb_mat = Stb_mat, Stb_mean = Stb_mean, Fc = first_col))
 }
 
 
 #------------------------------------- New function for code profiling---------------------------------------------#
-CPr_sim <- function(N, C0, CN, times,seeds_n, tol, individual) { 
+CPr_sim <- function(N, C0, CN, times,seeds_n, tol, indivdual) { 
   
   CPr_time1 <- system.time({
     seeds <- random::randomNumbers(n=seeds_n, min=1, max=100)
@@ -252,6 +199,7 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, individual) {
     Pobl <- unlist(res[3])
     Semilla <- unlist(res[4])
   })
+  cat("Datos generados...", "\n")
   cat("El numero de semillas es de:", Semilla, "\n")
   
   #----------------------------------------Simulate----------------------------#
@@ -271,7 +219,7 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, individual) {
     
     output <- glvmodel@assays@data@listData[["counts"]]
   })
-  cat("Primer renglon colmnas 1:5:", output[1,1:5], "\n")
+  cat("Primer renglon colmnas 1:4:", output[1,1:4], "\n")
   
   #------------------Save Simulation results-----------------------------------#
   CPr_time4 <- system.time({
@@ -282,7 +230,7 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, individual) {
   #---------------------Search for steady state-----------------------------------#
   CPr_time5 <- system.time({
     out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
-    result <- st_search(ID,out_path,tol,individual)
+    result <- SS_all(ID,out_path,tol)
   })
   cat("Steady state search DONE",  "\n")
   
@@ -305,6 +253,8 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, individual) {
   CPr_path <- paste("./Scan/CPr_time", ".tsv", sep = "") # output
   exist <- file.exists(CPr_path) # Flag
   
+  
+  cat("Saving code profiling times...",  "\n") 
   if (!exist) { # File doesnt exist
     
     file.create(CPr_path) # Make file
@@ -324,7 +274,7 @@ CN <- 0.2 # Prob. interaction <0
 times <- 3000 # Generations
 seeds_n <- 300 # Number of possible seeds
 tol <- 0.05 # Tolerance
-individual  <- FALSE # Steady state search is INDIVIDUAL
+individual <- FALSE
 
 counter <- 1 
 STOP <- FALSE # Flag
@@ -340,7 +290,8 @@ while (!STOP) {
   
   
   # Run the simulation function
-  CPr_sim(N,C0,CN,times,seeds_n,tol,individual)
+  suppressWarnings(CPr_sim(N, C0, CN, times, seeds_n, tol, individual))
+  
   cat("Simulation number", ct ,"DONE", "\n")
   cat("-----------------------------------------", "\n")
   

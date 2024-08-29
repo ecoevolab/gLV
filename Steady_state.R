@@ -1,6 +1,7 @@
 
+#----------------------------------------------Search for individual steady state--------------------------------------------------
 
-st_search = function(ID, out, tol, individual) {
+SS_individual = function(ID, out, tol, individual) {
   
   # Leer tabla
   library(readr)
@@ -11,11 +12,11 @@ st_search = function(ID, out, tol, individual) {
   specs <- nrow(test) # Species number
   Stb_vec <- numeric() # Empty numerical vector
   Stb_mat <- rbind() # Empty matrix
-    
+  
   for (s in 1:specs) {
     for (g in 1:(gens-1)) {
-        x <- test[s,g+1] - test[s,g] # Difference t+1-t
-        Stb_vec <- c(Stb_vec, x) # Save difference
+      x <- test[s,g+1] - test[s,g] # Difference t+1-t
+      Stb_vec <- c(Stb_vec, x) # Save difference
     }
     Stb_mat <- rbind(Stb_mat, Stb_vec) # Create steady state matrix
   }
@@ -28,44 +29,34 @@ st_search = function(ID, out, tol, individual) {
   #Com_lab <- paste("Cr_", 2:(gens), "-", 1:(gens-1), sep = "")
   colnames(Stb_mat) <- seq(1, gens-1) # Assign colnames
   
-    if (individual) {
-      
-      steady  <- FALSE # Flag
-      row_index <- 1 # Row to start
-      sss_vector <- c() # Empty vector
-      
-      while (!steady) {
-        
-        # Define the condition 
-        condition <- ln_mat[row_index, ] < log(tol)
-        
-        # Find the first column where the condition is met
-        first_col <- which(condition)[1]
-        
-        # Add first column to a vector
-        sss_vector <- c(sss_vector, first_col)
-        
-        # Next row
-        row_index <- row_index + 1
-        
-        # Exit condition
-        if (row_index > nrow(ln_mat)) {
-          steady <- TRUE
-        }
-      }
-      
-      return(list(Stb_mat = Stb_mat, sss_vector = sss_vector))
-      
-    } else {
-      
-        Stb_mean <- colMeans(ln_mat) # Obtener promedios 
-        condition <- Stb_mean < log(tol)    # Define the condition 
-        first_col <- which(condition)[1] # Find the first column where the condition is met
-        return(list(Stb_mat = Stb_mat, Stb_mean = Stb_mean, Fc = first_col ))
+  steady  <- FALSE # Flag
+  row_index <- 1 # Row to start
+  sss_vector <- c() # Empty vector
+  
+  while (!steady) {
+    
+    # Define the condition 
+    condition <- ln_mat[row_index, ] < log(tol)
+    
+    # Find the first column where the condition is met
+    first_col <- which(condition)[1]
+    
+    # Add first column to a vector
+    sss_vector <- c(sss_vector, first_col)
+    
+    # Next row
+    row_index <- row_index + 1
+    
+    # Exit condition
+    if (row_index > nrow(ln_mat)) {
+      steady <- TRUE
     }
+  }
+  
+  return(list(Stb_mat = Stb_mat, sss_vector = sss_vector))
+  
 }
 
-#----------------------------------------------Search for individual steady state--------------------------------------------------
 library(dplyr)
 library(purrr)
 library(plotly)
@@ -95,17 +86,76 @@ sss_vector <- result$sss_vector
     theme_minimal() +
     labs(title = "Line Plot of Comparisons vs. Values by Species", x = "Comparisons", y = "Values") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
+
+    
 #----------------------------------------------Search for ALL steady state--------------------------------------------------
 
-individual  <- FALSE
-tol <- 5
-result <- st_search(ID,out_path,tol,individual)
   
+SS_all <- function(ID, out_path, tol) {
+    
+    # Load required package
+    library(data.table)
+    
+    # Read table
+    test <- as.matrix( fread(out_path, sep = "\t") )
+    
+    #------------------------Get differences------------------------#
+    # Extract the number of columns and rows
+    gens <- ncol(test) # Times
+    specs <- nrow(test) # Species number
+    
+    # Compute differences and square them
+    Stb_mat <- rbind() # Empty matrix
+    for (r in 1:specs) {
+      v <- as.vector(test[r,])
+      Stb_mat <- rbind(Stb_mat, diff(v)^2) 
+    }
+    
+    # Apply log transformation, replace 0 with NA
+    ln_mat <- log(ifelse(Stb_mat == 0, NA, Stb_mat))
+    
+    # Assign row and column names
+    rownames(ln_mat) <- paste("specie", 1:specs, sep = "")
+    colnames(ln_mat) <- seq(1, gens-1)
+    
+    #---------------------------Create data frame------------------------#
+    
+    Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
+    first_col <- which(Stb_mat < log(tol), arr.ind = TRUE)[1, 2] # Generation where the mean<tolerance
+    
+    tmp_df <- data.frame(
+      ID = ID,
+      Steady_generation = first_col,
+    )
+    
+    #---------------------------Save generation-------------------------#
+    SS_path <- paste("./Scan/SSS_all", ".tsv", sep = "") #Parameters
+    exist <- file.exists(SS_path) # Bandera
+    
+    if (!exist) { # File doesnt exist
+      
+      file.create(SS_path) # Make file
+      write.table(tmp_df, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
+    } else {
+      
+      SS_table <- read.delim(SS_path, sep = "\t", header = TRUE) # Read table
+      Join_CPr <- rbind(SS_table, tmp_df) # Join tables
+      write.table(Join_CPr, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
+    }
+      
+    return(list(Stb_mat = Stb_mat, Stb_mean = Stb_mean, Fc = first_col))
+}
+  
+tol <- 0.5
+out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
+result <- SS_all(ID,out_path,tol)
+  
+#--------------------Results------------------------------#
 Stb_mat <- result$Stb_mat
 Stb_mean <- data.frame(result$Stb_mean)
 St_time <- result$Fc  
 
+###########################################################################################################
   #--------------Save Deltas----------------#
   unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE) # Remove all data from Scan 
     
@@ -141,7 +191,7 @@ St_time <- result$Fc
 
   st_all_save(ID, tol, Stb_mean)
 
-   #-------------------- Graficar-------------#
+#-------------------- Graficar--------------------------------------------------------------
     # Create a data frame from the vector
     df <- data.frame(Comparison = 1:length(Stb_mean), Value = Stb_mean)
   
