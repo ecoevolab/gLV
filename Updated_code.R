@@ -1,7 +1,6 @@
 #----------------------------------------------------Functions----------------------------------------------------------
 
-# New function to save results
-save = function(output,params, Pobl, Semilla){
+Ms_save = function(N_specs, C0, CN, V_diag, output,params){
   
   library(ids)
   
@@ -10,69 +9,60 @@ save = function(output,params, Pobl, Semilla){
   
   # Especificar el path del output
   out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
-  pms_path <- paste("./Parameters/P_", ID , ".tsv", sep = "") #Parameters
+  
+  # --------------------------------------------Save OUTPUT---------------------------------------------------------#
   
   # Revisar si un archivo con ese ID existe
-  exist <- file.exists(out_path) # Bandera
-  while (exist) { # TRUE-> EXISTE
+  exist <- file.exists(out_path) # flag
+  
+  while (exist) { # TRUE-> file exist, change ID...
     
     # Generar el ID nuevo
     ID <- ids::random_id(1, 3)
-    pms_path <- paste("./Parameters/P_", ID , ".tsv", sep = "") #Parameters
-    exist <- file.exists(pms_path) # Revise si existe el archivo
-    
+    out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
+    exist <- file.exists(out_path) # No existe = FALSE
   }
   
-  # Create files
-  file.create(out_path)
-  file.create(pms_path)
-  
-  # Guardar la tabla OUTPUT
+  file.create(out_path) # Create files
   write.table(output, file = out_path, sep = "\t", row.names = FALSE, col.names = TRUE)
   
-  # Separate parameters
-  alp <- params$alpha
-  gr <- params$r
+  # --------------------------------------------Save Seeds---------------------------------------------------------#
+  # Primera semilla = Poblaciones
+  # Segunda semilla = Interactions
+  # Tercera semilla = Growth rates
   
-  # Assign names
-  name <- paste("S_", 1:nrow(alp))
-  rownames(alp) <- name
-  colnames(alp) <- name
-  names(gr) <- name
-  names(Pobl) <- name
-  names(Semilla) <- c("Seed_pop", "Seed_inter", "Seed_grow")
+  seeds_df <- data.frame(
+    ID_simulation = ID,
+    N_specs = N_specs,
+    Prob_0 = C0,
+    Prob_neg = CN,
+    Diagonal = V_diag,
+    Population_seed = params$Semilla[1],
+    Interacs_seed = params$Semilla[2],
+    Growth_seed = params$Semilla[3]
+  )
   
-  #--------------------------------------Save interactions--------------------------#
-  cat("Interactions", file = pms_path)
-  cat("\n", file = pms_path, append = TRUE)
-  write.table(alp, file = pms_path, sep = "\t", col.names = NA, append = TRUE)
-  cat("\n", file = pms_path, append = TRUE)
+  # Revisar si un archivo con ese ID existe
+  S_path <- paste("./Parameters/Seeds_save", ".tsv", sep = "") #Parameters
+  exist <- file.exists(S_path) # flag
   
-  #--------------------------------------Save growth rates--------------------------#
-  cat("Grow rates", file = pms_path, append = TRUE)
-  cat("\n", file = pms_path, append = TRUE)
-  write.table(gr, file = pms_path, sep = "\t", col.names = NA, append = TRUE)
-  cat("\n", file = pms_path, append = TRUE)
-  
-  #--------------------------------------Save Initial Populations-------------------#
-  cat("Initial populations", file = pms_path, append = TRUE)
-  cat("\n", file = pms_path, append = TRUE)
-  write.table(Pobl, file = pms_path, sep = "\t", col.names = NA, append = TRUE)
-  cat("\n", file = pms_path, append = TRUE)
-  
-  #--------------------------------------Save seeds---------------------------------#
-  cat("Seeds", file = pms_path, append = TRUE)
-  cat("\n", file = pms_path, append = TRUE)
-  write.table(Semilla, file = pms_path, sep = "\t", col.names = NA, append = TRUE)
-  cat("\n", file = pms_path, append = TRUE)
-  
-  
+  if (!exist) { # File doesnt exist
+    
+    file.create(S_path) # Make file
+    write.table(seeds_df, file = S_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
+  } else {
+    
+    Og_table <- read.delim(S_path, sep = "\t", header = TRUE) # Read table
+    Join_tables <- rbind(Og_table, seeds_df) # Join tables
+    write.table(Join_tables, file = S_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
+  }
   return(ID)
 }
 
+
 #--------------------------------------------------------Function to generate data--------------------------------------#
 
-generate <- function(N,seeds,C0,CN){
+generate <- function(N,seeds,C0,CN, Val_diag){
   
   #------------------Populations-----------------------------#
   S_p <- sample(seeds, 1)
@@ -102,7 +92,7 @@ generate <- function(N,seeds,C0,CN){
   
   inter <- matrix(vec, nrow = N, ncol = N) # Hacerlo matriz
   # diag(inter) <- rnorm(N, mean = 0, sd = 1) # DIAGONAL
-  diag(inter) <- -0.5
+  diag(inter) <- Val_diag
   
   #------------------------Grow rates---------------------#
   S_g <- sample(seeds, 1)
@@ -113,11 +103,12 @@ generate <- function(N,seeds,C0,CN){
   }
   
   seed = c(S_p, S_i, S_g)
-  result <- list(Interacs = inter,
-                 Growth = Grow,
-                 Population = Pobl,
-                 Seeds = seed)
-  return(result)
+  
+  return(list(Interacs = inter,
+              Growth = Grow,
+              Population = Pobl,
+              Seeds = seed)
+  )
 }
 
 
@@ -189,26 +180,28 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, indivdual) {
   
   #-----------------------------Generate data----------------------------------#
   CPr_time2 <- system.time({
-    res <- generate(N,seeds,C0, CN) # Results
+    res <- generate(N, seeds, C0, CN, V_diag) # Results
     
-    # V_inter <- unlist(res[[1]]) 
     params <- list(
-      r = unlist(res[2]), # Grow rates
-      alpha = matrix(unlist(res[[1]]) , nrow = N, ncol = N) # Interaction
+      alpha = res$Interacs, # Interactions
+      r = res$Growth, # Grow rates
+      #alpha = matrix(unlist(res[[1]]) , nrow = N, ncol = N) 
+      Pobl = res$Population, # Population
+      Semilla = res$Seeds #Semillas
     )
-    Pobl <- unlist(res[3])
-    Semilla <- unlist(res[4])
   })
   cat("Datos generados...", "\n")
-  cat("El numero de semillas utilizadas son:", Semilla, "\n")
+  
+  # Primera semilla = Poblaciones
+  # Segunda semilla = Interactions
+  # Tercera semilla = Growth rates
+  cat("El numero de semillas utilizadas son:", params$Semilla, "\n")
   
   #----------------------------------------Simulate----------------------------#
   CPr_time3 <- system.time({
-    #library(miaViz)
-    interacs <- params$alpha
     glvmodel <- miaSim::simulateGLV(n_species = N, 
                                     A = params$alpha, # interaction matrix
-                                    x0 = Pobl, # Initial abundances
+                                    x0 = params$Pobl, # Initial abundances
                                     growth_rates = params$r, # Growth rates
                                     t_start = 0, 
                                     t_store = times, 
@@ -216,14 +209,14 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, indivdual) {
                                     migration_p = 0,
                                     stochastic = FALSE, # Ignorar ruido
                                     norm = TRUE) # FALSE=conteo, TRUE=proporciones
-    
+  
     output <- glvmodel@assays@data@listData[["counts"]]
   })
   cat("Primer renglon colmnas 1:4:", output[1,1:4], "\n")
   
   #------------------Save Simulation results-----------------------------------#
   CPr_time4 <- system.time({
-    ID <- save(output,params,Pobl,Semilla)
+    ID <- Ms_save(N, C0, CN, V_diag, output, params)
   })
   cat("El numero de ID es:", ID, "\n")
   
@@ -267,46 +260,48 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, indivdual) {
   }
 }
 
-#--------------------------------------------------------Testing-----------------------------------------------------#
+#--------------------------------------------------------Testing-----------------------------------------------------
 N <- 50 # Number of species
 C0 <- 0.45 # Prob. interaction =0
 CN <- 0.2 # Prob. interaction <0
-times <- 3000 # Generations
+times <- 50 # Generations
 seeds_n <- 300 # Number of possible seeds
 tol <- 0.05 # Tolerance
 individual <- FALSE
+V_diag <- -0.5
 
 counter <- 1 
-STOP <- FALSE # Flag
-ct <- 1 # Number of simulation
-setwd("~/Documents/LAB_ECO")
+ct_sim <- 1 # Number of simulation
+# setwd("~/Documents/LAB_ECO")
 
 cat("\n" , "\n", strrep("#", 25))
 current_date <- Sys.Date()
 formatted_date <- format(current_date, "%d %B %Y")
 cat("Simulation started at:", formatted_date , strrep("#", 25), "\n")
 
-while (!STOP) {
-  
-  
+repeat {
   # Run the simulation function
   suppressWarnings(CPr_sim(N, C0, CN, times, seeds_n, tol, individual))
   
-  cat("Simulation number", ct ,"DONE", "\n")
+  cat("Number of generations", times , "\n")
+  cat("Species number", N , "\n")
+  cat("Simulation number", ct_sim , "DONE", "\n")
   cat("-----------------------------------------", "\n")
   
-  if (counter==3) {  # Check if `times` has been updated 3 times
+  if (counter >= 4) {  # Check if `times` has been updated 3 times
+    N <- N + 50  # Add 50 species
+    counter <- 1  # Reset `times` update counter 
+  } else {
     times <- times + 100  # Add 100 generations
     counter <- counter + 1  # Increment `times` update counter
-  } else {
-    N <- N + 50  # Add 50 species
-    counter <- 0  # Reset `times` update counter
   }
   
   # Stop simulation when there are at least 500 species and 10,000 generations
-  if (N==1000) {
-    STOP <- TRUE
+  if (ct_sim >= 10) {
+    break
   }
   
-  ct <- ct +1
+  ct_sim <- ct_sim + 1
 }
+
+
