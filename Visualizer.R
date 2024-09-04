@@ -25,7 +25,7 @@ melted_df <- reshape2::melt(out)
 colnames(melted_df) <- c("Species", "Generation", "Value")
 
 # Create the plot
-ggplot2::ggplot(melted_df, plotly::aes(x = Generation, y = Value, color = Species, group = Species)) +
+ggplot(melted_df, aes(x = Generation, y = Value, color = Species, group = Species)) +
   geom_line() +
   theme_minimal() +
   labs(title = "Line Plot of Comparisons vs. Values by Species", x = "Comparisons", y = "Values") +

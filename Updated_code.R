@@ -205,11 +205,12 @@ CPr_sim <- function(N, C0, CN, times,seeds_n, tol, indivdual) {
                                     growth_rates = params$r, # Growth rates
                                     t_start = 0, 
                                     t_store = times, 
-                                    t_end=times, 
+                                    t_end= times, 
                                     migration_p = 0,
                                     stochastic = FALSE, # Ignorar ruido
                                     norm = TRUE) # FALSE=conteo, TRUE=proporciones
-  
+    glvmodel
+    
     output <- glvmodel@assays@data@listData[["counts"]]
   })
   cat("Primer renglon colmnas 1:4:", output[1,1:4], "\n")
