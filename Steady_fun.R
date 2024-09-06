@@ -1,22 +1,24 @@
 
 #----------------------------------------------Search for individual steady state--------------------------------------------------
 
-SS_individual = function(ID, out, tol, individual) {
+SS_individual = function(ID, tol, wd) {
   
   #-----------------------Read table--------------------#
-  library(readr)
-  tmp <- read.csv(out, sep = "\t")
-  specs <- nrow(tmp) # Species number
+  library(data.table)
+  out_path <- paste(wd, "./Outputs/O_", ID , ".tsv", sep = "") # output
+  out <- fread(out_path, sep = "\t")  # Read TSV file
+
+  specs <- nrow(out) # Species number
   Stb_vec <- numeric() # Empty numerical vector
-  tol <- log(tol^2)
+  tol <- log(tol^2) # Apply transformation to tolerance
   
   #----------------------------Search Stability-----------------------#
   for (s in 1:specs) {
-    V_spec <- as.vector(tmp[s,]) # Species row
-    V_spec <- diff(v)^2 # Get differences and square them
-    ln_Vspec <- ifelse(V_spec == 0, NA, log(V_spec) )
+    V_spec <- as.numeric(out[s,]) # Species row
+    V_spec <- diff(V_spec)^2 # Get differences and square them
+    V_spec <- ifelse(V_spec == 0, NA, log(V_spec) )
                        
-    Stab_col <- which( ln_Vspec < log(tol), arr.ind = TRUE)[1] # Generation where the mean<tolerance
+    Stab_col <- which( V_spec < tol, arr.ind = TRUE)[1] # Generation where the mean<tolerance
     Stb_vec <- c(Stb_vec, Stab_col) # Add vector
   }
   
@@ -24,27 +26,64 @@ SS_individual = function(ID, out, tol, individual) {
   
 }
 
+#-----------------------Moving average INDIVIDUAL---------------------------#
+
+Rwindow_individual <- function(ID, tol, wd) {
+  
+  # Load necessary packages
+  library(data.table)
+  library(zoo)
+  
+  #-----------------------------Read table----------------------------#
+  out_path <- paste(wd, "./Outputs/O_", ID , ".tsv", sep = "") # output
+  out_table <- as.data.table ( fread(out_path, sep = "\t") ) # Read TSV file
+  
+  specs <- nrow(out_table)  # Species
+  times <- ncol(out_table)  # Generations
+  Stb_vec <- numeric(specs)  # Pre-allocate vector
+  
+  #----------------------------Search Stability-----------------------#
+  window_size <- round(times * 0.1)  # Calculate window size
+  
+  # Function to calculate stability for one row
+  find_stability <- function(row, window_size, tol) {
+    moving_avg <- rollmean(row, window_size, fill = NA, align = "left") # Calculate moving average
+    first_stable <- which(moving_avg < tol)[1]  # Find the first generation where moving average < tolerance
+    return(first_stable)
+  }
+  
+  # Apply the stability function to each species row
+  for (s in 1:specs) {
+    row <- as.numeric( out_table[s,] )
+    Stb_vec[s] <- find_stability(row, window_size, tol)  # Assign directly to pre-allocated vector
+  }
+  
+  names(Stb_vec) <- paste0("Specie", seq_len(specs))
+  
+  return(Stb_vec)
+}
 
     
 #----------------------------------------------Search for ALL steady state--------------------------------------------------
   
-SS_all <- function(ID, out_path, tol) {
-    
+SS_all <- function(ID, tol, wd) {
+  
+    #-------------------------Read table----------------------------#
     # Load required package
     library(data.table)
-    
+  
     # Read table
-    test <- as.matrix( fread(out_path, sep = "\t") )
+    out_path <- paste(wd, "Outputs/O_", ID , ".tsv", sep = "") # output
+    out <- as.matrix( fread(out_path, sep = "\t") )
     
     #------------------------Get differences------------------------#
-    # Extract the number of columns and rows
-    gens <- ncol(test) # Times
-    specs <- nrow(test) # Species number
+    gens <- ncol(out) # Times
+    specs <- nrow(out) # Species number
     
     # Compute differences and square them
     Stb_mat <- rbind() # Empty matrix
     for (r in 1:specs) {
-      v <- as.vector(test[r,])
+      v <- as.vector(out[r,])
       Stb_mat <- rbind(Stb_mat, diff(v)^2) 
     }
     
@@ -56,105 +95,36 @@ SS_all <- function(ID, out_path, tol) {
     colnames(ln_mat) <- seq(1, gens-1)
     
     #---------------------------Create data frame------------------------#
-    
     Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
-    first_col <- which(Stb_mat < log(tol), arr.ind = TRUE)[1, 2] # Generation where the mean<tolerance
-    
-    tmp_df <- data.frame(
-      ID = ID,
-      Steady_generation = first_col,
+    first_col <- which(ln_mat < log(tol^2), arr.ind = TRUE)[1] # Generation where the mean<tolerance
+
+    return(list(Method_dif = first_col,
+                Dif_means = Stb_mean)
     )
-    
-    #---------------------------Save generation-------------------------#
-    SS_path <- paste("./Scan/SSS_all", ".tsv", sep = "") #Parameters
-    exist <- file.exists(SS_path) # Bandera
-    
-    if (!exist) { # File doesnt exist
-      
-      file.create(SS_path) # Make file
-      write.table(tmp_df, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
-    } else {
-      
-      SS_table <- read.delim(SS_path, sep = "\t", header = TRUE) # Read table
-      Join_CPr <- rbind(SS_table, tmp_df) # Join tables
-      write.table(Join_CPr, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
-    }
-      
-    return(list(Stb_mat = Stb_mat, 
-                Stb_mean = Stb_mean, 
-                Fc = first_col)
-           )
 }
 
-#------------------------------------------Moving average INDIVIDUAL----------------------------------------------------
+#---------------------------------Moving average ALL-------------------------#
 
-Rwindow_indiv <- function(ID, tol) {
+Rwindow_ALL <- function(ID, tol, wd) {
+  
   # Load necessary packages
   library(data.table)
   library(zoo)
   
   #-----------------------------Read table----------------------------#
-  out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
-  tmp <- fread(out_path, sep = "\t")  # Read TSV file
-  tmp <- as.data.table(tmp)  # Ensure tmp is a data.table
-  specs <- nrow(tmp)  # Number of species
-  times <- ncol(tmp)  # Number of generations
-  Stb_vec <- numeric(specs)  # Pre-allocate vector
-  
-  #----------------------------Search Stability-----------------------#
-  window_size <- round(times * 0.05)  # Calculate window size
-  
-  # Function to calculate stability for one row
-  find_stability <- function(row) {
-    Row_tmp <- rollmean(row, window_size, fill = NA, align = "right")  # Calculate moving average
-    first_stable <- which(Row_tmp < tol)[1]  # Find first stable point
-    return(first_stable)
-  }
-  
-  # Apply the stability function to each species row
-  Stb_vec <- apply(tmp, 1, find_stability)
-  names(Stb_vec) <- paste0("Specie", seq_len(specs))
-  return(Stb_vec)
-}
-
-#--------------------------------#
-# Read the data
-out_path <- paste("./Outputs/O_", ID, ".tsv", sep = "")  # Output path
-tmp <- fread(out_path, sep = "\t")  # Read TSV file
-
-times <- ncol(tmp)  # Number of generations
-window_size <- round(times * 0.05)  # Calculate window size
-
-V_spec <- as.vector(unlist(tmp[2, ])) # Convert to vector
-
-result1 <- Rwindow_indiv(ID,tol)
-x <- result1[2]
-y <- x + window_size
-
-if (mean(V_spec[x:y]) <= tol) {
-  print("Test succeded")
-}
-
-#---------------------------------------------------Moving average ALL--------------------------------------------------
-Rwindow_ALL <- function(ID, tol) {
-  # Load necessary packages
-  library(data.table)
-  library(zoo)
-  
-  #-----------------------------Read table----------------------------#
-  out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "")  # Output path
-  tmp <- fread(out_path, sep = "\t")  # Read TSV file
-  tmp <- as.data.table(tmp)  # Ensure tmp is a data.table
-  times <- ncol(tmp)  # Number of generations
+  out_path <- paste(wd, "./Outputs/O_", ID , ".tsv", sep = "")  # Output path
+  out_table <- as.data.table( fread(out_path, sep = "\t") )  # Read TSV file
+  times <- ncol(out_table)  # Number of generations
   
   #----------------------------Calculate Column Means-----------------#
-  col_means <- colMeans(tmp, na.rm = TRUE)  # Compute column means
+  col_means <- colMeans(out_table, na.rm = TRUE)  # Compute column means
   
   #----------------------------Apply Moving Average---------------------#
-  window_size <- round(times * 0.05)  # Calculate window size
+  window_size <- round(times * 0.1)  # Calculate window size
   
   # Function to calculate moving average
-  moving_avg <- rollmean(col_means, window_size, fill = NA, align = "right")
+  # "left" covers following rows 
+  moving_avg <- rollmean(col_means, window_size, fill = NA, align = "left")
   
   # Find stability based on moving average
   Stb_vec <- which(moving_avg < tol)[1]  # Find the first generation where moving average < tolerance
@@ -162,16 +132,93 @@ Rwindow_ALL <- function(ID, tol) {
   # Assign name to the stability vector
   names(Stb_vec) <- "Stability_Point"
   
-  return(list(All_vec = Stb_vec,
+  return(list(All_SS = Stb_vec,
               Means = col_means
-              )
+  )
   )
 }
 
 
-result <- Rwindow_ALL(ID, tol)
-x <- result$All_vec
 
-if (result$Means[x] <= tol) {
-  print("Test succeded")
+# #--------------------------------#
+# # Read the data
+# out_path <- paste("./Outputs/O_", ID, ".tsv", sep = "")  # Output path
+# tmp <- fread(out_path, sep = "\t")  # Read TSV file
+# 
+# times <- ncol(tmp)  # Number of generations
+# window_size <- round(times * 0.05)  # Calculate window size
+# 
+# V_spec <- as.vector(unlist(tmp[2, ])) # Convert to vector
+# 
+# result1 <- Rwindow_indiv(ID,tol)
+# x <- result1[2]
+# y <- x + window_size
+# 
+# if (mean(V_spec[x:y]) <= tol) {
+#   print("Test succeded")
+# }
+
+
+
+#-------------------------------------------Saver-------------------------------------------------------------
+
+All_SS_save <- function (ID, tol, wd) {
+  
+  #-------------------------Read table----------------------------#
+  # Load required package
+  library(data.table)
+  
+  # Read table
+  out_path <- paste(wd, "Outputs/O_", ID , ".tsv", sep = "") # output
+  out <- as.matrix( fread(out_path, sep = "\t") )
+  
+  gens <- ncol(out) # Times
+  specs <- nrow(out) # Species number
+  
+  #--------------------------Test functions---------------------#
+  result1 <- SS_all(ID, tol, wd) # Differences^2 method
+  result2 <- Rwindow_ALL(ID,tol, wd) # Rolling window method
+  
+  SS_df <- data.frame(
+    'ID' = ID ,
+    'Population_number' = specs,
+    'Generations' = gens,
+    'SS_ALL' = result1$Method_dif ,
+    'Rwindow_ALL' = result2$All_SS ,
+    'Tolerance' = tol,
+    'Individual' = FALSE
+  )
+  
+  #---------------------------Save generation-------------------------#
+  SS_path <- paste(wd, "./Scan/SS_all_new", ".tsv", sep = "") #Parameters
+  exist <- file.exists(SS_path) # Bandera
+  
+  if (!exist) { # File doesnt exist
+    
+    file.create(SS_path) # Make file
+    write.table(SS_df, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
+  } else {
+    
+    SS_table <- read.delim(SS_path, sep = "\t", header = TRUE) # Read table
+    Join_ss <- rbind(SS_table, SS_df) # Join tables
+    write.table(Join_ss, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
+  }
+
 }
+
+
+#--------------------------Testing--------------------------
+ID <- "e4cffa"
+tol <- 0.05
+wd <-"/home/rivera/Cluster/"
+
+res <- SS_individual(ID, tol, wd)
+cat("Roll window method found the Steady State at generation", R_ss$Roll_window)
+cat("Differences^2 method found the Steady State at generation", R_ss$Method_dif)
+
+
+
+
+res2 <- Rwindow_individual(ID, tol, wd)
+
+

@@ -245,17 +245,17 @@ CPr_sim <- function(N, C0, CN, times, tol, indivdual) {
   CPr_path <- paste("./Scan/CPr_time", ".tsv", sep = "") # output
   exist <- file.exists(CPr_path) # Flag
   
-  
-  cat("Saving code profiling times...",  "\n") 
   if (!exist) { # File doesnt exist
     
     file.create(CPr_path) # Make file
     write.table(CPr_df, file = CPr_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
+    cat("Code profiling times SAVED",  "\n") 
   } else {
     
     CPr_table <- read.delim(CPr_path, sep = "\t", header = TRUE) # Read table
     Join_CPr <- rbind(CPr_table, CPr_df) # Join tables
     write.table(Join_CPr, file = CPr_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
+    cat("Code profiling times SAVED",  "\n") 
   }
 }
 
@@ -295,7 +295,8 @@ repeat {
   }
   
   # Stop simulation when there are at least 500 species and 10,000 generations
-  if (N >= 1000) {
+  ct_sim = ct_sim + 1
+  if (ct_sim >= 3) {
     break
   }
 }
