@@ -11,7 +11,8 @@ unlink("~/Documents/LAB_ECO/Parameters/*", recursive = TRUE, force = TRUE)
 unlink("~/Documents/LAB_ECO/Scan/*", recursive = TRUE, force = TRUE)
 
 
-
+# test
+unlink("~/Documents/LAB_ECO/test/*", recursive = FALSE, force = TRUE)
 
 #------------------------------------Extra code---------------------------------
 # Generar las semillas posibles

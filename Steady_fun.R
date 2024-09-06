@@ -117,6 +117,7 @@ Rwindow_indiv <- function(ID, tol) {
   return(Stb_vec)
 }
 
+#--------------------------------#
 # Read the data
 out_path <- paste("./Outputs/O_", ID, ".tsv", sep = "")  # Output path
 tmp <- fread(out_path, sep = "\t")  # Read TSV file
