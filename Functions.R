@@ -1,6 +1,7 @@
-#----------------------------------------------------Functions----------------------------------------------------------
 
-Ms_save = function(N_specs, C0, CN, V_diag, output,params){
+#-----------------------------------------------Seed saver function-----------------------------------------------------
+
+Ms_save = function(N_specs, C0, CN, V_diag, output, params){
   
   library(ids)
   
@@ -60,7 +61,7 @@ Ms_save = function(N_specs, C0, CN, V_diag, output,params){
 }
 
 
-#--------------------------------------------------------Function to generate data--------------------------------------#
+#-----------------------------------------------Data generation function------------------------------------------------
 
 generate <- function(N,seeds,C0,CN, Val_diag){
   
@@ -112,26 +113,27 @@ generate <- function(N,seeds,C0,CN, Val_diag){
 }
 
 
-#------------------------------------- New function to find steady state---------------------------------------------#
+#-----------------------------------------------Steady State function---------------------------------------------------
 
-
-SS_all <- function(ID, out_path, tol) {
+SS_all <- function(ID, tol, wd) {
   
+  #-------------------------Read table----------------------------#
   # Load required package
   library(data.table)
   
   # Read table
-  test <- as.matrix( fread(out_path, sep = "\t") )
+  out_path <- paste(wd, "Outputs/O_", ID , ".tsv", sep = "") # output
+  out <- as.matrix( fread(out_path, sep = "\t") )
   
   #------------------------Get differences------------------------#
-  # Extract the number of columns and rows
-  gens <- ncol(test) # Times
-  specs <- nrow(test) # Species number
+  gens <- ncol(out) # Times
+  specs <- nrow(out) # Species number
+  tol <- log(tol^2) # Apply transformation to tolerance
   
   # Compute differences and square them
   Stb_mat <- rbind() # Empty matrix
   for (r in 1:specs) {
-    v <- as.vector(test[r,])
+    v <- as.vector(out[r,])
     Stb_mat <- rbind(Stb_mat, diff(v)^2) 
   }
   
@@ -143,40 +145,21 @@ SS_all <- function(ID, out_path, tol) {
   colnames(ln_mat) <- seq(1, gens-1)
   
   #---------------------------Create data frame------------------------#
-  
   Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
-  first_col <- which(Stb_mat < log(tol), arr.ind = TRUE)[1] # Generation where the mean<tolerance
+  first_col <- which(ln_mat < tol, arr.ind = TRUE)[1] # Generation where the mean<tolerance
   
-  tmp_df <- data.frame(
-    ID = ID,
-    Steady_generation = first_col
+  return(list(Method_dif = first_col,
+              Dif_means = Stb_mean)
   )
-  
-  #---------------------------Save generation-------------------------#
-  SS_path <- paste("./Scan/SS_all", ".tsv", sep = "") #Parameters
-  exist <- file.exists(SS_path) # Bandera
-  
-  if (!exist) { # File doesnt exist
-    
-    file.create(SS_path) # Make file
-    write.table(tmp_df, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
-  } else {
-    
-    SS_table <- read.delim(SS_path, sep = "\t", header = TRUE) # Read table
-    Join_ss <- rbind(SS_table, tmp_df) # Join tables
-    write.table(Join_ss, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
-  }
-  
-  return(list(Stb_mat = Stb_mat, Stb_mean = Stb_mean, Fc = first_col))
 }
 
 
-#------------------------------------- New function for code profiling---------------------------------------------#
-CPr_sim <- function(N, C0, CN, times, tol, indivdual) { 
+#-------------------------------------Code profiling function-----------------------------------------------------------
+CPr_sim <- function(N, C0, CN, times, tol, individual, V_diag, wd) { 
   
   #--------------------------Load all seeds-------------------------------#
-  library(data.table) # Load required package
-  seeds_path <- "./Seeds.tsv"
+  library(data.table)
+  seeds_path <- paste(wd, "./Seeds.tsv", sep="")
   seeds <- as.matrix( fread(seeds_path, sep = "\t") ) # Read table
   
   #-----------------------------Generate data----------------------------------#
@@ -223,8 +206,7 @@ CPr_sim <- function(N, C0, CN, times, tol, indivdual) {
   
   #---------------------Search for steady state-----------------------------------#
   CPr_SS <- system.time({
-    out_path <- paste("./Outputs/O_", ID , ".tsv", sep = "") # output
-    result <- SS_all(ID,out_path,tol)
+    result <- SS_all(ID, tol, wd)
   })
   cat("Steady state search DONE",  "\n")
   
@@ -242,7 +224,7 @@ CPr_sim <- function(N, C0, CN, times, tol, indivdual) {
   )
   
   library(readr)
-  CPr_path <- paste("./Scan/CPr_time", ".tsv", sep = "") # output
+  CPr_path <- paste(wd, "./Scan/CPr_time", ".tsv", sep = "") # output
   exist <- file.exists(CPr_path) # Flag
   
   if (!exist) { # File doesnt exist
@@ -258,47 +240,3 @@ CPr_sim <- function(N, C0, CN, times, tol, indivdual) {
     cat("Code profiling times SAVED",  "\n") 
   }
 }
-
-#--------------------------------------------------------Testing-----------------------------------------------------
-N <- 50 # Number of species
-C0 <- 0.45 # Prob. interaction =0
-CN <- 0.2 # Prob. interaction <0
-times <- 50 # Generations
-tol <- 0.05 # Tolerance
-individual <- FALSE
-V_diag <- -0.5
-
-counter <- 1 
-ct_sim <- 1 # Number of simulation
-# setwd("~/Documents/LAB_ECO")
-
-cat("\n" , "\n", strrep("#", 25))
-current_date <- Sys.Date()
-formatted_date <- format(current_date, "%d %B %Y")
-cat("Simulation started at:", formatted_date , strrep("#", 25), "\n")
-
-repeat {
-  # Run the simulation function
-  CPr_sim(N, C0, CN, times, tol, individual)
-  
-  cat("Number of generations", times , "\n")
-  cat("Species number", N , "\n")
-  cat("Simulation number", ct_sim , "DONE", "\n")
-  cat("-----------------------------------------", "\n")
-  
-  if (counter >= 10) {  # Check if `times` has been updated 3 times
-    N <- (N + sample(1:200, 1))    # Add X random species 
-    counter <- 1  # Reset `times` update counter 
-  } else {
-    times <- times * 10  # Add 100 generations
-    counter <- counter + 1  # Increment `times` update counter
-  }
-  
-  # Stop simulation when there are at least 500 species and 10,000 generations
-  ct_sim = ct_sim + 1
-  if (ct_sim >= 3) {
-    break
-  }
-}
-
-

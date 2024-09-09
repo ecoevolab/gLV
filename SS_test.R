@@ -1,4 +1,7 @@
-#----------------------------------------------------Functions----------------------------------------------------------
+
+
+
+#----------------------------------------------------Function to save Output----------------------------------------------------------
 
 save_test = function(N_specs, C0, CN, V_diag, output, params){
   
@@ -60,7 +63,7 @@ save_test = function(N_specs, C0, CN, V_diag, output, params){
 }
 
 
-#--------------------------------------------------------Function to generate data--------------------------------------#
+#--------------------------------------------------------Function to generate data--------------------------------------
 
 generate <- function(N,seeds,C0,CN, Val_diag){
   
@@ -113,25 +116,19 @@ generate <- function(N,seeds,C0,CN, Val_diag){
 
 
 
-#------------------------------------------------Steady state--------------------------------
-testSS_all <- function (ID, out, tol, times, params, individual) {
-  
-  # Load required package
-  library(data.table)
-  
-  # Read table
-  out_path <- paste("./test/Outputs/O_", ID , ".tsv", sep = "") # output
-  test <- as.matrix( fread(out_path, sep = "\t") )
+#------------------------------------------------Steady state----------------------------------------------------------
+
+diff_SS <- function (out, tol) {
   
   #------------------------Get differences------------------------#
-  # Extract the number of columns and rows
-  gens <- ncol(test) # Times
-  specs <- nrow(test) # Species number
+  gens <- ncol(out) # Times
+  specs <- nrow(out) # Species number
+  tol <- log(tol^2) # Apply transformation to tolerance
   
   # Compute differences and square them
   Stb_mat <- rbind() # Empty matrix
   for (r in 1:specs) {
-    v <- as.vector(test[r,])
+    v <- as.vector(out[r,])
     Stb_mat <- rbind(Stb_mat, diff(v)^2) 
   }
   
@@ -143,24 +140,69 @@ testSS_all <- function (ID, out, tol, times, params, individual) {
   colnames(ln_mat) <- seq(1, gens-1)
   
   #---------------------------Create data frame------------------------#
-  
   Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
-  first_col <- which(Stb_mat < log(tol), arr.ind = TRUE)[1] # Generation where the mean<tolerance
+  first_col <- which(ln_mat < tol, arr.ind = TRUE)[1] # Generation where the mean<tolerance
   
-  result2 <- Rwindow_ALL(ID,tol)
+  return(list(Means = Stb_mean,
+              Stable = first_col)
+  )
+}
+
+Rwindow_ALL <- function(out, tol) {
   
+  library(zoo)
+  times <- ncol(out)  # Number of generations
+  
+  #----------------------------Calculate Column Means-----------------#
+  col_means <- colMeans(out, na.rm = TRUE)  # Compute column means
+  
+  #----------------------------Apply Moving Average---------------------#
+  window_size <- round(times * 0.1)  # Calculate window size
+  
+  # Function to calculate moving average
+  # "left" covers following rows 
+  moving_avg <- rollmean(col_means, window_size, fill = NA, align = "left")
+  
+  # Find stability based on moving average
+  Stb_vec <- which(moving_avg < tol)[1]  # Find the first generation where moving average < tolerance
+  
+  return(list(Stable = Stb_vec,
+              Means = col_means
+  )
+  )
+}
+
+find_SS <- function (ID, tol, params) {
+  
+  #------------------------Read output------------------------#
+  # Load required package
+  library(data.table)
+  
+  # Read table
+  out_path <- paste("./test/Outputs/O_", ID , ".tsv", sep = "") # output
+  out <- as.matrix( fread(out_path, sep = "\t") )
+  times <- ncol(out)
+  
+  #----------------------Steady State search-----------------#
+  result1 <- diff_SS(out, tol)
+  result2 <- Rwindow_ALL(out,tol)
+  
+  
+  #---------------------------Create DATA FRAME-------------#
   SS_df <- data.frame(
-    ID = ID ,
-    Population_seed = params$Semilla[1],
-    Interaction_seed = params$Semilla[2],
-    Growth_seed = params$Semilla[3],
-    Generations = times,
-    'SS_all' = first_col ,
-    'Rwindow_ALL' = result2$All_vec ,
-    Tolerance = tol,
-    Individual = individual
+    'ID' = ID,
+    'Population_seed' = params$Semilla[1],
+    'Interaction_seed' = params$Semilla[2],
+    'Growth_seed' = params$Semilla[3],
+    'Generations' = times,
+    'Diff_ALL' = ifelse(is.na(as.numeric(result1$Stable)), "Not found", as.numeric(result1$Stable)),
+    'Rwindow_ALL' = ifelse(is.na(as.numeric(result2$Stable)), "Not found", as.numeric(result2$Stable)), 
+    'Tolerance' = tol,
+    'Individual' = FALSE
   )
   
+  
+  #-------------------------Save Data Frame---------------#
   SS_path <- paste("./test/Scan/SS_all", ".tsv", sep = "") #Parameters
   exist <- file.exists(SS_path) # Bandera
   
@@ -175,161 +217,87 @@ testSS_all <- function (ID, out, tol, times, params, individual) {
     write.table(Join_ss, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
   }
   
-  return(list(Stb_mat = Stb_mat, 
-              Stb_mean = Stb_mean, 
-              Fc = first_col))
-}
-
-Rwindow_ALL <- function(ID, tol) {
-  # Load necessary packages
-  library(data.table)
-  library(zoo)
-  
-  #-----------------------------Read table----------------------------#
-  out_path <- paste("./test/Outputs/O_", ID , ".tsv", sep = "")  # Output path
-  tmp <- fread(out_path, sep = "\t")  # Read TSV file
-  tmp <- as.data.table(tmp)  # Ensure tmp is a data.table
-  times <- ncol(tmp)  # Number of generations
-  
-  #----------------------------Calculate Column Means-----------------#
-  col_means <- colMeans(tmp, na.rm = TRUE)  # Compute column means
-  
-  #----------------------------Apply Moving Average---------------------#
-  window_size <- round(times * 0.05)  # Calculate window size
-  
-  # Function to calculate moving average
-  moving_avg <- rollmean(col_means, window_size, fill = NA, align = "right")
-  
-  # Find stability based on moving average
-  Stb_vec <- which(moving_avg < tol)[1]  # Find the first generation where moving average < tolerance
-  
-  # Assign name to the stability vector
-  names(Stb_vec) <- "Stability_Point"
-  
-  return(list(All_vec = Stb_vec,
-              Means = col_means
-  )
-  )
+  return(list(Window_SS = result2$Stable, 
+              Diff_SS = result1$Stable)
+         )
 }
 
 #----------------------------------------------Simulation function-------------------------------------------------
-test <- function (N, C0, CN, times, tol, individual, V_diag, ct_sim) {
+test <- function (N, C0, CN, times, tol, individual, V_diag, n_sim) {
   
   #--------------------------Load all seeds-------------------------------#
-  library(data.table) # Load required package
-  seeds_path <- "./Seeds.tsv"
-  seeds <- as.matrix( fread(seeds_path, sep = "\t") ) # Read table
+  library(data.table)
+  seeds <- as.matrix(fread("./Seeds.tsv", sep = "\t"))
   
   #-----------------------------Generate data----------------------------------#
-  res <- generate(N, seeds, C0, CN, V_diag) # Results
+  res <- generate(N, seeds, C0, CN, V_diag)
   
   params <- list(
     alpha = res$Interacs, # Interactions
-    r = res$Growth, # Grow rates
+    r = res$Growth, # Growth rates
     Pobl = res$Population, # Population
-    Semilla = res$Seeds #Semillas
+    Semilla = res$Seeds # Seeds
   )
   
-  cat("Datos generados...", "\n")
-  
-  # Primera semilla = Poblaciones
-  # Segunda semilla = Interactions
-  # Tercera semilla = Growth rates
+  cat("Datos generados...\n")
   cat("El numero de semillas utilizadas son:", params$Semilla, "\n")
-  cat("Population seed", params$Semilla[1] ,  "\n")
-  cat("Growth rate specie1--->", params$r[1] ,  "\n")
-  cat("Interaction specie1-specie3--->", params$alpha[1,3] ,  "\n")
+  cat("Population seed", params$Semilla[1], "\n")
+  cat("Growth rates", params$r, "\n")
+  cat("Interaction specie1-specie3--->", params$alpha[1, 3], "\n")
   
-  #----------------------------------------Simulate----------------------------#
-  glvmodel <- miaSim::simulateGLV(n_species = N, 
-                                  A = params$alpha, # interaction matrix
-                                  x0 = params$Pobl, # Initial abundances
-                                  growth_rates = params$r, # Growth rates
-                                  t_start = 0, 
-                                  t_store = times, 
-                                  t_end= times, 
-                                  migration_p = 0,
-                                  stochastic = FALSE, # Ignorar ruido
-                                  norm = TRUE) # FALSE=conteo, TRUE=proporciones
+  #----------------------------Simulate ------------------------------------#
+  glvmodel <- miaSim::simulateGLV(
+    n_species = N, A = params$alpha, x0 = params$Pobl, 
+    growth_rates = params$r, t_start = 0, t_store = times, 
+    t_end = times, migration_p = 0, stochastic = FALSE, norm = TRUE
+  )
   
   output <- glvmodel@assays@data@listData[["counts"]]
-  cat("Primer renglon colmnas 1:4:", output[1,1:4], "\n")
+  cat("Primer renglon columnas 1:4:", output[1, 1:4], "\n")
   
-  #------------------Save Simulation results-----------------------------------#
+  #-------------------------- Save results---------------------------------#
   ID <- save_test(N, C0, CN, V_diag, output, params)
   cat("El numero de ID es:", ID, "\n")
   
-  #------------------Steady state--------------------------------------------------#
-  result1 <- testSS_all(ID, out, tol, times, params, individual)
-  # result2 <- Rwindow_ALL(ID,tol)
   
-  #-----------------------------Print simulation number--------------------------#
-  ct_sim <- 1 # Number of simulation
-  cat("Simulation number", ct_sim , "DONE", "\n \n")
+  #-------------------------find steady state------------------------------#
+  tmp <- find_SS(ID, tol, params)
+  cat("Simulation number 1 DONE \n\n")
   
-  cat("reapt ON \n")
-  repeat {
+  # Repeat loop for new populations
+  for (sim in 2:n_sim) {
     
+    S_p <- sample(seeds, 1)  # New population seed
+    Pobl <- runif(N, min = 0.1, max = 1)  # Generate new populations
     
+    cat("New population seed", S_p, "\n")
+    cat("Growth rates", params$r, "\n")
+    cat("Interaction specie1-specie3--->", params$alpha[1, 3], "\n")
     
-    #------------------Change initial Populations-----------------------------#
-    S_p <- sample(seeds, 1)
-    Pobl <- vector("numeric", length = N)
-    set.seed(S_p)
-    for (i in 1:N) { # Generate initial populations
-      Pobl[i] <- runif(1, min = 0.1, max = 1)
-    }
-    
-    cat("New population seed", S_p ,  "\n")
-    cat("all growth rates", params$r,  "\n")
-    cat("Interaction specie1-specie3--->", params$alpha[1,3] ,  "\n")
-    
-    # Primera semilla = Poblaciones
-    # Segunda semilla = Interactions
-    # Tercera semilla = Growth rates
+    # Update only the population seed and populations
     params$Semilla[1] <- S_p
+    params$Pobl <- Pobl
     
-    params <- list(
-      alpha = params$alpha, # Interactions
-      r = params$r, # Grow rates
-      Pobl = Pobl, # Population
-      Semilla = params$Semilla #Semillas
+    # Simulate again with updated populations
+    glvmodel <- miaSim::simulateGLV(
+      n_species = N, A = params$alpha, x0 = params$Pobl, 
+      growth_rates = params$r, t_start = 0, t_store = times, 
+      t_end = times, migration_p = 0, stochastic = FALSE, norm = TRUE
     )
     
-    #----------------------------------------Simulate----------------------------#
-    glvmodel <- miaSim::simulateGLV(n_species = N, 
-                                    A = params$alpha, # interaction matrix
-                                    x0 = params$Pobl, # Initial abundances
-                                    growth_rates = params$r, # Growth rates
-                                    t_start = 0, 
-                                    t_store = times, 
-                                    t_end= times, 
-                                    migration_p = 0,
-                                    stochastic = FALSE, # Ignorar ruido
-                                    norm = TRUE) # FALSE=conteo, TRUE=proporciones
-    
     output <- glvmodel@assays@data@listData[["counts"]]
-    cat("Primer renglon colmnas 1:4:", output[1,1:4], "\n")
+    cat("Primer renglon columnas 1:4:", output[1, 1:4], "\n")
     
-    #------------------Save Simulation results-----------------------------------#
-    # setwd("~/Documents/LAB_ECO")
+    # Save results and find steady state
     ID <- save_test(N, C0, CN, V_diag, output, params)
     cat("El numero de ID es:", ID, "\n")
+    tmp <- find_SS(ID, tol, params)
     
-    #------------------Steady state--------------------------------------------------#
-    result1 <- testSS_all(ID, out, tol, times, params, individual)
-    # result2 <- Rwindow_ALL(ID,tol)
-    
-    #-----------------------------Print simulation number--------------------------#
-    ct_sim = ct_sim + 1 
-    cat("Simulation number", ct_sim , "DONE", "\n \n")
-    
-    if (ct_sim >= 5) {
-      break
-    }
-    
+    # Print simulation number
+    cat("Simulation number", sim, "DONE\n\n")
   }
 }
+
 
 #--------------------------------------------------------Testing-----------------------------------------------------
 N <- 3 # Number of species
@@ -337,10 +305,15 @@ C0 <- 0.45 # Prob. interaction =0
 CN <- 0.2 # Prob. interaction <0
 times <- 50 # Generations
 tol <- 0.05 # Tolerance
-individual <- FALSE
 V_diag <- -0.5
+n_sim = 30 # Number of Simulations
 
 # setwd("~/Documents/LAB_ECO")
-test (N, C0, CN, times, tol, individual, V_diag, ct_sim)
+wd <- "~/Cluster/"
+setwd(wd)
+test (N, C0, CN, times, tol, individual, V_diag, n_sim)
 
 
+# Primera semilla = Poblaciones
+# Segunda semilla = Interactions
+# Tercera semilla = Growth rates

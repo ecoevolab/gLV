@@ -26,7 +26,7 @@ SS_individual = function(ID, tol, wd) {
   
 }
 
-#-----------------------Moving average INDIVIDUAL---------------------------#
+                    #-----------------------Moving average INDIVIDUAL---------------------------#
 
 Rwindow_individual <- function(ID, tol, wd) {
   
@@ -79,6 +79,7 @@ SS_all <- function(ID, tol, wd) {
     #------------------------Get differences------------------------#
     gens <- ncol(out) # Times
     specs <- nrow(out) # Species number
+    tol <- log(tol^2) # Apply transformation to tolerance
     
     # Compute differences and square them
     Stb_mat <- rbind() # Empty matrix
@@ -96,14 +97,14 @@ SS_all <- function(ID, tol, wd) {
     
     #---------------------------Create data frame------------------------#
     Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
-    first_col <- which(ln_mat < log(tol^2), arr.ind = TRUE)[1] # Generation where the mean<tolerance
+    first_col <- which(ln_mat < tol, arr.ind = TRUE)[1] # Generation where the mean<tolerance
 
     return(list(Method_dif = first_col,
                 Dif_means = Stb_mean)
     )
 }
 
-#---------------------------------Moving average ALL-------------------------#
+                    #---------------------------------Moving average ALL-------------------------#
 
 Rwindow_ALL <- function(ID, tol, wd) {
   
@@ -138,28 +139,6 @@ Rwindow_ALL <- function(ID, tol, wd) {
   )
 }
 
-
-
-# #--------------------------------#
-# # Read the data
-# out_path <- paste("./Outputs/O_", ID, ".tsv", sep = "")  # Output path
-# tmp <- fread(out_path, sep = "\t")  # Read TSV file
-# 
-# times <- ncol(tmp)  # Number of generations
-# window_size <- round(times * 0.05)  # Calculate window size
-# 
-# V_spec <- as.vector(unlist(tmp[2, ])) # Convert to vector
-# 
-# result1 <- Rwindow_indiv(ID,tol)
-# x <- result1[2]
-# y <- x + window_size
-# 
-# if (mean(V_spec[x:y]) <= tol) {
-#   print("Test succeded")
-# }
-
-
-
 #-------------------------------------------Saver-------------------------------------------------------------
 
 All_SS_save <- function (ID, tol, wd) {
@@ -169,7 +148,7 @@ All_SS_save <- function (ID, tol, wd) {
   library(data.table)
   
   # Read table
-  out_path <- paste(wd, "Outputs/O_", ID , ".tsv", sep = "") # output
+  out_path <- paste(wd, "/Outputs/O_", ID , ".tsv", sep = "") # output
   out <- as.matrix( fread(out_path, sep = "\t") )
   
   gens <- ncol(out) # Times
@@ -190,7 +169,7 @@ All_SS_save <- function (ID, tol, wd) {
   )
   
   #---------------------------Save generation-------------------------#
-  SS_path <- paste(wd, "./Scan/SS_all_new", ".tsv", sep = "") #Parameters
+  SS_path <- paste(wd, "/Scan/SS_all_new", ".tsv", sep = "") #Parameters
   exist <- file.exists(SS_path) # Bandera
   
   if (!exist) { # File doesnt exist
@@ -212,13 +191,16 @@ ID <- "e4cffa"
 tol <- 0.05
 wd <-"/home/rivera/Cluster/"
 
-res <- SS_individual(ID, tol, wd)
+res1 <- SS_individual(ID, tol, wd)
+res2 <- Rwindow_individual(ID, tol, wd)
 cat("Roll window method found the Steady State at generation", R_ss$Roll_window)
 cat("Differences^2 method found the Steady State at generation", R_ss$Method_dif)
 
 
+res1_ALL <- 
+  
 
 
-res2 <- Rwindow_individual(ID, tol, wd)
+
 
 
