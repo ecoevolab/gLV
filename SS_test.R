@@ -300,7 +300,7 @@ test <- function (N, C0, CN, times, tol, individual, V_diag, n_sim) {
 
 
 #--------------------------------------------------------Testing-----------------------------------------------------
-N <- 3 # Number of species
+N <- 2 # Number of species
 C0 <- 0.45 # Prob. interaction =0
 CN <- 0.2 # Prob. interaction <0
 times <- 50 # Generations
@@ -317,3 +317,6 @@ test (N, C0, CN, times, tol, individual, V_diag, n_sim)
 # Primera semilla = Poblaciones
 # Segunda semilla = Interactions
 # Tercera semilla = Growth rates
+
+
+

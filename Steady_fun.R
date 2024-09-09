@@ -66,59 +66,45 @@ Rwindow_individual <- function(ID, tol, wd) {
     
 #----------------------------------------------Search for ALL steady state--------------------------------------------------
   
-SS_all <- function(ID, tol, wd) {
+diff_SS <- function (out, tol) {
   
-    #-------------------------Read table----------------------------#
-    # Load required package
-    library(data.table)
+  #------------------------Get differences------------------------#
+  gens <- ncol(out) # Times
+  specs <- nrow(out) # Species number
+  tol <- log(tol^2) # Apply transformation to tolerance
   
-    # Read table
-    out_path <- paste(wd, "Outputs/O_", ID , ".tsv", sep = "") # output
-    out <- as.matrix( fread(out_path, sep = "\t") )
-    
-    #------------------------Get differences------------------------#
-    gens <- ncol(out) # Times
-    specs <- nrow(out) # Species number
-    tol <- log(tol^2) # Apply transformation to tolerance
-    
-    # Compute differences and square them
-    Stb_mat <- rbind() # Empty matrix
-    for (r in 1:specs) {
-      v <- as.vector(out[r,])
-      Stb_mat <- rbind(Stb_mat, diff(v)^2) 
-    }
-    
-    # Apply log transformation, replace 0 with NA
-    ln_mat <- log(ifelse(Stb_mat == 0, NA, Stb_mat))
-    
-    # Assign row and column names
-    rownames(ln_mat) <- paste("specie", 1:specs, sep = "")
-    colnames(ln_mat) <- seq(1, gens-1)
-    
-    #---------------------------Create data frame------------------------#
-    Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
-    first_col <- which(ln_mat < tol, arr.ind = TRUE)[1] # Generation where the mean<tolerance
-
-    return(list(Method_dif = first_col,
-                Dif_means = Stb_mean)
-    )
+  # Compute differences and square them
+  Stb_mat <- rbind() # Empty matrix
+  for (r in 1:specs) {
+    v <- as.vector(out[r,])
+    Stb_mat <- rbind(Stb_mat, diff(v)^2) 
+  }
+  
+  # Apply log transformation, replace 0 with NA
+  ln_mat <- log(ifelse(Stb_mat == 0, NA, Stb_mat))
+  
+  # Assign row and column names
+  rownames(ln_mat) <- paste("specie", 1:specs, sep = "")
+  colnames(ln_mat) <- seq(1, gens-1)
+  
+  #---------------------------Create data frame------------------------#
+  Stb_mean <- colMeans(Stb_mat, na.rm = TRUE) #Column means
+  first_col <- which(ln_mat < tol, arr.ind = TRUE)[1] # Generation where the mean<tolerance
+  
+  return(list(Means = Stb_mean,
+              Stable = first_col)
+  )
 }
 
-                    #---------------------------------Moving average ALL-------------------------#
+#---------------------------------Moving average ALL-------------------------#
 
-Rwindow_ALL <- function(ID, tol, wd) {
+Rwindow_ALL <- function(out, tol) {
   
-  # Load necessary packages
-  library(data.table)
   library(zoo)
-  
-  #-----------------------------Read table----------------------------#
-  out_path <- paste(wd, "./Outputs/O_", ID , ".tsv", sep = "")  # Output path
-  out_table <- as.data.table( fread(out_path, sep = "\t") )  # Read TSV file
-  times <- ncol(out_table)  # Number of generations
+  times <- ncol(out)  # Number of generations
   
   #----------------------------Calculate Column Means-----------------#
-  col_means <- colMeans(out_table, na.rm = TRUE)  # Compute column means
+  col_means <- colMeans(out, na.rm = TRUE)  # Compute column means
   
   #----------------------------Apply Moving Average---------------------#
   window_size <- round(times * 0.1)  # Calculate window size
@@ -130,10 +116,7 @@ Rwindow_ALL <- function(ID, tol, wd) {
   # Find stability based on moving average
   Stb_vec <- which(moving_avg < tol)[1]  # Find the first generation where moving average < tolerance
   
-  # Assign name to the stability vector
-  names(Stb_vec) <- "Stability_Point"
-  
-  return(list(All_SS = Stb_vec,
+  return(list(Stable = Stb_vec,
               Means = col_means
   )
   )
@@ -141,7 +124,7 @@ Rwindow_ALL <- function(ID, tol, wd) {
 
 #-------------------------------------------Saver-------------------------------------------------------------
 
-All_SS_save <- function (ID, tol, wd) {
+All_SS_save <- function (ID, tol, params, wd) {
   
   #-------------------------Read table----------------------------#
   # Load required package
@@ -155,15 +138,17 @@ All_SS_save <- function (ID, tol, wd) {
   specs <- nrow(out) # Species number
   
   #--------------------------Test functions---------------------#
-  result1 <- SS_all(ID, tol, wd) # Differences^2 method
-  result2 <- Rwindow_ALL(ID,tol, wd) # Rolling window method
+  result1 <- diff_SS(out, tol) # Differences^2 method
+  result2 <- Rwindow_ALL(out, tol) # Rolling window method
   
   SS_df <- data.frame(
-    'ID' = ID ,
-    'Population_number' = specs,
+    'ID' = ID,
+    'Population_seed' = params$Semilla[1],
+    'Interaction_seed' = params$Semilla[2],
+    'Growth_seed' = params$Semilla[3],
     'Generations' = gens,
-    'SS_ALL' = result1$Method_dif ,
-    'Rwindow_ALL' = result2$All_SS ,
+    'Diff_ALL' = ifelse(is.na(as.numeric(result1$Stable)), "Not found", as.numeric(result1$Stable)),
+    'Rwindow_ALL' = ifelse(is.na(as.numeric(result2$Stable)), "Not found", as.numeric(result2$Stable)) , 
     'Tolerance' = tol,
     'Individual' = FALSE
   )
@@ -182,22 +167,25 @@ All_SS_save <- function (ID, tol, wd) {
     Join_ss <- rbind(SS_table, SS_df) # Join tables
     write.table(Join_ss, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE) # Save
   }
+  
+  return(list(Window_method = result2$Stable,
+              Diff_method = result1$Stable)
+  )
 
 }
 
 
 #--------------------------Testing--------------------------
-ID <- "e4cffa"
-tol <- 0.05
-wd <-"/home/rivera/Cluster/"
+# ID <- "e4cffa"
+# tol <- 0.05
+# wd <-"/home/rivera/Cluster/"
+# 
+# res1 <- SS_individual(ID, tol, wd)
+# res2 <- Rwindow_individual(ID, tol, wd)
+# cat("Roll window method found the Steady State at generation", R_ss$Roll_window)
+# cat("Differences^2 method found the Steady State at generation", R_ss$Method_dif)
 
-res1 <- SS_individual(ID, tol, wd)
-res2 <- Rwindow_individual(ID, tol, wd)
-cat("Roll window method found the Steady State at generation", R_ss$Roll_window)
-cat("Differences^2 method found the Steady State at generation", R_ss$Method_dif)
 
-
-res1_ALL <- 
   
 
 

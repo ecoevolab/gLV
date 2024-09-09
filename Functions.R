@@ -122,7 +122,7 @@ SS_all <- function(ID, tol, wd) {
   library(data.table)
   
   # Read table
-  out_path <- paste(wd, "Outputs/O_", ID , ".tsv", sep = "") # output
+  out_path <- paste(wd, "/Outputs/O_", ID , ".tsv", sep = "") # output
   out <- as.matrix( fread(out_path, sep = "\t") )
   
   #------------------------Get differences------------------------#

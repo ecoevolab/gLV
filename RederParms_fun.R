@@ -1,4 +1,4 @@
-#-------------------------------------Read Parameters Seeds method---------------------------------------
+#-------------------------------------Read Parameters Lines method---------------------------------------
 Read_params <- function(ID){
   
   library(readr)
