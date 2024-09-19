@@ -46,7 +46,7 @@
 #'
 #' @export
 
-SS_individual <- function(uniqueID, output, tolerance, params, wd) {
+individual_diff_means_SS <- function(uniqueID, output, tolerance, params, wd) {
 
   #--------------------Calculate the analytic SS----------------#
   A_inv <- solve(as.matrix(params$Interactions)) # Inverse of the matrix
