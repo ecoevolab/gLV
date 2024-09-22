@@ -10,6 +10,9 @@
 #' The function constructs the file path using the working directory (`wd`), the "Outputs" subdirectory, and the unique identifier (`uniqueID`). The output is saved in TSV format, where columns represent generations and rows represent species.
 #'
 #' @return A message is printed to the console indicating the file's ID and save location.
+#' 
+#' @import utils
+#' 
 #' @export
 #'
 #' @examples
@@ -24,18 +27,21 @@
 #' output <- run_simulation(N_species = 2, params = params, times = times, norm = FALSE)
 #'
 #' # Generate unique ID
-#' uniqueID <- forge_ID(wd)
+#' uniqueID <- forge_id(wd)
 #'
 #' # Save output to file
 #' output_saver(output, uniqueID, wd)
 
-output_saver <- function(Output, uniqueID, wd) {
+output_saver <- function(output, uniqueID, wd) {
+  
+  # attach package
+  requireNamespace("utils")
 
   # Output path
   out_path <- file.path(wd, "Outputs", paste0("O_", uniqueID, ".tsv") )
 
   # Save output data
-  write.table(Output, file = out_path, sep = "\t", row.names = FALSE, col.names = TRUE)
+  utils::write.table(output, file = out_path, sep = "\t", row.names = FALSE, col.names = TRUE)
 
   cat("Output saved with ID: ", uniqueID, "\n Path:", out_path)
 }

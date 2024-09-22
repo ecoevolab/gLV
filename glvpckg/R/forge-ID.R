@@ -13,11 +13,13 @@
 #' @examples
 #' # Example usage:
 #' wd <- "~/Documents/LAB_ECO"
-#' uniqueID <- forge_ID(wd)
+#' uniqueID <- forge_id(wd)
 #' print(uniqueID)
+#' 
+#' @export
 
 
-forge_ID <- function(wd) {
+forge_id <- function(wd) {
 
   # Ensure the ids package is available
   if (!requireNamespace("ids", quietly = TRUE)) {

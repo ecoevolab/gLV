@@ -2,7 +2,7 @@
 #'
 #' This function saves specified parameters to a table format. The parameters include the number of species, interaction probabilities, diagonal values of the interaction matrix, and seed values used in different aspects of the simulation.
 #'
-#' @param N_specs Integer. Number of species involved in the simulation.
+#' @param N_species Integer. Number of species involved in the simulation.
 #' @param C0 Numeric. Probability of no interaction between species (i.e., zero interaction).
 #' @param CN Numeric. Probability of negative interaction (<0) between species.
 #' @param Diag_val Numeric vector. Diagonal values used in the interaction matrix.
@@ -27,7 +27,7 @@
 #'  params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 #'
 #'  # Generate unique ID
-#'  uniqueID <- forge_ID(wd)
+#'  uniqueID <- forge_id(wd)
 #'
 #'  # Save parameters using Seed_saver function
 #'  seed_saver(N_specs = 2,  C0 = 0.45, CN = 0.2, Diag_val, params, uniqueID, wd)
@@ -35,6 +35,9 @@
 #' @export
 
 seed_saver <- function(N_species, C0, CN, Diag_val, params, uniqueID, wd) {
+  
+  # attach package 
+  requireNamespace("utils")
 
   # Save seeds information
   seeds_df <- data.frame(
@@ -51,14 +54,14 @@ seed_saver <- function(N_species, C0, CN, Diag_val, params, uniqueID, wd) {
   Ps_path <- file.path(wd, "Parameters", "Seeds_save.tsv")
 
   if (file.exists(Ps_path)) {
-    existing_data <- read.delim(Ps_path, sep = "\t", header = TRUE)
+    existing_data <- utils::read.delim(Ps_path, sep = "\t", header = TRUE)
     combined_data <- rbind(existing_data, seeds_df)
   } else {
     combined_data <- seeds_df
   }
 
   # Save table
-  write.table(combined_data, file = Ps_path, sep = "\t", row.names = FALSE, col.names = TRUE)
+  utils::write.table(combined_data, file = Ps_path, sep = "\t", row.names = FALSE, col.names = TRUE)
 
   cat("Seeds saved with ID: ", uniqueID, "\n Path:", Ps_path)
 }

@@ -11,9 +11,10 @@
 #'   }
 #' @param uniqueID Character. A unique ID string used for saving files. This ID should be generated previously using the \code{generate_uniqueID} function.
 #' @param wd Character. Path to the working directory where files will be saved. The file will be saved in the path: \code{wd/Parameters/P_uniqueID.tsv}.
-#'
+#'  
 #' @return A list containing the generated ID and the path where the simulation file is stored.
 #'
+#' @import utils
 #' @examples
 #'   wd <- "~/Documents/LAB_ECO"
 #'
@@ -22,14 +23,17 @@
 #'   params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 #'
 #'   # Generate unique ID
-#'   uniqueID <- forge_ID(wd)
+#'   uniqueID <- forge_id(wd)
 #'
 #'   # Save by lines
 #'   line_save(params, uniqueID, wd)
 #'
 #' @export
 
-line_save <- function(params, uniqueID, wd) {
+line_saver <- function(params, uniqueID, wd) {
+  
+  # attach package 
+  requireNamespace("utils")
 
   # Generate unique file paths
   pms_path <- file.path(wd, "Parameters", paste0("P_", uniqueID, ".tsv") )
@@ -45,7 +49,7 @@ line_save <- function(params, uniqueID, wd) {
     con <- file(pms_path, open = "at") # Open connection in append mode
     on.exit(close(con))
     cat("\n", title, "\n", file = pms_path, append = TRUE)
-    write.table(data, file = pms_path, sep = "\t", col.names = FALSE, row.names = FALSE, append = TRUE)
+    utils::write.table(data, file = pms_path, sep = "\t", col.names = FALSE, row.names = FALSE, append = TRUE)
     writeLines("", con) # Add a new line
   }
 

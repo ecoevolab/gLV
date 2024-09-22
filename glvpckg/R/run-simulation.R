@@ -14,6 +14,8 @@
 #' @param norm Logical: Whether the output time series should be normalized to proportions (\code{norm = TRUE}) or returned as raw counts (\code{norm = FALSE}, default).
 #'
 #' @return The function returns the simulation results over time, typically in the form of a matrix or data frame.
+#' 
+#' @importFrom miaSim simulateGLV
 #' @export
 #'
 #' @examples

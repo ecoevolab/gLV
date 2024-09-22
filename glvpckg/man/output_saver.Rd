@@ -4,14 +4,14 @@
 \alias{output_saver}
 \title{Save Simulation Output to a File}
 \usage{
-output_saver(Output, uniqueID, wd)
+output_saver(output, uniqueID, wd)
 }
 \arguments{
+\item{output}{A data frame or matrix containing the simulation output to be saved. The columns represent generations, and rows represent species.}
+
 \item{uniqueID}{Character. A unique identifier for the file, generated using the \code{generate_uniqueID} function.}
 
 \item{wd}{Character. The path to the working directory where the file will be saved. The output file will be saved in the path: \code{wd/Outputs/O_uniqueID.tsv}.}
-
-\item{output}{A data frame or matrix containing the simulation output to be saved. The columns represent generations, and rows represent species.}
 }
 \value{
 A message is printed to the console indicating the file's ID and save location.
@@ -34,7 +34,7 @@ times <- 100  # Define the number of generations
 output <- run_simulation(N_species = 2, params = params, times = times, norm = FALSE)
 
 # Generate unique ID
-uniqueID <- forge_ID(wd)
+uniqueID <- forge_id(wd)
 
 # Save output to file
 output_saver(output, uniqueID, wd)

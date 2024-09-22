@@ -7,6 +7,8 @@
 seed_saver(N_species, C0, CN, Diag_val, params, uniqueID, wd)
 }
 \arguments{
+\item{N_species}{Integer. Number of species involved in the simulation.}
+
 \item{C0}{Numeric. Probability of no interaction between species (i.e., zero interaction).}
 
 \item{CN}{Numeric. Probability of negative interaction (<0) between species.}
@@ -23,8 +25,6 @@ seed_saver(N_species, C0, CN, Diag_val, params, uniqueID, wd)
 \item{uniqueID}{Character. A unique ID string used for saving files. This ID should be generated previously using the \code{generate_uniqueID} function.}
 
 \item{wd}{Character. Path to the working directory where files will be saved. The file will be saved in the path: \code{wd/Parameters/Seeds_save.tsv}.}
-
-\item{N_specs}{Integer. Number of species involved in the simulation.}
 }
 \description{
 This function saves specified parameters to a table format. The parameters include the number of species, interaction probabilities, diagonal values of the interaction matrix, and seed values used in different aspects of the simulation.
@@ -41,7 +41,7 @@ matrix diagonal values, and seed values.
  params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 
  # Generate unique ID
- uniqueID <- forge_ID(wd)
+ uniqueID <- forge_id(wd)
 
  # Save parameters using Seed_saver function
  seed_saver(N_specs = 2,  C0 = 0.45, CN = 0.2, Diag_val, params, uniqueID, wd)

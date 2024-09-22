@@ -12,6 +12,8 @@
 #' @details The function calculates the rolling mean of the output with a window size of \code{#generations * 0.1}.
 #' It then computes the differences between consecutive rolling means and determines the generation where the difference is less than the specified tolerance.
 #'
+#' @importFrom zoo rollmean
+#' 
 #' @examples
 #' # Example usage:
 #'
@@ -46,8 +48,6 @@ individual_rolling_window_SS <- function(uniqueID, output, tolerance, wd) {
   if (!requireNamespace("zoo", quietly = TRUE)) {
     stop("The 'zoo' package is required but not installed.")
   }
-
-  library(zoo)  # Load zoo package for rollmean
 
   specs <- nrow(output)  # Number of species
   times <- ncol(output)  # Number of generations

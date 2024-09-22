@@ -9,7 +9,11 @@ License: GPL-3
 Imports:
     data.table (>= 1.15.4),
     ids (>= 1.0.1),
-    random (== 0.2.6)
+    random (== 0.2.6),
+    zoo (== 1.8.12),
+    stats (== 4.4.1),
+    utils (== 4.4.1),
+    miaSim (== 1.10.0)
 Suggests:
 RoxygenNote: 7.3.2
 Encoding: UTF-8

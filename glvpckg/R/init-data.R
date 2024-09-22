@@ -17,6 +17,7 @@
 #'     \item \code{Seeds}: A numeric vector representing the seeds used to generate the populations, interaction matrix, and growth rates.
 #'   }
 #'
+#' @import stats
 #' @importFrom data.table fread
 #' @export
 #'
@@ -29,23 +30,26 @@
 
 
 init_data <- function(N_species, seeds_path, C0, CN, Diag_val) {
+  
+  # Attach package
+  requireNamespace("stats")
 
   #------------------Read Seeds------------------------------#
-  library(data.table)
+  requireNamespace("data.table")
   seeds <- as.matrix(fread(seeds_path, sep = "\t"))
 
   #------------------Populations-----------------------------#
   S_p <- sample(seeds, 1)
   set.seed(S_p)
-  Pobl <- runif(N_species, min = 0.1, max = 1)
+  Pobl <- stats::runif(N_species, min = 0.1, max = 1)
 
   #--------------------Interactions-------------------------#
   S_i <- sample(seeds, 1)
   set.seed(S_i)
 
   # Generate random interaction values
-  P_neg <- rbinom(N_species * N_species, 1, CN)
-  tmp <- rbinom(N_species * N_species, 1, 1 - C0) * ifelse(P_neg != 0, runif(N_species * N_species, min=0, max=1), -runif(N_species * N_species, min=0, max=1))
+  P_neg <- stats::rbinom(N_species * N_species, 1, CN)
+  tmp <- stats::rbinom(N_species * N_species, 1, 1 - C0) * ifelse(P_neg != 0, stats::runif(N_species * N_species, min=0, max=1), -stats::runif(N_species * N_species, min=0, max=1))
   inter <- matrix(tmp, nrow = N_species, ncol = N_species)
 
   # Set diagonal values
@@ -54,7 +58,7 @@ init_data <- function(N_species, seeds_path, C0, CN, Diag_val) {
   #------------------------Growth Rates---------------------#
   S_g <- sample(seeds, 1)
   set.seed(S_g)
-  Grow <- runif(N_species, min = 0.001, max = 1)
+  Grow <- stats::runif(N_species, min = 0.001, max = 1)
 
   # Collect seeds used
   seed <- c(S_p, S_i, S_g)

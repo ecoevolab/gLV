@@ -20,6 +20,7 @@ This function generates `n` number of random seeds, subsamples them, and selects
 }
 \examples{
 # Example usage
-forge_seeds(n = 200, min = 2, max = 1000, wd = "/path/to/directory")
+wd = "~/Documents/LAB_ECO/"
+forge_seeds(n = 200, min = 2, max = 1000, wd)
 
 }

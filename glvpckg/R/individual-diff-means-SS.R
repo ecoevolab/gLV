@@ -1,4 +1,4 @@
-#' SS_diffmeansALL Function
+#' individual_diff_means_SS Function
 #'
 #' This function searches for steady states in a simulation by analyzing the squared differences in the simulation results over time.
 #'
@@ -22,7 +22,7 @@
 #' @examples
 #' # Example usage:
 #'
-#'wd <- "~/Documents/LAB_ECO"
+#' wd <- "~/Documents/LAB_ECO"
 #'
 #' # Initial parameters
 #' N_species = 2
@@ -30,34 +30,21 @@
 #' CN = 0.2
 #' Diag_val = -0.5
 #'
-#' # Generate ID
-#' uniqueID <- generate_uniqueID(wd)
-#'
 #' # Generate parameters
 #' seeds_path <- file.path(wd, "Seeds.tsv" )
-#' params <- generate (N_species, seeds_path, C0, CN, Diag_val)
+#' params <-  init_data(N_species, seeds_path, C0, CN, Diag_val)
 #'
 #' # Generate simulation
 #' times <- 20 # Define the number of generations
-#' output <- Simulate_output(N_species, params = params, times = times, norm = FALSE)
+#' output <- run_simulation(N_species, params = params, times = times, norm = FALSE)
 #'
 #' tolerance = 0.05
-#' SS_individual(uniqueID, output, tolerance, params, wd)
+#' individual_diff_means_SS(uniqueID, output, tolerance, params, wd) 
 #'
 #' @export
 
 individual_diff_means_SS <- function(uniqueID, output, tolerance, params, wd) {
 
-  #--------------------Calculate the analytic SS----------------#
-  A_inv <- solve(as.matrix(params$Interactions)) # Inverse of the matrix
-  detA <- det(params$Interactions)
-
-  if (detA != 0) {
-    P <- -A_inv %*% params$Growths
-    cat("There is an analytical solution for the Steady State...\n")
-  } else {
-    P <- numeric(nrow(output)) # No analytical solution
-  }
 
   specs <- nrow(output) # Number of species
   Stable_vec <- numeric(specs) # Preallocate vector
@@ -70,11 +57,6 @@ individual_diff_means_SS <- function(uniqueID, output, tolerance, params, wd) {
     V_spec <- log(ifelse(V_spec == 0, 10, V_spec)) # Log transformation
 
     Stable_col <- which(V_spec < trans_tolerance)[1] # Generation where the mean < tolerance
-
-    if (!is.null(P) && length(P) == specs) {
-      difference <- difference + (output[s, Stable_col] - P[s])
-    }
-
     Stable_vec[s] <- Stable_col + 1 # Add vector
   }
 

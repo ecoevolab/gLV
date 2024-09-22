@@ -13,7 +13,9 @@ SS_find_and_save_all(uniqueID, output, tolerance, wd)
 
 \item{tolerance}{Numeric: Tolerance value for determining the steady state.}
 
-\item{wd}{Character: Working directory where the results will be saved.}
+\item{wd}{Character: Working directory where the results will be saved.
+
+ @import utils}
 }
 \description{
 This function searches for steady states in a simulation by analyzing the differences in the simulation results over time and saves the
@@ -38,7 +40,7 @@ times <- 100 # Define the number of generations
 output <- run_simulation(N_species, params = params, times = times, norm = FALSE)
 
 # Generate ID
-uniqueID <- forge_ID(wd)
+uniqueID <- forge_id(wd)
 
 # All  Steady states
 tolerance = 0.05

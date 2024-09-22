@@ -11,7 +11,9 @@
 #'     \item \code{Diff_mean}: Numeric vector. Column means of the squared differences between successive time steps, transformed using \code{log}.
 #'     \item \code{Stable_gen}: Numeric. The generation (time step) at which the system first reaches the steady state, based on the tolerance threshold.
 #'   }
-#'
+#'  
+#' @importFrom zoo rollmean
+#' 
 #' @examples
 #' # Example usage:
 #'
@@ -29,7 +31,7 @@
 #'
 #' # Generate simulation
 #' times <- 20 # Define the number of generations
-#' output <- Simulate_output(N_species, params = params, times = times, norm = FALSE)
+#' output <- run_simulation(N_species, params = params, times = times, norm = FALSE)
 #'
 #' tolerance = 0.05
 #' result <- SS_roll_window_all(output, tolerance)

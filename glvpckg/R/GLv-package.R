@@ -15,27 +15,32 @@
 #' ids
 #'
 #' @usage
-#'  # Generate parameters for simulation
-#'  seeds_path <- file.path(wd, "Seeds.tsv" )
-#'  params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
-#'
-#'  # Run simulation
-#'  times <- 1000  # Define the number of generations
-#'  output <- run_simulation(N_species = 2, params = params, times = times, norm = FALSE)
-#'
-#'  # Generate unique ID
-#'  uniqueID <- forge_ID(wd)
-#'
-#'  # Save output
-#' output_save(output, uniqueID, wd)
-#'
-#' # Calculate all Steady States
+#' # Generate parameters for simulation
+#' library(glvsimulator)
+#' 
+#' wd = "~/Documents/LAB_ECO/"
+#' seeds_path <- file.path(wd, "Seeds.tsv" )
+#' params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
+#' 
+#' # Run simulation
+#' times <- 100  # Define the number of generations
+#' output <- run_simulation(N_species = 2, params = params, times = times, norm = FALSE)
+#' 
+#' # Generate unique ID
+#' uniqueID <- forge_id(wd)
+#' 
+#' # Save output
+#' output_saver(output, uniqueID, wd)
+#' 
+#' #---------- Calculate all Steady States--------------------#
 #' tolerance <- 0.05
 #' SS_find_and_save_all(uniqueID, output, tolerance, wd)
-#'
+#' 
 #' # Apply Steady States Methods
 #' result1 <- SS_roll_window_all(output, tolerance)
 #' result2 <- SS_diff_means_all(output, tolerance)
+#' 
+#' #---------- Calculate individual Steady States--------------------#
 
 
 
