@@ -37,7 +37,7 @@ params <-  init_data(N_species, seeds_path, C0, CN, Diag_val)
 
 # Simulate species interactions
 times <- 100 # Define the number of generations
-output <- run_simulation(N_species, params = params, times = times, norm = FALSE)
+output <- run_simulation(N_species, params = params, times = times)
 
 # Generate ID
 uniqueID <- forge_id(wd)

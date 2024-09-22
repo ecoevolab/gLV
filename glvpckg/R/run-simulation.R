@@ -11,7 +11,6 @@
 #'     \item Seeds: Numeric vector representing the seeds used to generate the interaction matrix, growth rates, and populations.
 #'   }
 #' @param times Numeric: The number of generations to simulate.
-#' @param norm Logical: Whether the output time series should be normalized to proportions (\code{norm = TRUE}) or returned as raw counts (\code{norm = FALSE}, default).
 #'
 #' @return The function returns the simulation results over time, typically in the form of a matrix or data frame.
 #' 
@@ -27,9 +26,9 @@
 #'
 #' # Simulate species interactions
 #' times <- 100  # Define the number of generations
-#' output <- run_simulation(N_species = 2, params = params, times = times, norm = FALSE)
+#' output <- run_simulation(N_species = 2, params = params, times = times)
 
-run_simulation <- function(N_species, params, times, norm) {
+run_simulation <- function(N_species, params, times) {
 
   # Ensure the ids package is available
   if (!requireNamespace("miaSim", quietly = TRUE)) {
@@ -45,7 +44,7 @@ run_simulation <- function(N_species, params, times, norm) {
                                 t_end= times,
                                 migration_p = 0,
                                 stochastic = FALSE, # Ignorar ruido
-                                norm = norm) # FALSE=conteo, TRUE=proporciones
+                                norm = TRUE) # FALSE=conteo, TRUE=proporciones
 
   output <- glvmodel@assays@data@listData[["counts"]]
 

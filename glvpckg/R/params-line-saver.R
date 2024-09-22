@@ -1,4 +1,4 @@
-#' Line_Save Function
+#' params_line_saver Function
 #'
 #' This function saves parameters by lines.
 #'
@@ -26,11 +26,11 @@
 #'   uniqueID <- forge_id(wd)
 #'
 #'   # Save by lines
-#'   line_save(params, uniqueID, wd)
+#'   params_line_saver(params, uniqueID, wd)
 #'
 #' @export
 
-line_saver <- function(params, uniqueID, wd) {
+params_line_saver <- function(params, uniqueID, wd) {
   
   # attach package 
   requireNamespace("utils")

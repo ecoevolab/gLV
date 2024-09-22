@@ -4,7 +4,7 @@
 \alias{run_simulation}
 \title{Simulate_output Function}
 \usage{
-run_simulation(N_species, params, times, norm)
+run_simulation(N_species, params, times)
 }
 \arguments{
 \item{N_species}{Numeric: Number of species involved in the simulation.}
@@ -18,8 +18,6 @@ run_simulation(N_species, params, times, norm)
 }}
 
 \item{times}{Numeric: The number of generations to simulate.}
-
-\item{norm}{Logical: Whether the output time series should be normalized to proportions (\code{norm = TRUE}) or returned as raw counts (\code{norm = FALSE}, default).}
 }
 \value{
 The function returns the simulation results over time, typically in the form of a matrix or data frame.
@@ -36,5 +34,5 @@ params <- init_data(N_species = 2, seeds_path = seeds_path, C0 = 0.45, CN = 0.2,
 
 # Simulate species interactions
 times <- 100  # Define the number of generations
-output <- run_simulation(N_species = 2, params = params, times = times, norm = FALSE)
+output <- run_simulation(N_species = 2, params = params, times = times)
 }

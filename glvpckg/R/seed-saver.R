@@ -1,4 +1,4 @@
-#' Seed_saver Function
+#' params_seed_saver Function
 #'
 #' This function saves specified parameters to a table format. The parameters include the number of species, interaction probabilities, diagonal values of the interaction matrix, and seed values used in different aspects of the simulation.
 #'
@@ -30,11 +30,11 @@
 #'  uniqueID <- forge_id(wd)
 #'
 #'  # Save parameters using Seed_saver function
-#'  seed_saver(N_specs = 2,  C0 = 0.45, CN = 0.2, Diag_val, params, uniqueID, wd)
+#'  params_seed_saver(N_species = 2,  C0 = 0.45, CN = 0.2, Diag_val = -0.5, params, uniqueID, wd)
 #'
 #' @export
 
-seed_saver <- function(N_species, C0, CN, Diag_val, params, uniqueID, wd) {
+params_seed_saver <- function(N_species, C0, CN, Diag_val, params, uniqueID, wd) {
   
   # attach package 
   requireNamespace("utils")

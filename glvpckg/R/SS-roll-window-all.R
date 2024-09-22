@@ -31,7 +31,7 @@
 #'
 #' # Generate simulation
 #' times <- 20 # Define the number of generations
-#' output <- run_simulation(N_species, params = params, times = times, norm = FALSE)
+#' output <- run_simulation(N_species, params = params, times = times)
 #'
 #' tolerance = 0.05
 #' result <- SS_roll_window_all(output, tolerance)

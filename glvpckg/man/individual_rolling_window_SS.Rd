@@ -28,27 +28,19 @@ It then computes the differences between consecutive rolling means and determine
 \examples{
 # Example usage:
 
-wd <- "~/Documents/LAB_ECO"
-
-# Define simulation parameters
-N_species <- 2
-C0 <- 0.45
-CN <- 0.2
-Diag_val <- -0.5
-
-# Generate unique ID
-uniqueID <- generate_uniqueID(wd)
-
-# Generate simulation parameters
+wd = "~/Documents/LAB_ECO"
 seeds_path <- file.path(wd, "Seeds.tsv")
-params <- generate(N_species, seeds_path, C0, CN, Diag_val)
+params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 
 # Run simulation
-times <- 20 # Define the number of generations
-output <- Simulate_output(N_species, params = params, times = times, norm = FALSE)
+times <- 100  # Define the number of generations
+output <- run_simulation(N_species = 2, params = params, times = times)
 
-# Calculate rolling window steady state
-tolerance <- 0.05
-steady_state <- Rwindow_individual(uniqueID, output, tolerance, wd)
+# Generate unique ID
+uniqueID <- forge_id(wd)
+
+# Search for Individual steady state.
+tolerance <- 0.00005
+individual_rolling_window_SS(uniqueID, output, tolerance, wd)
 
 }

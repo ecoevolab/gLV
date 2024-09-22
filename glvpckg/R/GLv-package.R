@@ -24,13 +24,21 @@
 #' 
 #' # Run simulation
 #' times <- 100  # Define the number of generations
-#' output <- run_simulation(N_species = 2, params = params, times = times, norm = FALSE)
+#' output <- run_simulation(N_species = 2, params = params, times = times)
 #' 
 #' # Generate unique ID
 #' uniqueID <- forge_id(wd)
 #' 
+#' #----------------------- Savers----------------------------#
+#' 
 #' # Save output
 #' output_saver(output, uniqueID, wd)
+#' 
+#' # Save parameters by seeds
+#' params_seed_saver(N_species = 2,  C0 = 0.45, CN = 0.2, Diag_val = -0.5, params, uniqueID, wd)
+#' 
+#' # Save parameters by line
+#' params_line_saver(params, uniqueID, wd)
 #' 
 #' #---------- Calculate all Steady States--------------------#
 #' tolerance <- 0.05
@@ -40,7 +48,8 @@
 #' result1 <- SS_roll_window_all(output, tolerance)
 #' result2 <- SS_diff_means_all(output, tolerance)
 #' 
-#' #---------- Calculate individual Steady States--------------------#
+#' #---------- Calculate individual Steady States-------------#
+#' 
 
 
 
