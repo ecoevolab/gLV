@@ -4,10 +4,10 @@
 \alias{run_simulation}
 \title{Simulate_output Function}
 \usage{
-run_simulation(n_species, params, times, norm)
+run_simulation(N_species, params, times, norm)
 }
 \arguments{
-\item{n_species}{Numeric: Number of species involved in the simulation.}
+\item{N_species}{Numeric: Number of species involved in the simulation.}
 
 \item{params}{List: A list including the following elements:
 \itemize{

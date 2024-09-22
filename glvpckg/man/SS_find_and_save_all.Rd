@@ -34,14 +34,13 @@ seeds_path <- file.path(wd, "Seeds.tsv" )
 params <-  init_data(N_species, seeds_path, C0, CN, Diag_val)
 
 # Simulate species interactions
-times <- 1000 # Define the number of generations
-output <- Simulate_output(N_species = 2, params = params, times = times, norm = FALSE)
+times <- 100 # Define the number of generations
+output <- run_simulation(N_species, params = params, times = times, norm = FALSE)
 
 # Generate ID
 uniqueID <- forge_ID(wd)
 
-
-#--------------------------ALL  Steady states---------------------------#
+# All  Steady states
 tolerance = 0.05
 SS_find_and_save_all(uniqueID, output, tolerance, wd)
 }

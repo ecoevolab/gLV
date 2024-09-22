@@ -20,17 +20,17 @@
 #' matrix diagonal values, and seed values.
 #'
 #' @examples
-#'   wd <- "~/Documents/LAB_ECO"
+#'  wd <- "~/Documents/LAB_ECO"
 #'
-#'   # Generate parameters for simulation
-#'   seeds_path <- file.path(wd, "Seeds.tsv" )
-#'   params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
+#'  # Generate parameters for simulation
+#'  seeds_path <- file.path(wd, "Seeds.tsv" )
+#'  params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 #'
-#'   # Generate unique ID
-#'   uniqueID <- forge_ID(wd)
+#'  # Generate unique ID
+#'  uniqueID <- forge_ID(wd)
 #'
-#'   # Save parameters using Seed_saver function
-#'   seed_saver(N_specs = 2,  C0 = 0.45, CN = 0.2, Diag_val, params, uniqueID, wd)
+#'  # Save parameters using Seed_saver function
+#'  seed_saver(N_specs = 2,  C0 = 0.45, CN = 0.2, Diag_val, params, uniqueID, wd)
 #'
 #' @export
 
