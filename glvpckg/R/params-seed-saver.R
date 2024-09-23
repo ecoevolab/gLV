@@ -63,7 +63,7 @@ params_seed_saver <- function(N_species, C0, CN, Diag_val, params, uniqueID, wd)
   # Save table
   utils::write.table(combined_data, file = Ps_path, sep = "\t", row.names = FALSE, col.names = TRUE)
 
-  cat("Seeds saved with ID: ", uniqueID, "\n Path:", Ps_path)
+  cat("Parameters seeds saved \n\tID:", uniqueID, "\n\tPath:", Ps_path, "\n")
 }
 
 

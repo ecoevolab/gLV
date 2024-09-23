@@ -24,7 +24,7 @@
 #'
 #' # Simulate species interactions
 #' times <- 100  # Define the number of generations
-#' output <- run_simulation(N_species, params = params, times = times)
+#' output <- run_simulation(N_species = 2, params = params, times = times)
 #'
 #' # Generate unique ID
 #' uniqueID <- forge_id(wd)
@@ -43,5 +43,5 @@ output_saver <- function(output, uniqueID, wd) {
   # Save output data
   utils::write.table(output, file = out_path, sep = "\t", row.names = FALSE, col.names = TRUE)
 
-  cat("Output saved with ID: ", uniqueID, "\n Path:", out_path)
+  cat("Output saved with ID: ", uniqueID, "\n\tPath:", out_path, "\n")
 }

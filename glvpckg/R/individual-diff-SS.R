@@ -31,7 +31,6 @@
 #'
 #' @export
 
-
 individual_diff_SS <- function(uniqueID, output, tolerance, wd) {
   
   specs <- nrow(output)  # Number of species
@@ -39,38 +38,33 @@ individual_diff_SS <- function(uniqueID, output, tolerance, wd) {
   ss_counts <- numeric(specs)  # Preallocate for counting steady state generations
   trans_tolerance <- tolerance^2  # Transform tolerance
   
-  #----------------------------Search Stability-----------------------#
+  #---------------------------- Search Stability -----------------------#
   for (s in seq_len(specs)) {
-    
     V_spec <- diff(as.numeric(output[s, ]))^2  # Get squared differences
     stable_points <- which(V_spec < trans_tolerance)  # Stable generations
-    stable_gen[s] <- stable_points[1] # First generation where value < tolerance
+    
+    stable_gen[s] <- ifelse(length(stable_points) > 0, stable_points[1], NA)  # First generation where value < tolerance
     
     if (length(stable_points) > 1) {  # Ensure there are at least 2 points to check
-      # Check if the stable points are sequential
-      runs <- rle(diff(stable_points) == 1)
+      runs <- rle(diff(stable_points) == 1)  # Check for sequential stable points
       
-      # Check if the last run is TRUE (stable state at end)
+      # Check if the last run indicates a steady state at the end
       if (tail(runs$values, 1)) {
         index <- sum(runs$lengths[-length(runs$lengths)])  # Sum lengths except the last
-        cons_gens <- stable_points[(index + 1):length(stable_points)]  # Use vector indexing directly
-        ss_counts[s] <- length(cons_gens)
+        ss_counts[s] <- length(stable_points) - index  # Count stable generations
       } else {
-        cat("The Steady state is not at the end of the simulation.\nThis could indicate there is not a steady state or the function is oscillatory.")
+        message("The steady state is not at the end of the simulation. This could indicate no steady state or oscillatory behavior.")
       }
     } else {
-      cat("Not enough stable points to determine sequential generations.\n")
+      message("Not enough stable points to determine sequential generations.")
     }
-}
+  }
   
-  # Generation where the steady state is reached
+  # Naming stable generations and counts
   names(stable_gen) <- paste0("Specie", seq_len(specs))
-  
-  # Number of Steady Generations of species
   names(ss_counts) <- paste0("#Steady_gens", seq_len(specs))
   
-  
-  #------------------------------Create Data Frame-----------------------------#
+  #------------------------------ Create Data Frame -----------------------------#
   SS_df <- data.frame(
     ID = uniqueID,
     "#Generations" = ncol(output),
@@ -80,47 +74,30 @@ individual_diff_SS <- function(uniqueID, output, tolerance, wd) {
     "#Steady_start" = sum(stable_gen, na.rm = TRUE),
     "#Steady_generations" = sum(ss_counts, na.rm = TRUE),  # Avoid NA in summation
     Method = "diff^2",
-    Individual = TRUE
+    Individual = TRUE,
+    stringsAsFactors = FALSE
   )
+  
   tmp <- SS_df
   
-  #----------------------------Save Data Frame--------------------------------#
-  SS_ind_path <- file.path(wd, "Scan", "SS_individual.tsv")
+  #---------------------------- Save Data Frame --------------------------------#
+  SS_ind_path <- file.path(wd, "Scan", "SS_individual_differences.tsv")
   
   # Read existing table if it exists, else create new
   if (file.exists(SS_ind_path)) {
-    SS_table <- read.delim(SS_ind_path, sep = "\t", header = TRUE)  # Read existing data
+    SS_table <- read.delim(SS_ind_path, sep = "\t", header = TRUE, stringsAsFactors = FALSE)  # Read existing data
     SS_df <- rbind(SS_table, SS_df)  # Combine with new data
   }
   
   write.table(SS_df, file = SS_ind_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
   
-  #--------------------------Save Stable Generations-------------------------#
-  RDS_path <- file.path(wd, "Scan", "SS_individual.rds")
+  #--------------------- Print Messages --------------------------------------#
+  cat("Individual differences steady State search done and saved\n", 
+          "\tWith ID:", uniqueID, "\n",
+          "\tData Frame path:", SS_ind_path, "\n")
   
-  # Create new entry
-  new_entry <- list("ID" = uniqueID,
-                    "Method" = "log(diff^2)",
-                    "Steady_State" = stable_gen)  # Replace with your steady state vector
-  
-  # Append new entry or initialize new data
-  if (file.exists(RDS_path)) {
-    existing_data <- readRDS(RDS_path)  # Load existing data
-    updated_data <- append(existing_data, new_entry)  # Append new entry
-  } else {
-    updated_data <- list(new_entry)  # Initialize new data list
-  }
-  
-  saveRDS(updated_data, file = RDS_path)  # Save updated data
-  
-  #---------------------Print Messages--------------------------------------#
-  cat("Steady State search done and saved\n", "\t With ID:", uniqueID, "\n")
-  cat("\t Data Frame path:", SS_ind_path, "\n")
-  cat("\t Stable generations path:", RDS_path, "\n \n")
-  
-  return(tmp)
+  return(list(table = tmp,  # Table saved
+              Stable = stable_gen))  # Vector with the generation where the species reached the steady state
 }
-
-
 
 

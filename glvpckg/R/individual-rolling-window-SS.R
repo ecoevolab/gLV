@@ -35,57 +35,83 @@
 #' @export
 
 individual_rolling_window_SS <- function(uniqueID, output, tolerance, wd) {
-
+  
   # Ensure the zoo package is available
   if (!requireNamespace("zoo", quietly = TRUE)) {
     stop("The 'zoo' package is required but not installed.")
   }
-
+  
   specs <- nrow(output)  # Number of species
-  times <- ncol(output)  # Number of generations
-  window_size <- max(round(times * 0.1), 1)  # Calculate window size and ensure it's at least 1
-  Stable_vec <- numeric(specs) # Preallocate vector
-
+  times <- ncol(output) # Number of generations
+  window_size <- max(1, round(times * 0.1))  # Calculate window size ensuring it's at least 1
+  stable_gen <- numeric(specs)  # Vector to store the generations where species reached steady state
+  ss_counts <- numeric(specs) # Vector to store the number of generations where species are on steady state
+  
   # Function to calculate stability for one row
-  find_stability <- function(row, window_size, tolerance) {
-    moving_avg <- zoo::rollmean(row, window_size, fill = NA, align = "left")  # Calculate moving average
-    difference <- abs( diff(moving_avg) )
-    stable_gen <- which(difference < tolerance)[1]  # Find the first generation where moving average < tolerance
-    return(stable_gen + 1)
+  find_stability <- function(row) {
+    moving_var <- zoo::rollapply(row, width = window_size, FUN = var, fill = NA, align = "left")  # Calculate moving variance
+    stable_points <- which(moving_var < tolerance)  # Find generations where moving variance < tolerance
+    return(stable_points)
   }
-
-  # Apply the stability function to each row
-  Stable_vec <- sapply(seq_len(specs), function(s) {
-    row <- as.numeric(output[s, ])  # Convert the current row to numeric vector
-    find_stability(row, window_size, tolerance)  # Store the result
-  })
-
-  names(Stable_vec) <- paste0("Specie", seq_len(specs))
-
-  # Define file path for RDS
-  RDS_path <- file.path(wd, "Scan", "SS_individual.rds")
-
-  # Create the new entry
-  new_entry <- list(
+  
+  #-------------------------- Calculate Stable Generations -------------------------#
+  for (s in seq_len(specs)) {
+    
+    # Directly convert the current row to numeric
+    stable_points <- find_stability(as.numeric(output[s, ]))  
+    
+    if (length(stable_points) > 1) {  # Ensure there are at least 2 points to check
+      runs <- rle(diff(stable_points) == 1)  # Run-length encoding for sequential checks
+      
+      if (tail(runs$values)) {  # Check if the last run is TRUE (steady state at end)
+        index <- sum(runs$lengths[-length(runs$lengths)])  # Sum lengths except the last
+        cons_gens <- stable_points[(index + 1):length(stable_points)]  # Use vector indexing directly
+        ss_counts[s] <- length(cons_gens)  # Calculate for how many generations the system is in steady state
+      } else {
+        message("The steady state is not at the end of the simulation. This could indicate no steady state or oscillatory behavior.")
+      }
+      
+      stable_gen[s] <- ifelse(length(stable_points) > 0, stable_points[1], NA)  # First generation where value < tolerance
+    } else {
+      message("Not enough stable points to determine sequential generations.")
+    }
+  }
+  
+  names(stable_gen) <- paste0("Species", seq_len(specs))
+  
+  #------------------------------Create Data Frame-----------------------------#
+  SS_df <- data.frame(
     ID = uniqueID,
-    Method = "Rolling_window",
-    Steady_State = Stable_vec
+    "#Generations" = times,
+    "#Species" = specs,
+    Tolerance = tolerance,
+    "#Steady_start" = sum(stable_gen, na.rm = TRUE),
+    "#Steady_generations" = sum(ss_counts, na.rm = TRUE),  # Avoid NA in summation
+    Method = "roll_var",
+    Individual = TRUE
   )
-
-  # Check if the file exists and load/append data accordingly
-  if (file.exists(RDS_path)) {
-    existing_data <- readRDS(RDS_path)  # Load existing data
-    updated_data <- c(existing_data, list(new_entry))  # Append new entry
-  } else {
-    updated_data <- list(new_entry)  # Initialize new data list if no file exists
+  
+  tmp <- SS_df
+  
+  #----------------------------Save Data Frame--------------------------------#
+  SS_ind_path <- file.path(wd, "Scan", "SS_Individual_RollingVariance.tsv")
+  
+  # Read existing table if it exists, else create new
+  if (file.exists(SS_ind_path)) {
+    SS_table <- read.delim(SS_ind_path, sep = "\t", header = TRUE)  # Read existing data
+    SS_df <- rbind(SS_table, SS_df)  # Combine with new data
   }
-
-  saveRDS(updated_data, file = RDS_path)  # Save updated data
-
-  # Print messages
-  cat("Steady State search done and saved\n",
-      "\tWith ID:", uniqueID, "\n",
-      "\tStable generations path:", RDS_path, "\n\n")
-
-  return(Stable_vec)
+  
+  write.table(SS_df, file = SS_ind_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
+  
+  #--------------------- Print Messages --------------------------------------#
+  cat("Rolling window steady State search done and saved\n",
+          "\tWith ID:", uniqueID, "\n",
+          "\tData Frame path:", SS_ind_path, "\n")
+  
+  return(list(table = tmp, # Table saved
+              Stable = stable_gen # Vector with on what generation does the specie reached the steady state
+              )
+  )
 }
+
