@@ -22,7 +22,9 @@ A message indicating where the table was saved. The stable generations are saved
 This function searches for steady states in a simulation by analyzing the squared differences in the simulation results over time.
 }
 \details{
-The function calculates the squared differences between successive time steps for each species. If the squared differences fall below the specified tolerance (in its log-transformed form), the species is considered to have reached a steady state. The function then determines the generation at which each species reaches this steady state and saves the results to a file.
+The function calculates the squared differences between successive time steps for each species. If the squared differences fall below the tranformed tolerance (\code{tolerance^2}), the species is considered to have reached a steady state. 
+
+The function then determines at how many generations does the specie keep on steady state at the simulation.
 }
 \examples{
 # Example usage:

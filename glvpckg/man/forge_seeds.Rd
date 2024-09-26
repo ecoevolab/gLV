@@ -2,25 +2,29 @@
 % Please edit documentation in R/forge-seeds.R
 \name{forge_seeds}
 \alias{forge_seeds}
-\title{forge_seeds Function}
+\title{Generate seeds for parameter generation}
 \usage{
 forge_seeds(n, min, max, wd)
 }
 \arguments{
-\item{n}{Number of possible seeds generated.}
+\item{n}{Number of possible seeds to generate.}
 
-\item{min}{Minimum possible seed value.}
+\item{min}{Minimum possible seed value (inclusive).}
 
-\item{max}{Maximum possible seed value.}
+\item{max}{Maximum possible seed value (inclusive).}
 
 \item{wd}{Working directory where the seeds file will be saved.}
 }
+\value{
+A data frame containing the generated seeds and their corresponding sampled values saved as a file in the specified working directory.
+}
 \description{
-This function generates `n` number of random seeds, subsamples them, and selects one to generate each item for the `init_data` function.
+This function generates `n` random seeds within a specified range, subsamples them, and selects one seed to generate each item for the \link{init_data} function.
 }
 \examples{
 # Example usage
-wd = "~/Documents/LAB_ECO/"
+wd = "~/Documents/LAB_ECO/Simulations"
 forge_seeds(n = 200, min = 2, max = 1000, wd)
+# Check the specified working directory for the seeds file
 
 }

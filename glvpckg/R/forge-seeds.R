@@ -1,22 +1,25 @@
-#' forge_seeds Function
+#' Generate seeds for parameter generation
 #'
-#' This function generates `n` number of random seeds, subsamples them, and selects one to generate each item for the `init_data` function.
+#' This function generates `n` random seeds within a specified range, subsamples them, and selects one seed to generate each item for the \link{init_data} function.
 #'
-#' @param n Number of possible seeds generated.
-#' @param min Minimum possible seed value.
-#' @param max Maximum possible seed value.
+#' @param n Number of possible seeds to generate.
+#' @param min Minimum possible seed value (inclusive).
+#' @param max Maximum possible seed value (inclusive).
 #' @param wd Working directory where the seeds file will be saved.
 #'  
 #' @import utils
 #' @importFrom random randomNumbers
 #' 
+#' @return A data frame containing the generated seeds and their corresponding sampled values saved as a file in the specified working directory.
+#'
 #' @examples
 #' # Example usage
-#' wd = "~/Documents/LAB_ECO/"
+#' wd = "~/Documents/LAB_ECO/Simulations"
 #' forge_seeds(n = 200, min = 2, max = 1000, wd)
+#' # Check the specified working directory for the seeds file
 #' 
 #' @export
-#' 
+
 
 forge_seeds <- function(n, min, max, wd) {
     

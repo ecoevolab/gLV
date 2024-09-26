@@ -49,7 +49,7 @@ output_visualizer <- function(output) {
   colnames(melted_df) <- c("Species", "Generation", "Value")
   
   # Create the plot
-  p <- ggplot2::ggplot(melted_df, ggplot2::aes(x = "Generation", y = "Value", color = "Species", group = "Species")) +
+  p <- ggplot2::ggplot(melted_df, ggplot2::aes(x = Generation, y = Value, color = Species, group = Species)) +
     ggplot2::geom_line() +
     ggplot2::theme_minimal() +
     ggplot2::labs(title = "Line Plot of Comparisons vs. Values by Species", x = "Generations", y = "Population") +

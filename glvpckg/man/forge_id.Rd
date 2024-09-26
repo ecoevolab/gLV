@@ -2,7 +2,7 @@
 % Please edit documentation in R/forge-ID.R
 \name{forge_id}
 \alias{forge_id}
-\title{Generate a Unique ID for Output Files}
+\title{Generate a Unique ID for saving simulations}
 \usage{
 forge_id(wd)
 }
@@ -20,7 +20,7 @@ The function creates a unique ID by ensuring that the newly generated ID does no
 }
 \examples{
 # Example usage:
-wd <- "~/Documents/LAB_ECO"
+wd <- "~/Documents/LAB_ECO/Simulations"
 uniqueID <- forge_id(wd)
 print(uniqueID)
 

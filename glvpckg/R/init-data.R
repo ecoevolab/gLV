@@ -1,14 +1,25 @@
 #' Generate Parameters for Simulation
 #'
-#' This function generates the necessary parameters for a simulation, which can then be used in the \code{Simulate_output} function.
+#' This function generates the necessary parameters for a simulation, which can then be used in the \link{run_simulation} function.
 #'
 #' @param N_species Numeric. The number of species involved in the simulation.
 #' @param seeds_path Character. The file path to a TSV file containing all possible seeds to sample. The seeds should be prepared
-#'   using the \code{Seed_generator} function.
+#'   using the \link{forge_seeds} function.
 #' @param C0 Numeric. The probability of no interaction between species (i.e., 0 interaction).
 #' @param CN Numeric. The probability of negative interaction (<0) between species.
 #' @param Diag_val Numeric. The diagonal values used in the interaction matrix.
 #'
+#' @details 
+#' \itemize{
+#'   \item For \strong{generating the populations}, a uniform distribution between 0.1 and 1 is used. This represents the proportion of each species in the medium.
+#'   \item For \strong{generating the interaction matrix}, a binomial distribution with a success probability of `CN` is used to determine whether the interaction will be negative.
+#'   
+#'   The resulting number is then multiplied by another binomial distribution with a success probability of `C0` to determine if the interaction will be null (0). Finally, this product is multiplied by a uniform distribution between 0 and 1 to obtain the final interaction value.
+#'   
+#'   The diagonal of the interaction matrix is filled with the value of `Diag_val` (user input).
+#'   \item For \strong{generating the growth rates}, a uniform distribution between 0.001 and 1 is utilized. This represents the growth rate of each species.
+#' }
+#' 
 #' @return A list containing the following elements:
 #'   \itemize{
 #'     \item \code{Interactions}: A matrix representing the interaction values between species.
@@ -36,7 +47,7 @@ init_data <- function(N_species, seeds_path, C0, CN, Diag_val) {
 
   #------------------Read Seeds------------------------------#
   requireNamespace("data.table")
-  seeds <- as.matrix(fread(seeds_path, sep = "\t"))
+  seeds <- as.matrix(data.table::fread(seeds_path, sep = "\t"))
 
   #------------------Populations-----------------------------#
   S_p <- sample(seeds, 1)

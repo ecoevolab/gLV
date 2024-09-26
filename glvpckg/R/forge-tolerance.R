@@ -35,9 +35,12 @@
 
 forge_tolerance <- function(paramSettings, seeds_path, wd, individual) {
   
+  # Set initial tolerance
   tolerance <- paramSettings$tolerance
+  counter <- 1
+  
   # Generate unique ID for this run
-    uniqueID <- forge_id(wd)
+  uniqueID <- forge_id(wd)
     
   # Generate directories once before the loop
   suppressMessages( forge_directories(wd) )
@@ -65,7 +68,7 @@ forge_tolerance <- function(paramSettings, seeds_path, wd, individual) {
     output <- run_simulation(N_species = paramSettings$N_species, params = params, times = paramSettings$times)
     output_saver(output, uniqueID, wd) 
     
-  while (tolerance >= 9e-7) {
+ repeat {
     
     if (individual){
       # Calculate and save individual steady states
@@ -79,6 +82,11 @@ forge_tolerance <- function(paramSettings, seeds_path, wd, individual) {
     
     # Decrease tolerance by 1 order of magnitude
     tolerance <- tolerance / 10
+    counter <- counter + 1
+    
+    if (counter >= 7) {
+      break
+    }
   }
   
   message("Steady Search completed...")

@@ -2,7 +2,7 @@
 % Please edit documentation in R/forge-directories.R
 \name{forge_directories}
 \alias{forge_directories}
-\title{forge_directories function}
+\title{Generate required directories for the package's functions}
 \usage{
 forge_directories(wd)
 }
@@ -10,16 +10,24 @@ forge_directories(wd)
 \item{wd}{Character. The path to the working directory where the directories will be created.}
 }
 \value{
-Prints messages to the console indicating which directories were created or if they already exist.
+Prints messages to the console indicating which directories were created or if they already existed.
 }
 \description{
 This function creates the necessary directories for simulations in the specified working directory.
 }
 \details{
-The function constructs directories used for simulations, including "Outputs", "Parameters", and "Scan".
+The function creates directories used for simulations, including: 
+
+\itemize{
+  \item \code{\strong{Outputs} } Directory where the simulation matrix of population changes over time is saved.
+  \item \code{\strong{Parameters} }: Directory for saving the parameters used to generate the data. Parameters can be saved either by line using \link{params_line_saver}, or by seed using \link{params_seed_saver}.
+  \item \code{ \strong{Scan} }: Directory where the results of the steady state search algorithms are saved, including global stable generations (using \link{SS_find_and_save_all}) or by individual species (using \link{individual_SS_find_and_save}).
+  \item  \code{ \strong{Differences} }: Directory where the log-transformed differences \eqn{\log(t+1) - \log(t)} of the output matrix are saved.
+}
 }
 \examples{
 # Example usage
-wd <- "~/Documents/LAB_ECO"
+wd <- "~/Documents/LAB_ECO/Simulations"
 forge_directories(wd)
+
 }

@@ -1,4 +1,4 @@
-#' Generate a Unique ID for Output Files
+#' Generate a Unique ID for saving simulations
 #'
 #' This function generates a unique ID by checking the output directory to ensure no duplicate IDs are created.
 #'
@@ -12,7 +12,7 @@
 #'
 #' @examples
 #' # Example usage:
-#' wd <- "~/Documents/LAB_ECO"
+#' wd <- "~/Documents/LAB_ECO/Simulations"
 #' uniqueID <- forge_id(wd)
 #' print(uniqueID)
 #' 

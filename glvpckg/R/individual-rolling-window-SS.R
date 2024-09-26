@@ -1,4 +1,4 @@
-#' Rwindow_individual Function
+#' Individual Steady State Search by Rolling  Variance
 #'
 #' This function analyzes simulation results to identify steady states by calculating rolling means and checking when the differences fall below a specified tolerance.
 #'
@@ -29,7 +29,7 @@
 #' uniqueID <- forge_id(wd)
 #'
 #' # Search for Individual steady state.
-#' tolerance <- 0.00005
+#' tolerance <- 0.005
 #' individual_rolling_window_SS(uniqueID, output, tolerance, wd)
 #'
 #' @export
@@ -58,6 +58,7 @@ individual_rolling_window_SS <- function(uniqueID, output, tolerance, wd) {
   for (s in seq_len(specs)) {
     
     # Directly convert the current row to numeric
+    # row <- as.numeric(output[s, ])
     stable_points <- find_stability(as.numeric(output[s, ]))  
     
     if (length(stable_points) > 1) {  # Ensure there are at least 2 points to check
