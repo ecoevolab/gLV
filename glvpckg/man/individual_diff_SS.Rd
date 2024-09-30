@@ -2,7 +2,7 @@
 % Please edit documentation in R/individual-diff-SS.R
 \name{individual_diff_SS}
 \alias{individual_diff_SS}
-\title{individual_diff_SS Function}
+\title{Individual Steady State Search by Squared Differences}
 \usage{
 individual_diff_SS(uniqueID, output, tolerance, wd)
 }
@@ -16,20 +16,22 @@ individual_diff_SS(uniqueID, output, tolerance, wd)
 \item{wd}{Character: Working directory where the results will be saved. The directory should exist prior to running the function.}
 }
 \value{
-A message indicating where the table was saved. The stable generations are saved using the specified unique ID.
+Vector with the generation where the species reached the steady state.
 }
 \description{
 This function searches for steady states in a simulation by analyzing the squared differences in the simulation results over time.
 }
 \details{
-The function calculates the squared differences between successive time steps for each species. If the squared differences fall below the tranformed tolerance (\code{tolerance^2}), the species is considered to have reached a steady state. 
+The function calculates the squared differences between successive time steps for each species. If the squared differences fall below the transformed tolerance (\code{tolerance^2}), the species is considered to have reached a steady state.
 
-The function then determines at how many generations does the specie keep on steady state at the simulation.
+Specifically, the squared difference for each species at time step `t` is computed as:
+\deqn{D(X_t, X_{t+1}) = (X_{t+1} - X_t)^2}
+where `D` is the squared difference and `X_t` and `X_{t+1}` are the abundances of the species at consecutive time steps.
 }
 \examples{
 # Example usage:
 
-wd = "~/Documents/LAB_ECO"
+wd = "~/Documents/LAB_ECO/Simulations"
 seeds_path <- file.path(wd, "Seeds.tsv")
 params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 

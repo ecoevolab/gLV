@@ -1,23 +1,33 @@
-#' Individual Steady State Search by Rolling  Variance
+#' Individual Steady State Search by Rolling Variance
 #'
-#' This function analyzes simulation results to identify steady states by calculating rolling means and checking when the differences fall below a specified tolerance.
+#' This function analyzes simulation results to identify steady states by calculating rolling variance of species abundances across time steps. It checks when the variance fall below a specified tolerance level, indicating that the species has stabilized.
 #'
-#' @param uniqueID Character: A unique identifier for the simulation run.
-#' @param output Matrix: Simulation results where rows represent species and columns represent time steps.
-#' @param tolerance Numeric: Tolerance value for determining the steady state.
-#' @param wd Character: Working directory where the results will be saved.
+#' @param uniqueID Character: A unique identifier for the simulation run, typically used for tracking and organizing results.
+#' @param output Matrix: A matrix of simulation results where each row represents a different species and each column represents a specific time step. The values in the matrix indicate the abundance of each species at each time step.
+#' @param tolerance Numeric: A tolerance value that determines the threshold for considering a species to be at steady state. This value represents the maximum allowable difference in rolling means that can occur between consecutive generations for a species to be deemed stable.
+#' @param wd Character: The working directory where the results will be saved. This directory must exist prior to running the function.
 #'
-#' @return Numeric vector \code{Stable_vec}, where each index corresponds to a species and contains the generation at which that species reaches the steady state.
+#' @return A numeric vector \code{Stable_vec}, where each index corresponds to a species and contains the generation at which that species reaches the steady state. If a species does not reach a steady state, the corresponding value will be `NA`.
 #'
-#' @details The function calculates the rolling mean of the output with a window size of \code{#generations * 0.1}.
-#' It then computes the differences between consecutive rolling means and determines the generation where the difference is less than the specified tolerance.
-#'
-#' @importFrom zoo rollmean
+#' @details 
+#' The function calculates the rolling variance of the output using a window size of \eqn{generations * 0.1}. It determines the generation at which the rolling variance falls below the specified tolerance, indicating that the species has stabilized.
+#' 
+#' The variance for a given window size `k` is calculated using the equation:
+#' 
+#' \deqn{Var(X) = \frac{1}{n} \sum_{i=1}^{n} (X_i - \bar{X})^2}
+#' 
+#' where `n` is the size of the rolling window and \bar{X} is the mean of the values within that window.
+#' 
+#' For example, when analyzing the first row of the output matrix with a window size of 10, the variance is calculated using the values from columns 1 to 10. This rolling process continues for each subsequent column, moving the window forward by one column at a time. At each step, the variance is recalculated by including the new value and excluding the oldest value in the window. 
+#' 
+#' The process stops when there are not enough values remaining to form a complete window of size `k`, such as before the last `k` columns.
+#' 
+#' @importFrom zoo rollapply
 #' 
 #' @examples
 #' # Example usage:
 #'
-#' wd = "~/Documents/LAB_ECO"
+#' wd = "~/Documents/LAB_ECO/Simulations"
 #' seeds_path <- file.path(wd, "Seeds.tsv")
 #' params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 #' 
@@ -34,19 +44,19 @@
 #'
 #' @export
 
-individual_rolling_window_SS <- function(uniqueID, output, tolerance, wd) {
+individual_rolling_variance_SS <- function(uniqueID, output, tolerance, wd) {
   
   # Ensure the zoo package is available
   if (!requireNamespace("zoo", quietly = TRUE)) {
     stop("The 'zoo' package is required but not installed.")
   }
   
+  #--------------------------Declare data-------------------------------#
   specs <- nrow(output)  # Number of species
   times <- ncol(output) # Number of generations
   window_size <- max(1, round(times * 0.1))  # Calculate window size ensuring it's at least 1
   stable_gen <- numeric(specs)  # Vector to store the generations where species reached steady state
-  ss_counts <- numeric(specs) # Vector to store the number of generations where species are on steady state
-  
+
   # Function to calculate stability for one row
   find_stability <- function(row) {
     moving_var <- zoo::rollapply(row, width = window_size, FUN = var, fill = NA, align = "left")  # Calculate moving variance
@@ -58,61 +68,15 @@ individual_rolling_window_SS <- function(uniqueID, output, tolerance, wd) {
   for (s in seq_len(specs)) {
     
     # Directly convert the current row to numeric
-    # row <- as.numeric(output[s, ])
     stable_points <- find_stability(as.numeric(output[s, ]))  
-    
-    if (length(stable_points) > 1) {  # Ensure there are at least 2 points to check
-      runs <- rle(diff(stable_points) == 1)  # Run-length encoding for sequential checks
-      
-      if (tail(runs$values)) {  # Check if the last run is TRUE (steady state at end)
-        index <- sum(runs$lengths[-length(runs$lengths)])  # Sum lengths except the last
-        cons_gens <- stable_points[(index + 1):length(stable_points)]  # Use vector indexing directly
-        ss_counts[s] <- length(cons_gens)  # Calculate for how many generations the system is in steady state
-      } else {
-        message("The steady state is not at the end of the simulation. This could indicate no steady state or oscillatory behavior.")
-      }
-      
-      stable_gen[s] <- ifelse(length(stable_points) > 0, stable_points[1], NA)  # First generation where value < tolerance
-    } else {
-      message("Not enough stable points to determine sequential generations.")
-    }
+    stable_gen[s] <- ifelse(length(stable_points) > 0, stable_points[1], NA)  # First generation where value < tolerance
   }
   
   names(stable_gen) <- paste0("Species", seq_len(specs))
-  
-  #------------------------------Create Data Frame-----------------------------#
-  SS_df <- data.frame(
-    ID = uniqueID,
-    "#Generations" = times,
-    "#Species" = specs,
-    Tolerance = tolerance,
-    "#Steady_start" = sum(stable_gen, na.rm = TRUE),
-    "#Steady_generations" = sum(ss_counts, na.rm = TRUE),  # Avoid NA in summation
-    Method = "roll_var",
-    Individual = TRUE
-  )
-  
-  tmp <- SS_df
-  
-  #----------------------------Save Data Frame--------------------------------#
-  SS_ind_path <- file.path(wd, "Scan", "SS_Individual_RollingVariance.tsv")
-  
-  # Read existing table if it exists, else create new
-  if (file.exists(SS_ind_path)) {
-    SS_table <- read.delim(SS_ind_path, sep = "\t", header = TRUE)  # Read existing data
-    SS_df <- rbind(SS_table, SS_df)  # Combine with new data
-  }
-  
-  write.table(SS_df, file = SS_ind_path, sep = "\t", row.names = FALSE, col.names = TRUE)  # Save
-  
+
   #--------------------- Print Messages --------------------------------------#
-  cat("Rolling window steady State search done and saved\n",
-          "\tWith ID:", uniqueID, "\n",
-          "\tData Frame path:", SS_ind_path, "\n")
+  # cat("Rolling window variance steady State search done \n")
   
-  return(list(table = tmp, # Table saved
-              Stable = stable_gen # Vector with on what generation does the specie reached the steady state
-              )
-  )
+  return(stable_gen)
 }
 

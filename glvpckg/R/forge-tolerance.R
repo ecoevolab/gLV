@@ -33,63 +33,52 @@
 #' forge_tolerance(paramSettings, seeds_path, wd, individual)
 #' @export
 
-forge_tolerance <- function(paramSettings, seeds_path, wd, individual) {
+forge_tolerance <- function(output, uniqueID, initial_tolerance, individual) {
   
-  # Set initial tolerance
-  tolerance <- paramSettings$tolerance
-  counter <- 1
-  
-  # Generate unique ID for this run
-  uniqueID <- forge_id(wd)
+    # Set initial tolerance
+    tolerance <- initial_tolerance
+    counter <- 1
+    entry <- list()
     
-  # Generate directories once before the loop
-  suppressMessages( forge_directories(wd) )
+    repeat {
+      
+      if (individual){
+        # Calculate and save individual steady states
+        tmp <- individual_SS_find_and_save(uniqueID, output, tolerance, wd) 
+        message("Individual steady state generations search done and saved with tolerance ", tolerance)
+        entry <- append(entry, list(tmp) )
+      } else {
+        # Calculate and save all steady states
+        capture.output(all_SS_find_and_save(uniqueID, output, tolerance, wd) )
+        message("ALL steady state generations search done and saved with tolerance ", tolerance)
+      }
+      
+      # Decrease tolerance by 1 order of magnitude
+      tolerance <- tolerance / 10
+      counter <- counter + 1
+      
+      if (counter >= 7) {
+        break
+      }
+    }
     
-  # Pre-generate the simulation parameters that do not change
-  params <- init_data(
-    N_species = paramSettings$N_species, 
-    seeds_path = seeds_path, 
-    C0 = paramSettings$C0, 
-    CN = paramSettings$CN, 
-    Diag_val = paramSettings$Diag_val
-  )
-  
-  # Save parameters and output data
-  params_seed_saver(
-      N_species = paramSettings$N_species,
-      C0 = paramSettings$C0,
-      CN = paramSettings$CN,
-      Diag_val = paramSettings$Diag_val,
-      params = params,
-      uniqueID = uniqueID,
-      wd = wd)
-  
-   # Run simulation and save it
-    output <- run_simulation(N_species = paramSettings$N_species, params = params, times = paramSettings$times)
-    output_saver(output, uniqueID, wd) 
+    #-------------------------- Save Stable Generations -------------------------#
+    entry_to_save <- list(ID = uniqueID, data = entry)  # Replace "your_id_value" with the actual ID
+    RDS_path <- file.path(wd, "Scan", "SS_Individual.rds")
     
- repeat {
-    
-    if (individual){
-      # Calculate and save individual steady states
-      capture.output(individual_SS_find_and_save(uniqueID, output, tolerance, wd) )
-      message("Individual steady state generations search done and saved with tolerance ", tolerance)
+    # Append new entry or initialize new data
+    if (file.exists(RDS_path)) {
+      existing_data <- readRDS(RDS_path)  # Load existing data
+      updated_data <- c(existing_data, entry_to_save )  # Append new entry
     } else {
-      # Calculate and save all steady states
-      capture.output(SS_find_and_save_all(uniqueID, output, tolerance, wd) )
-      message("ALL steady state generations search done and saved with tolerance ", tolerance)
+      updated_data <- entry_to_save  # Initialize new data list
     }
     
-    # Decrease tolerance by 1 order of magnitude
-    tolerance <- tolerance / 10
-    counter <- counter + 1
+     # Save updated data
+    saveRDS(updated_data, file = RDS_path) 
     
-    if (counter >= 7) {
-      break
-    }
-  }
-  
-  message("Steady Search completed...")
+    # Print message
+    message("Steady Search completed with ID: ", uniqueID)
   
   return(uniqueID)
 }

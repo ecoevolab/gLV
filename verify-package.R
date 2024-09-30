@@ -10,6 +10,15 @@ help(package="glvsimulator")
 # Generate parameters for simulation
 library(glvsimulator)
 
+#-------------------------------------------------------------#
+## Set the path to your directory
+directory_path <- "~/Documents/LAB_ECO/gLV/glvpckg/R/"
+r_files <- list.files(directory_path, pattern = "\\.R$", full.names = TRUE) # List all R files in the directory
+lapply(r_files, source) # Source each file
+
+# Generate seeds
+# forge_seeds(n = 200, min = 2, max = 1000, wd = "~/Documents/LAB_ECO/")
+
 wd = "~/Documents/LAB_ECO/Simulations"
 # forge_seeds(n = 200, min = 2, max = 1000, wd)
 seeds_path <- file.path(wd, "Seeds.tsv" )
@@ -34,7 +43,7 @@ params_seed_saver(N_species = 2,  C0 = 0.45, CN = 0.2, Diag_val = -0.5, params, 
 params_line_saver(params, uniqueID, wd)
 
 #---------- Calculate all Steady States--------------------#
-tolerance <- 0.0005
+tolerance <- 0.005
 SS_find_and_save_all(uniqueID, output, tolerance, wd)
 
 # Apply Steady States Methods
@@ -47,32 +56,31 @@ individual_SS_find_and_save(uniqueID, output, tolerance, wd)
 
 
 # Apply Steady States Methods
-result2 <- individual_diff_SS(uniqueID, output, tolerance, wd)
-result1 <- individual_rolling_window_SS(uniqueID, output, tolerance, wd)
+result1 <- all_rolling_var_SS(output, tolerance)
+result2 <- all_prop_SS(output, tolerance)
 
 
-#----------------------Testing------------------------------------
-# Set the path to your directory
-directory_path <- "~/Documents/LAB_ECO/gLV/glvpckg/R/"
-r_files <- list.files(directory_path, pattern = "\\.R$", full.names = TRUE) # List all R files in the directory
-lapply(r_files, source) # Source each file
+#----------------------Forge tolerance---------------------#
 
-# Generate seeds
-# forge_seeds(n = 200, min = 2, max = 1000, wd = "~/Documents/LAB_ECO/")
+wd = "~/Documents/LAB_ECO/Simulations"
+# forge_seeds(n = 200, min = 2, max = 1000, wd)
+seeds_path <- file.path(wd, "Seeds.tsv" )
+params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
+
+# Run simulation
+times <- 100  # Define the number of generations
+output <- run_simulation(N_species = 2, params = params, times = times)
+
+# Generate unique ID
+uniqueID <- forge_id(wd)
 
 
-seeds_path <- file.path("~/Documents/LAB_ECO", "Seeds.tsv")
-paramSettings <- list(N_species = 2,
-                      C0 = 0.45,
-                      CN = 0.2,
-                      Diag_val = -0.5, # Parameters for data generation
-                      tolerance = 0.05, # Tolerance used for Steady State search
-                      times = 100) # Number of generations
+tolerance <- 0.0001
 individual = TRUE
 
 # Read the RDS file
 wd <- "~/Documents/LAB_ECO/testing"
-uniqueID <- forge_tolerance(paramSettings, seeds_path, wd, individual)
+
 table <- load_individual_ss_rds(wd, uniqueID)
 
 # Plot the output

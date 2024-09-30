@@ -34,7 +34,8 @@
 #' uniqueID <- forge_id(wd)
 #' 
 #' # Example usage:
-#' individual_prop_SS(uniqueID, output, tolerance = 0.01, wd)
+#' tolerance=0.05
+#' individual_prop_SS(uniqueID, output, tolerance, wd)
 #'
 #' @export
 
@@ -80,9 +81,9 @@ individual_prop_SS <- function(uniqueID, output, tolerance, wd) {
   utils::write.table(log_diff_df, file = diff_path, sep = "\t", row.names = FALSE, col.names = TRUE)
   
   #--------------------- Print Messages -----------------------------------------#
-  cat("Log differences steady state search done and saved\n",
-      "\tWith ID:", uniqueID, "\n",
-      "\tAt path:", diff_path, "\n")
+  # cat("Log differences steady state search done and saved\n",
+  #     "\tWith ID:", uniqueID, "\n",
+  #     "\tLog differences saved at path:", diff_path, "\n")
   
   return(stable_gen)
 }

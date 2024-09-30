@@ -33,29 +33,28 @@
 #'
 #' # All  Steady states
 #' tolerance = 0.05
-#' SS_find_and_save_all(uniqueID, output, tolerance, wd)
+#' all_SS_find_and_save(uniqueID, output, tolerance, wd)
+#' 
 #' @export
 
-SS_find_and_save_all <- function(uniqueID, output, tolerance, wd) {
+all_SS_find_and_save <- function(uniqueID, output, tolerance, wd) {
   
   # Attach package
   requireNamespace("utils")
 
   # Apply functions for SS searching
-  result1 <- SS_roll_window_all(output, tolerance)
-  result2 <- SS_diff_means_all(output, tolerance)
+  result1 <- all_rolling_var_SS(output, tolerance)
+  result2 <- all_prop_SS(output, tolerance)
 
   # Create data frame
   SS_df <- data.frame(
     ID = uniqueID,
     Generations_num = ncol(output),
     Species_num = nrow(output),
-    Roll_window_Tolerance = tolerance,
-    Diff_means_tolerance = result2$Transformed_Tolerance,
-    Roll_window_Stable_generation = result1$Stable_gen,
-    Diff_means_Stable_generation = result2$Stable_gen,
-    Individual = FALSE,
-    stringsAsFactors = FALSE
+    Tolerance = tolerance,
+    Roll_var_Stable_generation = result1,
+    Diff_means_Stable_generation = result2,
+    Individual = FALSE
   )
 
   # Define the file path
@@ -74,6 +73,8 @@ SS_find_and_save_all <- function(uniqueID, output, tolerance, wd) {
     utils::write.table(SS_df, file = SS_path, sep = "\t", row.names = FALSE, col.names = TRUE)
   }
 
-  cat("Steady State search done and saved \n", "With ID", uniqueID, "\n at path:", SS_path, "\n")
+  cat("Steady State search done and saved \n", 
+      "\tWith ID", uniqueID, "\n",
+      "\tAt path:", SS_path, "\n")
 }
 

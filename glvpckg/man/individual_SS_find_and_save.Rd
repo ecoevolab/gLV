@@ -2,7 +2,7 @@
 % Please edit documentation in R/individual-SS-find-and-save.R
 \name{individual_SS_find_and_save}
 \alias{individual_SS_find_and_save}
-\title{individual_SS_find_and_save Function}
+\title{Individual Steady State Search with All Methods}
 \usage{
 individual_SS_find_and_save(uniqueID, output, tolerance, wd)
 }
@@ -11,23 +11,28 @@ individual_SS_find_and_save(uniqueID, output, tolerance, wd)
 
 \item{output}{Matrix: Simulation results where rows represent species and columns represent time steps. Each element in the matrix represents the abundance of a species at a given time step.}
 
-\item{tolerance}{Numeric: Tolerance value for determining the steady state. The tolerance is transformed on \code{individual_diff_SS} using \code{tolerance^2} to define the threshold for stability.}
+\item{tolerance}{Numeric: Tolerance value for determining the steady state.}
 
 \item{wd}{Character: Working directory where the results will be saved. The directory should exist prior to running the function.}
 }
 \value{
-A message indicating where the table was saved. The stable generations are saved using the specified unique ID.
+A message indicating where the results were saved (as an RDS file). The stable generations are stored using the specified unique ID.
 }
 \description{
-This function searches for steady states in a simulation by analyzing both methods available, using rolling variance with a window size of 10% and differences^2.
+This function searches for steady states in a simulation by analyzing all available methods: rolling variance with a window size of 10%, squared differences between generations, and differences of log abundances between consecutive time steps.
 }
 \details{
-The function calculates the start of the steady state using both method available.
+The function calculates the steady state of the output using three methods:
+\itemize{
+  \item \link{individual_diff_SS}: Computes steady states by analyzing squared differences between generations \eqn{(t+1) - t} . On this method tolerance is transformed using \code{tolerance^2} to define the threshold for stability.
+  \item \link{individual_rolling_variance_SS}: Determines steady states using rolling variance with a specified window size.
+  \item \link{individual_prop_SS}: Analyzes differences in log abundances to identify steady states.
+}
 }
 \examples{
 # Example usage:
 
-wd = "~/Documents/LAB_ECO"
+wd = "~/Documents/LAB_ECO/Simulations"
 seeds_path <- file.path(wd, "Seeds.tsv")
 params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 
@@ -39,7 +44,7 @@ output <- run_simulation(N_species = 2, params = params, times = times)
 uniqueID <- forge_id(wd)
 
 # Search for Individual steady state.
-tolerance <- 0.00005
-individual_diff_SS(uniqueID, output, tolerance, wd)
+tolerance <- 0.005
+individual_SS_find_and_save(uniqueID, output, tolerance, wd)
 
 }
