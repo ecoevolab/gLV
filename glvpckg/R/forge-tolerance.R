@@ -18,19 +18,22 @@
 #'
 #' @examples
 #' # Example usage:
-#' wd <- "~/Documents/LAB_ECO/testing"
-#' seeds_path <- file.path("~/Documents/LAB_ECO", "Seeds.tsv")
 #' 
-#' paramSettings <- list(N_species = 2, 
-#'                       C0 = 0.45, 
-#'                       CN = 0.2, 
-#'                       Diag_val = -0.5, # Parameters for data generation
-#'                       tolerance = 0.05, # Tolerance used for Steady State search
-#'                       times = 100) # Number of generations   
-#' individual = TRUE
+#' wd = "~/Documents/LAB_ECO/Simulations"
+#' # forge_seeds(n = 200, min = 2, max = 1000, wd)
+#' seeds_path <- file.path(wd, "Seeds.tsv" )
+#' params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 #' 
-#' # Function
-#' forge_tolerance(paramSettings, seeds_path, wd, individual)
+#' # Run simulation
+#' times <- 100  # Define the number of generations
+#' output <- run_simulation(N_species = 2, params = params, times = times)
+#' 
+#' # Generate unique ID
+#' uniqueID <- forge_id(wd)
+#' 
+#'  # Function
+#' forge_tolerance(output, uniqueID, initial_tolerance = 0.05, individual = TRUE)
+#' 
 #' @export
 
 forge_tolerance <- function(output, uniqueID, initial_tolerance, individual) {
@@ -38,19 +41,18 @@ forge_tolerance <- function(output, uniqueID, initial_tolerance, individual) {
     # Set initial tolerance
     tolerance <- initial_tolerance
     counter <- 1
-    entry <- list()
     
     repeat {
       
       if (individual){
         # Calculate and save individual steady states
-        tmp <- individual_SS_find_and_save(uniqueID, output, tolerance, wd) 
-        message("Individual steady state generations search done and saved with tolerance ", tolerance)
-        entry <- append(entry, list(tmp) )
+        individual_SS_find_and_save(uniqueID, output, tolerance, wd) 
+        cat("Individual steady state generations search done and saved with tolerance ", tolerance, "\n")
+        
       } else {
         # Calculate and save all steady states
         capture.output(all_SS_find_and_save(uniqueID, output, tolerance, wd) )
-        message("ALL steady state generations search done and saved with tolerance ", tolerance)
+        cat("ALL steady state generations search done and saved with tolerance ", tolerance, "\n")
       }
       
       # Decrease tolerance by 1 order of magnitude
@@ -62,23 +64,7 @@ forge_tolerance <- function(output, uniqueID, initial_tolerance, individual) {
       }
     }
     
-    #-------------------------- Save Stable Generations -------------------------#
-    entry_to_save <- list(ID = uniqueID, data = entry)  # Replace "your_id_value" with the actual ID
-    RDS_path <- file.path(wd, "Scan", "SS_Individual.rds")
-    
-    # Append new entry or initialize new data
-    if (file.exists(RDS_path)) {
-      existing_data <- readRDS(RDS_path)  # Load existing data
-      updated_data <- c(existing_data, entry_to_save )  # Append new entry
-    } else {
-      updated_data <- entry_to_save  # Initialize new data list
-    }
-    
-     # Save updated data
-    saveRDS(updated_data, file = RDS_path) 
-    
     # Print message
     message("Steady Search completed with ID: ", uniqueID)
   
-  return(uniqueID)
 }

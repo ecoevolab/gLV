@@ -27,16 +27,14 @@
 all_prop_SS <- function(output, tolerance) {
   
   # Compute column means directly
-  out_mean <- colMeans(output)
-  
-  # Apply log only where out_mean is non-zero
-  ln_mat <- log(out_mean[out_mean != 0])
+  log_output <- ifelse(output <= 0, NA, log(output) )   # Apply logarithm safely
+  log_mean <- colMeans(log_output)
   
   # Compute differences between consecutive means
-  differ_mat <- diff(ln_mat)
+  differ_mat <- diff(log_mean)
   
   # Find the first generation where the difference is below tolerance
-  stable_gen <- which(differ_mat < tolerance)[1]
+  stable_gen <- which(abs(differ_mat) < tolerance)[1]
   
   return(stable_gen)
 }

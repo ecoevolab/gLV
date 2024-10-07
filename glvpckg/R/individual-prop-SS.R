@@ -44,33 +44,32 @@ individual_prop_SS <- function(uniqueID, output, tolerance, wd) {
   # Ensure required package is loaded
   requireNamespace("utils")
   
-  #--------------------------Declare data-------------------------------#
+  #-------------------------- Declare Data -------------------------------#
   specs <- nrow(output)  # Number of species
   gens <- ncol(output)
-  stable_gen <- numeric(specs)  # Preallocate for stable generations
-  log_diff_df <- matrix(NA, nrow = specs, ncol = gens - 1)  # Preallocate log_diff matrix
+  
+  # Preallocate stable generations and log_diff matrix
+  stable_gen <- numeric(specs)  
+  log_diff_df <- matrix(NA, nrow = specs, ncol = gens - 1)  
   
   #---------------------------- Precompute Log Safely ------------------#
   # Replace 0 values in output with NA to avoid log(0) = -Inf
-  safe_output <- ifelse(output == 0, NA, output)
-  log_output <- log(safe_output)  # Apply logarithm safely
+  log_output <- ifelse(output <= 0, NA, log(output) )   # Apply logarithm safely
   
   #---------------------------- Search Stability ------------------------#
   for (s in seq_len(specs)) {
-    V_spec <- log_output[s, ]  # Use safe log values
-    log_diff <- diff(V_spec)
+    log_diff <- diff(log_output[s, ])
     log_diff_df[s, ] <- log_diff
     
     # Get stable generations
-    stable_points <- which(abs(log_diff) < tolerance & !is.na(log_diff))  # Ignore NAs
+    stable_points <- which(abs(log_diff) < tolerance)  # Ignore NAs automatically
     stable_gen[s] <- ifelse(length(stable_points) > 0, stable_points[1], NA)
   }
   
   # Naming stable generations
   names(stable_gen) <- paste0("Specie", seq_len(specs))
   
-  #------------------------------- Save differences -----------------------------#
-  # Log differences path
+  #------------------------------- Save Differences -----------------------------#
   diff_path <- file.path(wd, "Differences", paste0("ld", uniqueID, ".tsv"))
   
   # Convert log_diff_df to data frame for saving
@@ -79,6 +78,117 @@ individual_prop_SS <- function(uniqueID, output, tolerance, wd) {
   
   # Save log differences
   utils::write.table(log_diff_df, file = diff_path, sep = "\t", row.names = FALSE, col.names = TRUE)
+  
+  #------------------------------- Save Column Means Differences -----------------------------#
+  mdiff_path <- file.path(wd, "Differences", paste0("means_ld", ".tsv"))
+  
+  # Calculate column means and format for saving
+  means_ld <- as.data.frame(t(colMeans(log_diff_df, na.rm = TRUE)))
+  IDs <- uniqueID 
+  means_ld <- cbind(IDs, means_ld)
+  colnames(means_ld) <- NULL
+  #colnames(means_ld) <- paste0("Diff", seq_len(gens - 1)) 
+    
+  # Function to read and unify rows with different lengths
+  read_unified_tsv <- function(file_path, means_ld) {
+    
+    # Read existing data and find column information
+    old_meansld <- read.delim(file_path, sep = "\t", header = FALSE, stringsAsFactors = FALSE) 
+    mld_col <- ncol(means_ld)
+    old_col <- ncol(old_meansld)
+    old_row <- nrow(old_meansld)
+    
+    # Determine the number of columns to add
+    num_cols_to_add <- max(0, old_col - mld_col)  # Columns to add if means_ld has fewer columns
+    na_columns <- data.frame(matrix(NA, nrow = nrow(means_ld), ncol = num_cols_to_add))
+    
+    # Combine old and new data
+    colnames(old_meansld) <- NULL
+    colnames(means_ld) <- NULL
+    rownames(old_meansld) <- NULL
+    rownames(means_ld) <- NULL
+    
+    # If simulation has more generations than the table add NAs to the table
+    if (mld_col == old_col) {
+      
+      means_save <- data.frame(matrix(NA, nrow = old_row + 1, ncol = old_col))
+      
+      for (r in 1:(old_row + 1)) {
+        means_save[r, ] <- old_meansld[r, ]
+        
+        if (r == old_row + 1) {
+          means_save[r, ] <- means_ld[1, ]
+        }
+      }
+      
+    }
+    
+    # If simulation has less generations than the table add NAs to the output
+    if (mld_col < old_col) {
+      
+      means_save <- data.frame(matrix(NA, nrow = old_row + 1, ncol = old_col))
+      
+      means_ld <- cbind(means_ld, na_columns)
+      
+      for (r in 1:(old_row + 1)) {
+        means_save[r, ] <- old_meansld[r, ]
+        
+        if (r == old_row + 1) {
+          means_save[r, ] <- means_ld[1, ]
+        }
+      }
+    }
+    
+    # If simulation has more generations than the table add NAs to the table
+    if (mld_col > old_col) {
+      
+      means_save <- data.frame(matrix(NA, nrow = old_row + 1, ncol = mld_col))
+      
+      # Create a new data frame with NA values to match mld_col
+      padded_rows <- apply(old_meansld, 1, function(row) {
+        c(as.character(row), rep(NA, mld_col - length(row) ) )
+      })
+      old_meansld <- as.data.frame(t(padded_rows), stringsAsFactors = FALSE)
+      #old_meansld[, -1] <- as.numeric(old_meansld[, -1])
+      
+      # Convert non-first columns to numeric while keeping NA values intact
+      old_meansld[, -1] <- lapply(old_meansld[, -1], function(col) {
+        # Convert to character first to handle possible factors, and then to numeric
+        as.numeric(as.character(col))
+        # NAs will automatically be preserved in this process
+      })
+      
+      # Fill means_save with old_meansld values
+      means_save[1:old_row, ] <- old_meansld
+      
+      # Assign the last row from means_ld
+      means_save[old_row + 1, ] <- means_ld[1, ]
+      
+      # for (r in 1:old_row + 1) {
+      #   if (r == old_row + 1) {
+      #     means_save[r, ] <- means_ld[1, ]
+      #   }
+      #   means_save[r, ] <- old_meansld[r, ]
+      #   print(r)
+      #   
+      # }
+    }
+    
+    return(means_save)
+  }
+  
+  if (file.exists(mdiff_path)) {
+    means_save <- read_unified_tsv(file_path = mdiff_path, means_ld)
+    
+    # Save the combined data (new + old)
+    utils::write.table(means_save, file = mdiff_path, sep = "\t", row.names = FALSE, col.names = FALSE)  
+    
+  } else {
+    # Save the data
+    utils::write.table(means_ld, file = mdiff_path, sep = "\t", row.names = FALSE, col.names = FALSE)  
+    message("file created")
+  }
+  
   
   #--------------------- Print Messages -----------------------------------------#
   # cat("Log differences steady state search done and saved\n",

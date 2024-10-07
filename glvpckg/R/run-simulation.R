@@ -36,9 +36,9 @@ run_simulation <- function(N_species, params, times) {
   }
 
   glvmodel <- miaSim::simulateGLV(n_species = N_species,
-                                A = params$alpha, # interaction matrix
-                                x0 = params$Pobl, # Initial abundances
-                                growth_rates = params$r, # Growth rates
+                                A = params$Interactions, # interaction matrix
+                                x0 = params$Population, # Initial abundances
+                                growth_rates = params$Growths, # Growth rates
                                 t_start = 0,
                                 t_store = times,
                                 t_end= times,

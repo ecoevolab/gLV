@@ -12,11 +12,15 @@
 #' @details 
 #' The function calculates the steady state of the output using three methods:
 #' \itemize{
-#'   \item \link{individual_diff_SS}: Computes steady states by analyzing squared differences between generations \eqn{(t+1) - t} . On this method tolerance is transformed using \code{tolerance^2} to define the threshold for stability.
+#'   \item \link{individual_raw_diff_SS}: Computes steady states by analyzing squared differences between generations \eqn{(t+1) - t} . On this method tolerance is transformed using \code{tolerance^2} to define the threshold for stability.
 #'   \item \link{individual_rolling_variance_SS}: Determines steady states using rolling variance with a specified window size.
 #'   \item \link{individual_prop_SS}: Analyzes differences in log abundances to identify steady states.
 #' }
 #'
+#' This function saves simulation results in separate RDS files based on the method used. 
+#' If a new simulation is conducted with an existing ID, the results will be appended to the corresponding RDS file. Note that the function does not verify whether a 
+#' simulation with the same ID and tolerance has already been stored in the file.
+#' 
 #' @examples
 #' # Example usage:
 #'
@@ -46,7 +50,7 @@ individual_SS_find_and_save <- function(uniqueID, output, tolerance, wd) {
   
   
   # Apply functions for SS searching
-  result1 <- individual_diff_SS(uniqueID, output, tolerance, wd) 
+  result1 <- individual_raw_diff_SS(uniqueID, output, tolerance, wd) 
   result2 <- individual_rolling_variance_SS(uniqueID, output, tolerance, wd) 
   result3 <- individual_prop_SS(uniqueID, output, tolerance, wd) 
   
@@ -58,47 +62,33 @@ individual_SS_find_and_save <- function(uniqueID, output, tolerance, wd) {
     
     entry <- list(
       Tolerance = tolerance,
-      Generations = result1
+      Generations = result
     )
     
     nested_entry <- list(ID = uniqueID,
                      data = entry)
     
     # Generate file path
-    file_path <- file.path(wd, "Scan", paste0(method_name, ".json", sep = "") )
+    RDS_path <- file.path(wd, "Scan", paste0(method_name, ".rds", sep = "") )
     
-    # Look if file exist
-    if (file.exists(file_path)) {
+    # Append new entry or initialize new data
+    if (file.exists(RDS_path)) {
       
-      # Read JSON file list
-      old_list <- rjson::fromJSON(file = file_path, simplify=TRUE)
-      as.list(old_list)
-      jsonlite::read_json(file_path, simplifyList = TRUE)
-      old_list <- jsonlite::fromJSON(file_path, simplifyDataFrame = FALSE)
-      
-      # Look if the ID is already on the list and check if the new search is with a different tolerance
-      id_found <- uniqueID %in% old_list$ID
-      
-      # If the ID is present append new data to it
-      if (id_found) {
-        index <- which(uniqueID == old_list$ID)
-        old_data <- old_list[index,]$data
-        old_data <- old_list$data[[index]]
-        toJSON(rbind(fromJSON(step1), order3))
+        # Load existing data
+        old_list <- readRDS(RDS_path)  
         
+        # Append new entry
+        updated_entry <- list(old_list, nested_entry)
+        
+        # Save appended entry
+        saveRDS(updated_entry, file = RDS_path) 
+        #cat("RDS file updated")
       } else {
-        entry <- list(old_list, nested_entry)
-        jsonlite::write_json(entry, file_path)
-        cat("ID not found on JSON file, adding ID...")
-      }
-     
-    } else { 
+      
       # file doesn't exist, so we save it 
-      entry_save <- jsonlite::toJSON(nested_entry)
-      jsonlite::write_json(entry_save, file_path)
-      cat("JSON file generated, it didnt exist")
+      saveRDS(nested_entry, file = RDS_path) 
+      #cat("RDS file generated, it didnt exist")
     }
-    return(entry)
   }
   
   entry1 <- entry_per_method(result1, tolerance, method_name = "Raw_diff")
@@ -118,7 +108,7 @@ individual_SS_find_and_save <- function(uniqueID, output, tolerance, wd) {
     "Min_Proportions" = min(method3), "#Specie"  = which.min(method3)
   )
   
-  #tmp <- SS_df
+  tmp <- SS_df
   info_path <- file.path(wd, "Scan/SS_diff_table.tsv")
   
   # Read existing table if it exists, else create new
@@ -134,7 +124,7 @@ individual_SS_find_and_save <- function(uniqueID, output, tolerance, wd) {
   #         "\tWith ID:", uniqueID, "\n",
   #         "\tSS table saved at path:", info_path, "\n")
   
-  return(entry)
+  return(tmp)
 }
 
 

@@ -36,7 +36,7 @@
 #'
 #' @export
 
-individual_diff_SS <- function(uniqueID, output, tolerance, wd) {
+individual_raw_diff_SS <- function(uniqueID, output, tolerance, wd) {
   
   specs <- nrow(output)  # Number of species
   stable_gen <- numeric(specs)  # Preallocate for stable generations
