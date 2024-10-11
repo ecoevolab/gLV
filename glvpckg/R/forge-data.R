@@ -34,13 +34,14 @@
 #'
 #' @examples
 #' # Example usage:
-#' wd <- "~/Documents/LAB_ECO"
+#' wd <- "~/Documents/LAB_ECO/Simulations"
+#' 
+#' # Generate parameters
 #' seeds_path <- file.path(wd, "Seeds.tsv")
-#' params <- init_data(N_species = 2, seeds_path = seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
-#' print(params)
+#' params <- forge_data(N_species = 10, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 
 
-init_data <- function(N_species, seeds_path, C0, CN, Diag_val) {
+forge_data <- function(N_species, seeds_path, C0, CN, Diag_val) {
   
   # Attach package
   requireNamespace("stats")
@@ -60,7 +61,7 @@ init_data <- function(N_species, seeds_path, C0, CN, Diag_val) {
 
   # Generate random interaction values
   P_neg <- stats::rbinom(N_species * N_species, 1, CN)
-  tmp <- stats::rbinom(N_species * N_species, 1, 1 - C0) * ifelse(P_neg != 0, stats::runif(N_species * N_species, min=0, max=1), -stats::runif(N_species * N_species, min=0, max=1))
+  tmp <- stats::rbinom(N_species * N_species, 1, 1 - C0) * ifelse(P_neg != 0, stats::runif(N_species * N_species, min = 0, max = 1), -stats::runif(N_species * N_species, min = 0, max = 1))
   inter <- matrix(tmp, nrow = N_species, ncol = N_species)
 
   # Set diagonal values

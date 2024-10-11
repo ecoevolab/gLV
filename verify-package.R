@@ -19,62 +19,40 @@ lapply(r_files, source) # Source each file
 # Generate seeds
 # forge_seeds(n = 200, min = 2, max = 1000, wd = "~/Documents/LAB_ECO/")
 
-for (i in 1:10) {
-  
-  wd = "~/Documents/LAB_ECO/Simulations"
-  
-  #-----------------------Generate parameters-----------------#
-  # forge_seeds(n = 200, min = 2, max = 1000, wd)
-  seeds_path <- file.path(wd, "Seeds.tsv" )
-  params <- init_data(N_species = 10, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
-  
-  # Generate unique ID
-  uniqueID <- forge_id(wd)
-  
-  # Save parameters by seeds
-  params_seed_saver(N_species = 10,  C0 = 0.45, CN = 0.2, Diag_val = -0.5, params, uniqueID, wd)
-  
-  #-----------------------Run simulations-----------------#
-  # Run simulation
-  times <- round(runif(n = 1, min = 700, max = 1000) ) # Define the number of generations
-  output <- run_simulation(N_species = 10, params = params, times = times)
-  output_saver(output, uniqueID, wd) # Save output
-  
-  #---------------------- Calculate Steady states------------#
-  tolerance <- 0.02
-  individual = TRUE
-  individual_prop_SS(uniqueID, output, tolerance = 0.0005, wd)
-  
-}
-
-
-
-
 #-----------------------------------------Usage example---------------------------------------------
 wd = "~/Documents/LAB_ECO/Simulations"
 
 #-----------------------Generate parameters-----------------#
 # forge_seeds(n = 200, min = 2, max = 1000, wd)
-C0 <- round(sample(c(runif(1, min = 0.41, max = 0.8), runif(1, min = 0, max = 0.4)), size = 1), 2)
-CN <- round(sample(c(runif(1, min = 0, max = 0.5), runif(1, min = 0.51, max = 0.8)), size = 1), 2)
+C0 <- round( x = runif(1, min = 0.2, max = 0.99), digits = 3)
+CN <- round( x = runif(1, min = 0.2, max = 0.99), digits = 3)
 
-seeds_path <- file.path(wd, "Seeds.tsv" )
-params <- init_data(N_species = 10, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
-
-# Generate unique ID
-uniqueID <- forge_id(wd)
-
-#----------------------- Save parameters -----------------#
-# Save parameters by seeds
-params_seed_saver(N_species = 10,  C0 = 0.45, CN = 0.2, Diag_val = -0.5, params, uniqueID, wd)
-
-# Save parameters by line
-params_line_saver(params, uniqueID, wd)
-
+#------------------------------Parameters------------------------------------
+#
+        #-----------------------Generate parameters-----------------#
+        seeds_path <- file.path(wd, "Seeds.tsv" )
+        params <- forge_data(N_species = 10, seeds_path, C0 , CN, Diag_val = -0.5)
+        
+        # Generate unique ID
+        uniqueID <- forge_id(wd)
+        
+        #----------------------- Save parameters -----------------#
+        # Save parameters by seeds
+        params_seed_saver(N_species = 10,  C0, CN, Diag_val = -0.5, params, uniqueID, wd)
+        
+        # Save parameters by line
+        params_line_saver(params, uniqueID, wd)
+        
+        #------------------------Read parameters -----------------#
+        # Read parameters by seeds
+        params_seed_reader(uniqueID, wd)
+        
+        # Read parameters by lines
+        params <- params_line_reader(uniqueID, wd)
+        
 #-----------------------Run simulations-----------------#
 # Run simulation
-times <- round(runif(n = 1, min = 700, max = 1000) ) # Define the number of generations
-output <- run_simulation(N_species = 10, params = params, times = times)
+output <- run_simulation(N_species = 10, params = params, times = 200)
 output_saver(output, uniqueID, wd) # Save output
 
 N_species <- round(runif(1, min = 5, max = 100))
@@ -96,8 +74,7 @@ individual_SS_find_and_save(uniqueID, output, tolerance, wd)
 
 # Apply Steady States Methods
 result1 <- individual_prop_SS(uniqueID, output, tolerance = 0.05, wd)
-result2 <- all_prop_SS(output, tolerance)
-
+result2 <- individual_raw_diff_SS(uniqueID, output, tolerance = 0.05, wd)
 
 #----------------------Forge tolerance---------------------#
 

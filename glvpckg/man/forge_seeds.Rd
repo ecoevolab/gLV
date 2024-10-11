@@ -19,7 +19,7 @@ forge_seeds(n, min, max, wd)
 A data frame containing the generated seeds and their corresponding sampled values saved as a file in the specified working directory.
 }
 \description{
-This function generates `n` random seeds within a specified range, subsamples them, and selects one seed to generate each item for the \link{init_data} function.
+This function generates `n` random seeds within a specified range, subsamples them, and selects one seed to generate each item for the \link{forge_data} function.
 }
 \examples{
 # Example usage

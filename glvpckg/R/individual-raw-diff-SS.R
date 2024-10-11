@@ -14,7 +14,7 @@
 #' 
 #' Specifically, the squared difference for each species at time step `t` is computed as:
 #' \deqn{D(X_t, X_{t+1}) = (X_{t+1} - X_t)^2}
-#' where `D` is the squared difference and `X_t` and `X_{t+1}` are the abundances of the species at consecutive time steps.
+#' where \strong{D} is the squared difference and `X_t` and `X_{t+1}` are the abundances of the species at consecutive time steps.
 #'
 #' @examples
 #' # Example usage:

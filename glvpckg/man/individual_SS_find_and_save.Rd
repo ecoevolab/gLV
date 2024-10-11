@@ -24,10 +24,14 @@ This function searches for steady states in a simulation by analyzing all availa
 \details{
 The function calculates the steady state of the output using three methods:
 \itemize{
-  \item \link{individual_diff_SS}: Computes steady states by analyzing squared differences between generations \eqn{(t+1) - t} . On this method tolerance is transformed using \code{tolerance^2} to define the threshold for stability.
+  \item \link{individual_raw_diff_SS}: Computes steady states by analyzing squared differences between generations \eqn{(t+1) - t} . On this method tolerance is transformed using \code{tolerance^2} to define the threshold for stability.
   \item \link{individual_rolling_variance_SS}: Determines steady states using rolling variance with a specified window size.
   \item \link{individual_prop_SS}: Analyzes differences in log abundances to identify steady states.
 }
+
+This function saves simulation results in separate RDS files based on the method used. 
+If a new simulation is conducted with an existing ID, the results will be appended to the corresponding RDS file. Note that the function does not verify whether a 
+simulation with the same ID and tolerance has already been stored in the file.
 }
 \examples{
 # Example usage:

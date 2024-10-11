@@ -16,7 +16,7 @@
 #' 
 #' \deqn{Var(X) = \frac{1}{n} \sum_{i=1}^{n} (X_i - \bar{X})^2}
 #' 
-#' where `n` is the size of the rolling window and \bar{X} is the mean of the values within that window.
+#' where `n` is the size of the rolling window and \eqn{\bar{X}}  is the mean of the values within that window.
 #' 
 #' For example, when analyzing the first row of the output matrix with a window size of 10, the variance is calculated using the values from columns 1 to 10. This rolling process continues for each subsequent column, moving the window forward by one column at a time. At each step, the variance is recalculated by including the new value and excluding the oldest value in the window. 
 #' 

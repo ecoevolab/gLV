@@ -1,6 +1,23 @@
+#' Plot the Log Differences of Column Means from Simulation Output
+#'
+#' @param wd Character. The path to the working directory where the file `wd/Differences/means_ld.tsv` is located.
+#' 
+#' @return A plot displaying the log differences of the column means from the simulation output, with two red lines at y = ±log(1.0001). Each gray line represents the differences of the column means of the logs from the simulation.
+#' 
+#' @import ggplot2
+#' @import plotly
+#' @import tidyr
+#' @import utils
+#' @import reshape2
+#'
+#' @examples
+#' # Example usage:
+#' wd <- "~/Documents/LAB_ECO/Simulations"
+#' visualize_ld(wd)
+#' @export
 
 
-visualizer_logdiff <- function(wd) {
+visualize_ld <- function(wd) {
   
   # Log differences path
   mdiff_path <- file.path(wd, "Differences", paste0("means_ld", ".tsv"))

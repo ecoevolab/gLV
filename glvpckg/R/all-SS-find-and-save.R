@@ -12,21 +12,14 @@
 #'
 #' @examples
 #' # Example usage:
-#'
-#' wd <- "~/Documents/LAB_ECO" # Working directory
+#' wd = "~/Documents/LAB_ECO/Simulations"
 #'
 #' # Generate parameters
-#' N_species = 2
-#' C0 = 0.45
-#' CN = 0.2
-#' Diag_val = -0.5
-#'
 #' seeds_path <- file.path(wd, "Seeds.tsv" )
-#' params <-  init_data(N_species, seeds_path, C0, CN, Diag_val)
+#' params <-  forge_data(N_species = 2, seeds_path, C0 = 0.45, CN =  0.2, Diag_val = -0.5)
 #'
 #' # Simulate species interactions
-#' times <- 100 # Define the number of generations
-#' output <- run_simulation(N_species, params = params, times = times)
+#' output <- run_simulation(N_species = 2, params = params, times = 100)
 #'
 #' # Generate ID
 #' uniqueID <- forge_id(wd)

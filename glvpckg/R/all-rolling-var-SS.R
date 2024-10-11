@@ -23,11 +23,10 @@
 #'
 #' # Generate parameters
 #' seeds_path <- file.path(wd, "Seeds.tsv" )
-#' params <-  init_data(N_species, seeds_path, C0, CN, Diag_val)
+#' params <-  forge_data(N_species, seeds_path, C0, CN, Diag_val)
 #'
 #' # Generate simulation
-#' times <- 20 # Define the number of generations
-#' output <- run_simulation(N_species, params = params, times = times)
+#' output <- run_simulation(N_species, params = params, times = 20)
 #'
 #' tolerance = 0.0
 #' all_rolling_var_SS(output, tolerance)

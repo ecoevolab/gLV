@@ -1,6 +1,6 @@
 #' Generate seeds for parameter generation
 #'
-#' This function generates `n` random seeds within a specified range, subsamples them, and selects one seed to generate each item for the \link{init_data} function.
+#' This function generates `n` random seeds within a specified range, subsamples them, and selects one seed to generate each item for the \link{forge_data} function.
 #'
 #' @param n Number of possible seeds to generate.
 #' @param min Minimum possible seed value (inclusive).

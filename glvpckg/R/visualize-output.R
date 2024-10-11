@@ -1,27 +1,28 @@
-#' Plot the output of all species
+#' Plot the Output of All Species
 #'
-#' This function plot the change of population over the time (generations)
+#' This function plots the change in population over time (generations).
 #'
-#' @param output A data frame or matrix containing the simulation output to be saved. The columns represent generations, and rows represent species.
+#' @param output A data frame or matrix containing the simulation output to be visualized. The columns represent generations, and the rows represent species.
 #' 
-#' @return The resulting plot
+#' @return A plot where the x-axis represents generations and the y-axis represents population. Each line corresponds to a species within the simulation.
 #' 
 #' @import ggplot2
 #' @import plotly
 #' @import tidyr
-#' 
+#' @import utils
 #'
 #' @examples
 #' # Example usage
 #' wd <- "~/Documents/LAB_ECO/testing"
 #' uniqueID <- "bcfg45"
 #' 
-#' out_path <- paste(wd, "/Outputs/O_", uniqueID , ".tsv", sep = "") # output path
-#' output <- as.matrix( data.table::fread(out_path, sep = "\t") )
-#' output_visualizer(output)
+#' out_path <- paste(wd, "/Outputs/O_", uniqueID, ".tsv", sep = "") # Output path
+#' output <- as.matrix(data.table::fread(out_path, sep = "\t"))
+#' visualize_output(output)
 #' @export
 
-output_visualizer <- function(output) {
+
+visualize_output <- function(output) {
   
   if (!requireNamespace("plotly", quietly = TRUE)) {
     stop("plotly package is required but not installed.")
@@ -35,6 +36,10 @@ output_visualizer <- function(output) {
   if (!requireNamespace("reshape2", quietly = TRUE)) {
     stop("reshape2 package is required but not installed.")
   }
+  requireNamespace("utils", quietly = TRUE)
+  
+  # Declare global variables
+  utils::globalVariables(c("Generation", "Value", "Species"))
   
   # Calculate species number and generations
   specs <- nrow(output)
@@ -49,7 +54,7 @@ output_visualizer <- function(output) {
   colnames(melted_df) <- c("Species", "Generation", "Value")
   
   # Create the plot
-  p <- ggplot2::ggplot(melted_df, ggplot2::aes(x = Generation, y = Value, color = Species, group = Species)) +
+  p <- ggplot2::ggplot(data = melted_df, ggplot2::aes(x = Generation, y = Value, color = Species, group = Species)) +
     ggplot2::geom_line() +
     ggplot2::theme_minimal() +
     ggplot2::labs(title = "Line Plot of Comparisons vs. Values by Species", x = "Generations", y = "Population") +

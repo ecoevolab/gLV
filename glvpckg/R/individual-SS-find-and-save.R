@@ -26,11 +26,10 @@
 #'
 #' wd = "~/Documents/LAB_ECO/Simulations"
 #' seeds_path <- file.path(wd, "Seeds.tsv")
-#' params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
+#' params <- forge_data (N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 #' 
 #' # Run simulation
-#' times <- 100  # Define the number of generations
-#' output <- run_simulation(N_species = 2, params = params, times = times)
+#' output <- run_simulation(N_species = 2, params = params, times = 100)
 #' 
 #' # Generate unique ID
 #' uniqueID <- forge_id(wd)
@@ -42,12 +41,6 @@
 #' @export
 
 individual_SS_find_and_save <- function(uniqueID, output, tolerance, wd) {
-  
-  # Ensure the ids package is available
-  if (!requireNamespace("jsonlite", quietly = TRUE)) {
-    stop("The 'jsonlite' package is required but not installed.")
-  }
-  
   
   # Apply functions for SS searching
   result1 <- individual_raw_diff_SS(uniqueID, output, tolerance, wd) 
@@ -100,12 +93,12 @@ individual_SS_find_and_save <- function(uniqueID, output, tolerance, wd) {
   SS_df <- data.frame(
     ID = uniqueID,
     tolerance = tolerance,
-    "Max_diff" = max(method1), "#Specie" = which.max(method1),
-    "Min_diff" = min(method1), "#Specie"  = which.min(method1),
-    "Max_Rolling_var" = max(method2), "#Specie"  = which.max(method2),
-    "Min_Rolling_var" = min(method2), "#Specie"  = which.min(method2),
-    "Max_Proportions" = max(method3), "#Specie"  = which.max(method3),
-    "Min_Proportions" = min(method3), "#Specie"  = which.min(method3)
+    "Max_diff" = max(result1), "#Specie" = which.max(result1),
+    "Min_diff" = min(result1), "#Specie"  = which.min(result1),
+    "Max_Rolling_var" = max(result2), "#Specie"  = which.max(result2),
+    "Min_Rolling_var" = min(result2), "#Specie"  = which.min(result2),
+    "Max_Proportions" = max(result3), "#Specie"  = which.max(result3),
+    "Min_Proportions" = min(result3), "#Specie"  = which.min(result3)
   )
   
   tmp <- SS_df

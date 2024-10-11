@@ -1,36 +1,38 @@
-#' params_seed_saver Function
+#' Save Parameters by Seed for Future Regeneration
 #'
-#' This function saves specified parameters to a table format. The parameters include the number of species, interaction probabilities, diagonal values of the interaction matrix, and seed values used in different aspects of the simulation.
+#' This function saves specified parameters in a tabular format. The parameters include the number of species, interaction probabilities, diagonal values of the interaction matrix, and seed values used in different aspects of the simulation.
 #'
-#' @param N_species Integer. Number of species involved in the simulation.
-#' @param C0 Numeric. Probability of no interaction between species (i.e., zero interaction).
-#' @param CN Numeric. Probability of negative interaction (<0) between species.
-#' @param Diag_val Numeric vector. Diagonal values used in the interaction matrix.
-#' @param params List. Parameters used in the simulation, specifically \code{params$Semilla} containing:
+#' @param N_species Integer. The number of species involved in the simulation.
+#' @param C0 Numeric. The probability of no interaction between species (i.e., zero interaction).
+#' @param CN Numeric. The probability of negative interaction (<0) between species.
+#' @param Diag_val Numeric vector. The diagonal values used in the interaction matrix.
+#' @param params List. Parameters used in the simulation, specifically \code{params$Semilla} will be saved, containing:
 #' \itemize{
 #'   \item \code{Semilla[1]}: Seed for initial populations.
 #'   \item \code{Semilla[2]}: Seed for the interaction matrix.
 #'   \item \code{Semilla[3]}: Seed for species growth rates.
 #' }
-#' @param uniqueID Character. A unique ID string used for saving files. This ID should be generated previously using the \code{generate_uniqueID} function.
-#' @param wd Character. Path to the working directory where files will be saved. The file will be saved in the path: \code{wd/Parameters/Seeds_save.tsv}.
+#' @param uniqueID Character. A unique ID string used for saving files. This ID should be generated previously using the \code{forge_ID}function.
+#' @param wd Character. The path to the working directory where files will be saved. The file will be saved at: `wd/Parameters/Seeds_save.tsv`.
 #'
 #' @details
-#' The function stores the provided parameters in a tabular format for future reference. The table includes species count, interaction probabilities,
+#' This function stores the provided parameters in a tabular format for future reference. The table includes the species count, interaction probabilities,
 #' matrix diagonal values, and seed values.
-#'
+#'  
+#' @import utils
+#' 
 #' @examples
-#'  wd <- "~/Documents/LAB_ECO"
+#' wd <- "~/Documents/LAB_ECO/Simulations"
+#' 
+#' # Generate parameters
+#' seeds_path <- file.path(wd, "Seeds.tsv")
+#' params <- init_data(N_species = 10, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
+#' 
+#' # Generate unique ID
+#' uniqueID <- forge_id(wd)
 #'
-#'  # Generate parameters for simulation
-#'  seeds_path <- file.path(wd, "Seeds.tsv" )
-#'  params <- init_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
-#'
-#'  # Generate unique ID
-#'  uniqueID <- forge_id(wd)
-#'
-#'  # Save parameters using Seed_saver function
-#'  params_seed_saver(N_species = 2,  C0 = 0.45, CN = 0.2, Diag_val = -0.5, params, uniqueID, wd)
+#' # Save parameters by seeds
+#' params_seed_saver(N_species = 10,  C0 = 0.45, CN = 0.2, Diag_val = -0.5, params, uniqueID, wd)
 #'
 #' @export
 

@@ -2,45 +2,41 @@
 % Please edit documentation in R/forge-tolerance.R
 \name{forge_tolerance}
 \alias{forge_tolerance}
-\title{Search for the best tolerance}
+\title{Search for the Best Tolerance}
 \usage{
-forge_tolerance(paramSettings, seeds_path, wd, individual)
+forge_tolerance(output, uniqueID, initial_tolerance, individual, wd)
 }
 \arguments{
-\item{paramSettings}{A list containing the following elements:
-\itemize{
-  \item \code{C0}: Numeric. The probability of no interaction between species (i.e., 0 interaction).
-  \item \code{CN}: Numeric. The probability of negative interaction (<0) between species.
-  \item \code{Diag_val}: Numeric. The diagonal values used in the interaction matrix.
-  \item \code{tolerance}: Numeric. Tolerance value for determining the steady state. The tolerance is transformed in \code{individual_diff_SS} using \code{tolerance^2} to define the threshold for stability.
-  \item \code{times}: Numeric. The number of generations to simulate.
-}}
+\item{output}{Matrix. A matrix of simulation results where each row represents a different species and each column represents a specific time step. The values in the matrix indicate the abundance of each species at each time step.}
 
-\item{seeds_path}{Character. The path to the seeds file used for the simulation.}
+\item{uniqueID}{Character. A unique identifier for the simulation run, typically used for tracking and organizing results.}
 
-\item{wd}{Character. Working directory where the results will be saved.}
+\item{initial_tolerance}{Numeric. A tolerance value that determines the threshold for considering a species to be at steady state.}
 
 \item{individual}{Logical. If TRUE, the steady state search will be conducted per species rather than globally.}
+
+\item{wd}{Character. The path to the working directory where files will be saved.}
 }
 \value{
-A character string containing a unique ID to be used for saving files.
+A character string containing a unique ID to be used for saving files related to the simulation results.
 }
 \description{
 This function generates the necessary parameters for a simulation and compares different tolerance values to identify the best one for finding steady states.
 }
 \examples{
 # Example usage:
-wd <- "~/Documents/LAB_ECO/testing"
-seeds_path <- file.path("~/Documents/LAB_ECO", "Seeds.tsv")
 
-paramSettings <- list(N_species = 2, 
-                      C0 = 0.45, 
-                      CN = 0.2, 
-                      Diag_val = -0.5, # Parameters for data generation
-                      tolerance = 0.05, # Tolerance used for Steady State search
-                      times = 100) # Number of generations   
-individual = TRUE
+wd = "~/Documents/LAB_ECO/Simulations"
+seeds_path <- file.path(wd, "Seeds.tsv" )
+params <- forge_data(N_species = 2, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5)
 
-# Function
-forge_tolerance(paramSettings, seeds_path, wd, individual)
+# Run simulation
+output <- run_simulation(N_species = 2, params = params, times = 100)
+
+# Generate unique ID
+uniqueID <- forge_id(wd)
+
+ # Function
+forge_tolerance(output, uniqueID, initial_tolerance = 0.05, individual = TRUE, wd)
+
 }

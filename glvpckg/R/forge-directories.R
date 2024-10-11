@@ -1,4 +1,4 @@
-#' Generate required directories for the package's functions
+#' Generate Required Directories for the Package's Functions
 #'
 #' This function creates the necessary directories for simulations in the specified working directory.
 #'
@@ -6,24 +6,25 @@
 #'
 #' @details
 #' The function creates directories used for simulations, including: 
-#'
+#' 
 #' \itemize{
-#'   \item \code{\strong{Outputs} } Directory where the simulation matrix of population changes over time is saved.
-#'   \item \code{\strong{Parameters} }: Directory for saving the parameters used to generate the data. Parameters can be saved either by line using \link{params_line_saver}, or by seed using \link{params_seed_saver}.
-#'   \item \code{ \strong{Scan} }: Directory where the results of the steady state search algorithms are saved, including global stable generations (using \link{SS_find_and_save_all}) or by individual species (using \link{individual_SS_find_and_save}).
-#'   \item  \code{ \strong{Differences} }: Directory where the log-transformed differences \eqn{\log(t+1) - \log(t)} of the output matrix are saved.
+#'   \item  \strong{\code{Outputs}}: Directory where the simulation matrix of population changes over time is saved.
+#'   \item  \strong{\code{Parameters}}: Directory for saving the parameters used to generate the data. 
+#'          Parameters can be saved either by line using \link{params_line_saver}, or by seed using \link{params_seed_saver}.
+#'   \item  \strong{\code{Scan}}: Directory where the results of the steady state search algorithms are saved, including 
+#'          global stable generations (using \link{all_SS_find_and_save}) or by individual species (using \link{individual_SS_find_and_save}).
+#'   \item  \strong{\code{Differences}}: Directory where the log-transformed differences \eqn{\log(t+1) - \log(t)} of the output matrix are saved.
+#'   \item  \strong{\code{Extinctions}}: Directory where the output matrix with \emph{n} species extinct at \emph{t} times is saved.
 #' }
 #' 
 #' @return Prints messages to the console indicating which directories were created or if they already existed.
 #' 
 #' @examples
-#' # Example usage
+#' # Example usage:
 #' wd <- "~/Documents/LAB_ECO/Simulations"
 #' forge_directories(wd)
 #' 
 #' @export
-
-
 
 forge_directories <- function(wd) {
   
@@ -57,6 +58,10 @@ forge_directories <- function(wd) {
   
   # Create Differences directory
   diff_path <- file.path(wd, "Differences")
+  detect(diff_path)
+  
+  # Create Extinctions directory
+  diff_path <- file.path(wd, "Extinctions")
   detect(diff_path)
 }
 
