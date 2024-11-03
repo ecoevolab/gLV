@@ -24,39 +24,37 @@ wd = "~/Documents/LAB_ECO/Simulations"
 
 #-----------------------Generate parameters-----------------#
 # forge_seeds(n = 200, min = 2, max = 1000, wd)
-C0 <- round( x = runif(1, min = 0.2, max = 0.99), digits = 3)
-CN <- round( x = runif(1, min = 0.2, max = 0.99), digits = 3)
+C0 <- round( x = runif(1, min = 0, max = 1), digits = 3)
+CN <- round( x = runif(1, min = 0, max = 1), digits = 3)
 
 #------------------------------Parameters------------------------------------
 #
         #-----------------------Generate parameters-----------------#
+        # seeds_path <- "/mnt/atgc-d3/sur/users/mrivera/Simulations/combined_seeds.tsv"
         seeds_path <- file.path(wd, "Seeds.tsv" )
-        params <- forge_data(N_species = 10, seeds_path, C0 , CN, Diag_val = -0.5)
+        params <- forge_data(N_species = 20, C0 , CN, Diag_val = -0.5, seeds_path, wd)
         
         # Generate unique ID
         uniqueID <- forge_id(wd)
         
         #----------------------- Save parameters -----------------#
         # Save parameters by seeds
-        params_seed_saver(N_species = 10,  C0, CN, Diag_val = -0.5, params, uniqueID, wd)
+        params_seed_saver(N_species = 20,  C0, CN, Diag_val = -0.5, params, uniqueID, wd)
         
         # Save parameters by line
         params_line_saver(params, uniqueID, wd)
         
         #------------------------Read parameters -----------------#
         # Read parameters by seeds
-        params_seed_reader(uniqueID, wd)
+        params <- params_seed_reader(uniqueID, wd)
         
         # Read parameters by lines
         params <- params_line_reader(uniqueID, wd)
         
 #-----------------------Run simulations-----------------#
 # Run simulation
-output <- run_simulation(N_species = 10, params = params, times = 200)
+output <- run_simulation(N_species = 20, params = params, times = 200)
 output_saver(output, uniqueID, wd) # Save output
-
-N_species <- round(runif(1, min = 5, max = 100))
-N_species
 
 
 #---------- Calculate all Steady States--------------------#
@@ -81,8 +79,16 @@ result2 <- individual_raw_diff_SS(uniqueID, output, tolerance = 0.05, wd)
 
 
 #----------------------- Visualizers------------------------#
-wd = "~/Documents/LAB_ECO/Simulations"
-visualizer_logdiff(wd)
+# wd = "~/Documents/LAB_ECO/Simulations"
+
+wd <-  "/home/rivera/Cluster/Simulations"
+uniqueID <- "fe9919"
+uniqueID = "7e52e2"
+out_path <- paste(wd, "/Outputs/O_", uniqueID , ".tsv", sep = "") # output path
+output <- as.matrix( data.table::fread(out_path, sep = "\t") )
+
+visualize_ld(wd)
+visualize_output(output)
 
 #------------------------Extinction-------------------------#
 uniqueID = "02c234"

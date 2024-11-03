@@ -42,10 +42,21 @@ forge_seeds <- function(n, min, max, wd) {
     # Generate seeds
     seeds <- random::randomNumbers(n, min, max)
     
-    # Generate path to save the seeds
-    seeds_path <- file.path(wd, "Seeds.tsv")
-    file.create(seeds_path) # Create file
-    write.table(seeds, file = seeds_path, sep = "\t", row.names = FALSE, col.names = FALSE) # Save
+    # Check for existing file and create a unique name with 2-digit numbering
+    i <- 1
+    seeds_file_name <- sprintf("Seeds_%02d.tsv", i)  # Start with Seeds_01.tsv
+    seeds_path <- file.path(wd, seeds_file_name)
+    
+    # Increment the number if the file already exists
+    while (file.exists(seeds_path)) {
+      i <- i + 1
+      seeds_file_name <- sprintf("Seeds_%02d.tsv", i)
+      seeds_path <- file.path(wd, seeds_file_name)
+    }
+    
+    # Create file and save seeds
+    file.create(seeds_path)
+    write.table(seeds, file = seeds_path, sep = "\t", row.names = FALSE, col.names = FALSE)
     
     cat("Seeds generated and saved on path: ", seeds_path)
 }

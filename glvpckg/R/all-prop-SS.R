@@ -21,7 +21,7 @@
 #' output <- run_simulation(N_species = 2, params = params, times = 100)
 #'
 #' # Search for steady states with a tolerance of 0.05
-#' tolerance <- 0.05
+#' tolerance <- 0.0005
 #' all_prop_SS(output, tolerance, uniqueID, wd)
 #'
 #' @export
@@ -29,17 +29,28 @@
 
 all_prop_SS <- function(output, tolerance, uniqueID, wd) {
   
-  # Compute column means directly
-  log_output <- ifelse(output <= 0, NA, log(output))   # Apply logarithm safely
-  tmp <- diff(log_output)
-  tmp <- as.data.frame(t(colMeans(tmp, na.rm = TRUE)))
+  # Ensure the dplyr package is available
+  if (!require("dplyr")) {
+    stop("The 'dplyr' package is required but not installed.")
+  }
+  
+  # Apply log transformation and calculate differences for numeric columns
+  log_output <- output %>%
+    dplyr::mutate(across(where(is.numeric), ~ ifelse(. > 0, log(.), NA))) %>%  # Log transformation
+    dplyr::mutate(across(where(is.numeric), abs))  # Apply absolute value directly
+  
+  # Calculate differences across columns by row
+  col_diff <- apply(log_output %>% select(where(is.numeric)), 1, diff) %>% t()
+  
+  # Calculate column means
+  col_m <- colMeans(col_diff, na.rm = TRUE)
   
   # Find the first generation where the difference is below tolerance
-  stable_gen <- which(abs(tmp) < tolerance)[1]
+  stable_gen <- which(abs(col_m) < tolerance)[1]
   
   # Save Column Means Differences
-  mean_diff_path <- file.path(wd, "Differences", paste0("means_ld", ".tsv"))
-  means_ld <- cbind(uniqueID, tmp)
+  mean_diff_path <- file.path(wd, "Differences", "means_ld.tsv")
+  means_ld <- as.data.frame(t(c(uniqueID, round(col_m, 5))), row.names = NULL)
   
   # Helper function to unify rows with different lengths
   unify_means <- function(old_meansld, means_ld) {

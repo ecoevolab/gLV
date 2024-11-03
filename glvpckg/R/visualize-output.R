@@ -57,7 +57,7 @@ visualize_output <- function(output) {
   p <- ggplot2::ggplot(data = melted_df, ggplot2::aes(x = Generation, y = Value, color = Species, group = Species)) +
     ggplot2::geom_line() +
     ggplot2::theme_minimal() +
-    ggplot2::labs(title = "Line Plot of Comparisons vs. Values by Species", x = "Generations", y = "Population") +
+    ggplot2::labs(title = "Population over time", x = "Generations", y = "Population") +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
   
   # Make the ggplot interactive using ggplotly
