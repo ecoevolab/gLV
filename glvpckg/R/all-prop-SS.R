@@ -34,23 +34,24 @@ all_prop_SS <- function(output, tolerance, uniqueID, wd) {
     stop("The 'dplyr' package is required but not installed.")
   }
   
-  # Apply log transformation and calculate differences for numeric columns
-  log_output <- output %>%
-    dplyr::mutate(across(where(is.numeric), ~ ifelse(. > 0, log(.), NA))) %>%  # Log transformation
-    dplyr::mutate(across(where(is.numeric), abs))  # Apply absolute value directly
-  
-  # Calculate differences across columns by row
-  col_diff <- apply(log_output %>% select(where(is.numeric)), 1, diff) %>% t()
+  # Apply log transformation 
+  log_output <- log(output)
   
   # Calculate column means
-  col_m <- colMeans(col_diff, na.rm = TRUE)
+  col_m <- colMeans(log_output, na.rm = TRUE)
+  
+  # Calculate differences
+  V_diff <- diff(col_m)
+
+  # Check if the vector is full of NaN or Nas
+  Na_flag <- is.na(V_diff) | is.nan(V_diff) 
   
   # Find the first generation where the difference is below tolerance
-  stable_gen <- which(abs(col_m) < tolerance)[1]
+  stable_gen <- which(abs(col_m) < log(tolerance))[1]
   
   # Save Column Means Differences
   mean_diff_path <- file.path(wd, "Differences", "means_ld.tsv")
-  means_ld <- as.data.frame(t(c(uniqueID, round(col_m, 5))), row.names = NULL)
+  means_ld <- as.data.frame(t(c(ID = uniqueID, round(V_diff, 5))), row.names = NULL)
   
   # Helper function to unify rows with different lengths
   unify_means <- function(old_meansld, means_ld) {
@@ -78,16 +79,18 @@ all_prop_SS <- function(output, tolerance, uniqueID, wd) {
   
   # Check if the file exists. If so, verify that the columns are the same size. If they are not, add NAs to the table or the 
   # column means to ensure the columns have the same size.
-  if (file.exists(mean_diff_path)) {
+  if (file.exists(mean_diff_path) ) {
     old_meansld <- read.delim(mean_diff_path, sep = "\t", header = FALSE, stringsAsFactors = FALSE)
     means_save <- unify_means(old_meansld, means_ld)
   } else {
     means_save <- means_ld
   }
   
-  # Save the combined data
-  utils::write.table(means_save, file = mean_diff_path, sep = "\t", row.names = FALSE, col.names = FALSE)
-  message("file created")
+  # Save the combined data if there was any differences
+  if (!Na_flag) {
+    utils::write.table(means_save, file = mean_diff_path, sep = "\t", row.names = FALSE, col.names = FALSE)
+    message("file created")
+  }
   
   return(stable_gen)
 }

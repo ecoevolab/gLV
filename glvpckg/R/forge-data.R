@@ -47,34 +47,11 @@
 #' params <- forge_data(N_species = 10, seeds_path, C0 = 0.45, CN = 0.2, Diag_val = -0.5, wd)
 
 
-forge_data <- function(N_species, C0, CN, Diag_val, seeds_path, wd) {
+forge_data <- function(N_species, C0, CN, Diag_val, seeds_list) {
   
-  # Attach package
-  requireNamespace("stats")
-  params_path <- file.path(wd, "Parameters", "Seeds_save.tsv")
-  
-  #------------------Read Seeds------------------------------#
-  requireNamespace("data.table")
-  seeds <- as.matrix(data.table::fread(seeds_path, sep = "\t"))
-  
-  # Set default values assuming no params file exists
-  pop_seeds <- seeds
-  int_seeds <- seeds
-  grw_seeds <- seeds
-  
-  if (file.exists(params_path)) {
-    
-    # Read the parameters file
-    Pms_seeds <- data.table::fread(params_path, sep = "\t", select = c("Population_seed", "Interactions_seed", "Growth_seed"))
-    
-    # Get possible seeds 
-    pop_seeds <- setdiff(seeds, Pms_seeds$Population_seed)
-    int_seeds <- setdiff(seeds, Pms_seeds$Interactions_seed)
-    grw_seeds <- setdiff(seeds, Pms_seeds$Growth_seed)
-    
-    cat("The subtraction of seeds was performed to avoid using repetitive seeds.\n")
-    
-  } 
+  pop_seeds <- seeds_list$avail_pop_seed
+  int_seeds <- seeds_list$avail_interacs_seeds
+  grw_seeds <- seeds_list$avail_grw_seeds
   
   #------------------Populations-----------------------------#
   S_p <- sample(pop_seeds, 1)
