@@ -1,15 +1,14 @@
-# This code is stored on the cluster
-
-# Set the path to your directory
-#wd <- "/home/rivera/Cluster/testing"
-wd <- "/mnt/atgc-d3/sur/users/mrivera/testing"
 
 #---------------------------------Get Outputs IDs-------------------------------#
+## Set the path to your directory
+# wd <- "/home/rivera/Cluster/testing"
+wd <- "/mnt/atgc-d3/sur/users/mrivera/testing"
+
 outs_path <- file.path(wd, "Outputs")
 outs_files <- list.files(outs_path, pattern = "\\.tsv$", full.names = TRUE) # List all TSV files
 
 # The next line is only for testing purposes:
-#outs_files <- outs_files[1:20]
+# outs_files <- outs_files[1:20]
 
 # Extract unique IDs directly
 nids <- sub("O_(.*)\\.tsv", "\\1", basename(outs_files))
@@ -30,9 +29,35 @@ result <- setdiff(nids, means_ld_ids)
 # Vectorize operations by pre-computing file paths
 file_paths <- file.path(wd, "Outputs", paste0("O_", result, ".tsv"))
 
+#---------------------------------------------------------------------------------#
+# Initialize an empty data.table to store batch results
+library(data.table)
+batch_results <- data.frame()
+
+file = file_paths[1]
+# Process each file in the current batch
+for (file in file_paths) {
+  
+  cat("Getting differences of ", file, "\n")
+  
+  # Read the TSV file
+  output <- fread(file, sep = "\t")
+  
+  # Log transformation and calculation in one step
+  tmp_diff <- diff(abs(colMeans(log(output))))
+  
+  # Add ID to the vector of the differences
+  id <- sub(".*/O_(.*)\\.tsv$", "\\1", file)
+  tmp_diff_df <- as.data.frame(t(c(ID = id, round(tmp_diff, 8))))
+  
+  # Append to batch_results using rbind
+  batch_results <- rbind(batch_results, tmp_diff_df, stringsAsFactors = FALSE)
+}
+
+
 #-----------------------------------------Calculate differences---------------------#
 #
-## Load required libraries
+# Load required libraries
 library(parallel)
 library(dplyr)
 library(data.table)
