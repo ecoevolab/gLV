@@ -36,7 +36,10 @@ write_tsv(Sims, "glv_simulation_parameters.tsv")
 Sims %>%
   group_by(n_species, p_noint) %>%
   mutate(group_id = cur_group_id()) %>%
-  group_walk(~ write_tsv(.x, paste0("simulations_batch", 
-                                    unique(.x$group_id), 
-                                    ".tsv")))
+  group_walk(~ write_tsv(.x %>% 
+                           bind_cols(n_species = .y$n_species,
+                                     p_noint = .y$p_noint), 
+                         paste0("simulations_batch", 
+                                unique(.x$group_id), 
+                                ".tsv")))
 
