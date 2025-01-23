@@ -17,6 +17,22 @@ library(tidyverse)
 library(miaSim)
 library(miaViz)
 
+#' Generate parameters for gLV simulation
+#' 
+#' Uses overall parameter constraints to generate starting condition
+#' and specific sets of parameters
+#' 
+#' Sets diagonal elements to -0.5, and interaction values capped at an absolute
+#' value of 0.5. Based on miaSim
+#'
+#' @param n_species Number of species to simulate
+#' @param p_noint Probability of no interaction, i.e. probability that a
+#' non-diagonal element in the interaction matrix is zero. 
+#' @param p_neg Probability of a negative effect, i.e. probability that
+#' a non-diagonal non-zero element of the interaction matrix is negative
+#'
+#' @return A list with starting conditions (x0), growth rates (mu), and
+#' interaction matrix (M) for gLV simulation
 generate_params <- function(n_species = 20,
                             p_noint = 0.5,
                             p_neg = 0.5){
@@ -38,24 +54,24 @@ generate_params <- function(n_species = 20,
   ii_diag <- diag(n_species) == 1
   M[ ii_diag ] <- rep(-0.5, times = n_species)
   M[ ! ii_diag  ] <- runif(n = n_int, min = 0, max = 0.5) * signs
-
-  # M <- randomA(n_species = n_species,
-  #              diagonal = -0.5,
-  #              connectance = 1 - p_noint,
-  #              scale_off_diagonal = 1,
-  #              mutualism = 1,
-  #              commensalism = 1,
-  #              parasitism = 1,
-  #              amensalism = 1, 
-  #              competition = 1,
-  #              interactions = runif(n = n_int, min = 0, max = 0.5) * signs,
-  #              symmetric = FALSE
-  # )
   
   return(list(x0 = x0, mu = mu, M = M))
 }
 
-
+#' Simulate gLV
+#' 
+#' Wrapper for miaSim. Takes output from enerate_params and runs
+#' gLV simulation. No stochasticity, measurement error, perturbation or
+#' immigration is considered.
+#' 
+#' Checks for numerical issues after the simulation
+#'
+#' @param params A list with starting conditions (x0), growth rates (mu), and
+#' interaction matrix (M) for gLV simulation
+#' @param n_t Number of timepoints to simulate
+#'
+#' @return A TreeSummarizedExperiment class object produced by 
+#' miaSim::simulateGLV
 sim_glv <- function(params = params, n_t = n_t){
   
   # Check that matrrix is square
@@ -86,6 +102,15 @@ sim_glv <- function(params = params, n_t = n_t){
   return(msim)
 }
 
+#' Compares start and end
+#' 
+#' Makes some quick calculation between the start and end timepoints of
+#' a gLV simulation produced with miaSim::simulateGLV
+#'
+#' @param msim A TreeSummarizedExperiment class object produced by 
+#' miaSim::simulateGLV
+#'
+#' @return A tibble with various diversity and change estimates
 measure_start_end_change <- function(msim){
   sim <- (assay(msim))
   t_end <- dim(sim)[2]
