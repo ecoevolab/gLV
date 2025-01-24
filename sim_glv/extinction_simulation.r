@@ -43,11 +43,11 @@ process_arguments <- function(){
 }
 
 args <- process_arguments()
-args <- list()
-args$sims <- "/Users/sur/lab/exp/2025/today/simulations_batch1.tsv"
-args$outdir <- "output"
-args$rdats <- file.path(args$outdir, "rdats")
-args$tsvs <- file.path(args$outdir, "tsvs")
+# args <- list()
+# args$sims <- "/Users/sur/lab/exp/2025/today/simulations_batch1.tsv"
+# args$outdir <- "output"
+# args$rdats <- file.path(args$outdir, "rdats")
+# args$tsvs <- file.path(args$outdir, "tsvs")
 print(args)
 
 library(tidyverse)
@@ -108,8 +108,7 @@ generate_params <- function(n_species = 20,
 #' interaction matrix (M) for gLV simulation
 #' @param n_t Number of timepoints to simulate
 #'
-#' @return A TreeSummarizedExperiment class object produced by 
-#' miaSim::simulateGLV
+#' @return A tibble where column sim has the results of the simulation
 sim_glv <- function(params = params, n_t = n_t){
   
   # Check that matrrix is square
@@ -130,14 +129,28 @@ sim_glv <- function(params = params, n_t = n_t){
                       error_variance = 0,
                       norm = FALSE,
                       t_end = n_t)
+  sim <-assay(msim)
   
   # Check if NA's or Inf's
-  if(any(colSums(is.na(assay(msim))) != 0))
-    stop("ERROR: NAs", call. = TRUE)
-  if(any(colSums(is.infinite(assay(msim))) != 0))
-    stop("ERROR: Infinites", call. = TRUE)
+  if( (any(colSums(is.na(sim)) != 0)) || (any(colSums(is.infinite(sim)) != 0))){
+    sim <- NA
+  }
   
-  return(msim)
+  # Combine results in tibble
+  Sim <- tibble(id = id,
+                 n_species = n_species,
+                 p_noint = p_noint,
+                 p_neg = p_neg,
+                 n_t = n_t,
+                 seed = seed,
+                 extinct_species = NA,
+                 spec_abun = NA,
+                 spec_freq = NA,
+                 params = list(params),
+                 sim = list(sim)) %>%
+    bind_cols(measure_start_end_change(sim))
+  
+  return(Sim)
 }
 
 #' Compares start and end
@@ -150,7 +163,16 @@ sim_glv <- function(params = params, n_t = n_t){
 #'
 #' @return A tibble with various diversity and change estimates
 measure_start_end_change <- function(msim){
-  sim <- (assay(msim))
+  
+  if(is(msim, "TreeSummarizedExperiment")){
+    sim <- assay(msim)
+  }else if(is(msim, "matrix")){
+    # Nothing specific
+  }else if(is(msim, "logical") && is.na(msim)){
+    return(NULL)
+  }
+  
+  # Identify number of timepoints
   t_end <- dim(sim)[2]
   
   sim.prcomp <- prcomp(sim, center = TRUE, scale. = TRUE)
@@ -159,9 +181,9 @@ measure_start_end_change <- function(msim){
                 shannon_end = vegan::diversity(sim[,t_end]),
                 richness_start = sum(sim[,1] > 0),
                 richness_end = sum(sim[,t_end] > 0),
-                bray_change = vegan::vegdist(t(sim[,c(1,t_end)]), method = "bray"),
-                euclidean_change = vegan::vegdist(t(sim[,c(1,t_end)]), method = "euclidean"),
-                manhattan_change = vegan::vegdist(t(sim[,c(1,t_end)]), method = "manhattan"),
+                bray_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "bray")),
+                euclidean_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "euclidean")),
+                manhattan_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "manhattan")),
                 pc1_change = abs(sim.prcomp$rotation[1,"PC1"] - sim.prcomp$rotation[t_end,"PC1"]),
                 pc1_propvar = summary(sim.prcomp)$sdev[1]^2 / sum(summary(sim.prcomp)$sdev^2),
                 pc_totvar = sum(summary(sim.prcomp)$sdev^2)
@@ -176,15 +198,24 @@ measure_start_end_change <- function(msim){
 #' For a given simulation and parameters, simulate the extinction of all
 #' surviving species for the same time as the original simulation
 #'
-#' @param msim A TreeSummarizedExperiment class object produced by 
-#' miaSim::simulateGLV
+#' @param sim A matrix with species as rows and timepoints as columns with
+#' the results of a simulation
 #' @param params  list with starting conditions (x0), growth rates (mu), and
 #' interaction matrix (M) for gLV simulation
+#' @param n_t 
 #'
 #' @return A tibble with the results of all the extinction simulations
-simulate_all_extinctions <- function(msim, params){
+simulate_all_extinctions <- function(sim, params){
+
+  # Check if simulations are needed
+  if(is(sim, "logical") && is.na(sim)){
+    return(NULL)
+  }
+  
+  n_t <- dim(sim)[2]
+  
   # Identify surviving species
-  x_t <- assay(msim)[,n_t]
+  x_t <- sim[,n_t]
   surv_specs <- which(x_t > 0)
   
   # Simulate each species extinction
@@ -214,29 +245,14 @@ simulate_all_extinctions <- function(msim, params){
     params_e <- list(x0 = x_e, mu = mu_e, M = M_e)
     
     # Simulate time after extinction
-    msim_e <- sim_glv(params = params_e, n_t = n_t)
+    sim_e <- sim_glv(params = params_e, n_t = n_t)
     
-    res <- tibble(id = id,
-                  n_species = n_species_e,
-                  p_noint = p_noint_e,
-                  p_neg = p_neg_e,
-                  n_t = n_t,
-                  seed = seed,
-                  extinct_species = spec,
-                  spec_abun = x_t[spec],
-                  spec_freq = x_t[spec] / sum(x_t),
-                  params = list(params_e),
-                  sim = list(assay(msim_e))) %>%
-      bind_cols(measure_start_end_change(msim_e))
-    
-    
-    Ext <- bind_rows(Ext, res)
-    res <- NULL
+    Ext <- bind_rows(Ext, sim_e)
+    sim_e <- NULL
   }
   
   return(Ext)
 }
-
 
 
 if(!dir.exists(args$outdir)){
@@ -254,18 +270,18 @@ if(!dir.exists(args$outdir)){
 date()
 
 hyper <- read_tsv(args$sims)
-read_tsv(args$sims) %>%
+Tab <- read_tsv(args$sims) %>%
   select(id, n_species, p_noint, p_neg, seed) %>%
   pmap(.f = function(id, n_species, p_noint, p_neg, seed){
     
-    i <- 2
-    n_species <- hyper$n_species[i]
-    p_noint <- hyper$p_noint[i]
-    p_neg <- hyper$p_neg[i]
-    seed <- hyper$seed[i]
-    id <- hyper$id[i]
+    # i <- 5
+    # n_species <- hyper$n_species[i]
+    # p_noint <- hyper$p_noint[i]
+    # p_neg <- hyper$p_neg[i]
+    # seed <- hyper$seed[i]
+    # id <- hyper$id[i]
     
-    message(paste0("Simulation ", id))
+    message(paste0("===== Simulation ", id," ====="))
     n_t <- 1000
     
     # Generate parameters and simulate
@@ -275,31 +291,20 @@ read_tsv(args$sims) %>%
                               p_neg = p_neg)
     
     # print(params)
-    msim <- sim_glv(params = params, n_t = n_t)
-    
-    # Combine results in tibble
-    Sims <- tibble(id = id,
-                   n_species = n_species,
-                   p_noint = p_noint,
-                   p_neg = p_neg,
-                   n_t = n_t,
-                   seed = seed,
-                   extinct_species = NA,
-                   spec_abun = NA,
-                   spec_freq = NA,
-                   params = list(params),
-                   sim = list(assay(msim))) %>%
-      bind_cols(measure_start_end_change(msim))
+    Sims <- sim_glv(params = params, n_t = n_t)
     
     # Simulate extinctions
-    Ext <- simulate_all_extinctions(msim = msim, params = params)
+    Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params)
     Sims <- bind_rows(Sims, Ext)
     
     # Save full results and table
     save(Sims, file = file.path(args$rdats, paste0(id, ".rdat") ))
-    Sims %>%
-      select(-params, -sim) %>%
+    Tab <- Sims %>%
+      select(-params, -sim) 
+    Tab %>%
       write_tsv(file = file.path(args$tsvs, paste0(id, ".tsv")) )
+    
+    return(Tab)
   })
 
 date()
