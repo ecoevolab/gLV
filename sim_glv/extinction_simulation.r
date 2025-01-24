@@ -246,6 +246,9 @@ simulate_all_extinctions <- function(sim, params){
     
     # Simulate time after extinction
     sim_e <- sim_glv(params = params_e, n_t = n_t)
+    sim_e$extinct_species <- as.numeric(spec)
+    sim_e$species_abun <- as.numeric(x_t[spec])
+    sim_e$species_freq <- as.numeric(sim_e$species_abun / sum(x_t))
     
     Ext <- bind_rows(Ext, sim_e)
     sim_e <- NULL
@@ -269,7 +272,7 @@ if(!dir.exists(args$outdir)){
 
 date()
 
-hyper <- read_tsv(args$sims)
+# hyper <- read_tsv(args$sims)
 Tab <- read_tsv(args$sims) %>%
   select(id, n_species, p_noint, p_neg, seed) %>%
   pmap(.f = function(id, n_species, p_noint, p_neg, seed){
@@ -306,6 +309,8 @@ Tab <- read_tsv(args$sims) %>%
     
     return(Tab)
   })
+
+write_tsv(Tab, file.path(args$outdir, "summary.tsv"))
 
 date()
 sessionInfo()
