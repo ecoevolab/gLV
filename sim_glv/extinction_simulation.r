@@ -54,7 +54,6 @@ library(tidyverse)
 library(miaSim)
 library(miaViz)
 
-
 #' Generate parameters for gLV simulation
 #' 
 #' Uses overall parameter constraints to generate starting condition
@@ -129,25 +128,30 @@ sim_glv <- function(params = params, n_t = n_t){
                       error_variance = 0,
                       norm = FALSE,
                       t_end = n_t)
-  sim <-assay(msim)
+  sim <- assay(msim)
   
   # Check if NA's or Inf's
   if( (any(colSums(is.na(sim)) != 0)) || (any(colSums(is.infinite(sim)) != 0))){
     sim <- NA
   }
   
+  # M params
+  n_species <- nrow(params$M)
+  ii_diag <- diag(n_species) == 1
+  n_int <- n_species ^ 2 - n_species
+  p_noint <- sum(params$M[!ii_diag] == 0) / n_int
+  p_neg <- sum((params$M[!ii_diag] != 0) & (params$M[!ii_diag] < 0)) / (n_int - sum(params$M[!ii_diag] == 0))
+  
   # Combine results in tibble
-  Sim <- tibble(id = id,
-                 n_species = n_species,
-                 p_noint = p_noint,
-                 p_neg = p_neg,
-                 n_t = n_t,
-                 seed = seed,
-                 extinct_species = NA,
-                 spec_abun = NA,
-                 spec_freq = NA,
-                 params = list(params),
-                 sim = list(sim)) %>%
+  Sim <- tibble(n_species = n_species,
+                p_noint = p_noint,
+                p_neg = p_neg,
+                n_t = n_t,
+                extinct_species = NA,
+                spec_abun = NA,
+                spec_freq = NA,
+                params = list(params),
+                sim = list(sim)) %>%
     bind_cols(measure_start_end_change(sim))
   
   return(Sim)
@@ -168,8 +172,11 @@ measure_start_end_change <- function(msim){
     sim <- assay(msim)
   }else if(is(msim, "matrix")){
     # Nothing specific
+    sim <- msim
   }else if(is(msim, "logical") && is.na(msim)){
     return(NULL)
+  }else{
+    stop("ERROR measure_change", call. = TRUE)
   }
   
   # Identify number of timepoints
@@ -274,17 +281,17 @@ date()
 
 # hyper <- read_tsv(args$sims)
 Tab <- read_tsv(args$sims) %>%
-  select(id, n_species, p_noint, p_neg, seed) %>%
-  pmap(.f = function(id, n_species, p_noint, p_neg, seed){
+  select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
+  pmap(.f = function(simid, n_species, p_noint, p_neg, seed){
     
     # i <- 5
     # n_species <- hyper$n_species[i]
     # p_noint <- hyper$p_noint[i]
     # p_neg <- hyper$p_neg[i]
     # seed <- hyper$seed[i]
-    # id <- hyper$id[i]
+    # simid <- hyper$id[i]
     
-    message(paste0("===== Simulation ", id," ====="))
+    message(paste0("===== Simulation ", simid," ====="))
     n_t <- 1000
     
     # Generate parameters and simulate
@@ -295,17 +302,19 @@ Tab <- read_tsv(args$sims) %>%
     
     # print(params)
     Sims <- sim_glv(params = params, n_t = n_t)
+    Sims$id <- simid
     
     # Simulate extinctions
     Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params)
+    Ext$id <- simid
     Sims <- bind_rows(Sims, Ext)
     
     # Save full results and table
-    save(Sims, file = file.path(args$rdats, paste0(id, ".rdat") ))
+    save(Sims, file = file.path(args$rdats, paste0(simid, ".rdat") ))
     Tab <- Sims %>%
       select(-params, -sim) 
     Tab %>%
-      write_tsv(file = file.path(args$tsvs, paste0(id, ".tsv")) )
+      write_tsv(file = file.path(args$tsvs, paste0(simid, ".tsv")) )
     
     return(Tab)
   })
