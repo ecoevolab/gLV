@@ -21,8 +21,8 @@ library(tidyverse)
 #' Here we prepare a grid of simulations with gLV
 
 Sims <- expand_grid(n_species = rep(c(20, 100), 10),
-                    p_noint = seq(from = 0, to = 1, by = 0.1),
-                    p_neg = seq(from = 0, to = 1, by = 0.1)) %>%
+                    p_noint = seq(from = .1, to = .9, by = 0.1),
+                    p_neg = seq(from = .1, to = .9, by = 0.1)) %>%
   mutate(id = ids::random_id(n = length(n_species), bytes = 10)) %>%
   mutate(seed = as.vector(random::randomNumbers(n = length(n_species),
                                       min = 1,

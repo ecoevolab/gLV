@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 # (C) Copyright 2025 Sur Herrera Paredes
 
 # This file is free software: you can redistribute it and/or modify
@@ -13,9 +14,46 @@
 # You should have received a copy of the GNU General Public License
 # along with this file  If not, see <http://www.gnu.org/licenses/>.
 
+library(argparser)
+
+process_arguments <- function(){
+  p <- arg_parser(paste("Simulate extinctions with gLV" ))
+  
+  # Positional arguments
+  p <- add_argument(p, "sims",
+                    help = paste("Table of simulations. Needs columns: p_neg,",
+                                 "id, seed, n_species, and p_noint"),
+                    type = "character")
+  
+  # Optional arguments
+  p <- add_argument(p, "--outdir",
+                    help = paste("Output directory"),
+                    type = "character",
+                    default = "output/")
+  
+  # Read arguments
+  cat("Processing arguments...\n")
+  args <- parse_args(p)
+  
+  # Process arguments
+  args$rdats <- file.path(args$outdir, "rdats")
+  args$tsvs <- file.path(args$outdir, "tsvs")
+  
+  return(args)
+}
+
+args <- process_arguments()
+args <- list()
+args$sims <- "/Users/sur/lab/exp/2025/today/simulations_batch1.tsv"
+args$outdir <- "output"
+args$rdats <- file.path(args$outdir, "rdats")
+args$tsvs <- file.path(args$outdir, "tsvs")
+print(args)
+
 library(tidyverse)
 library(miaSim)
 library(miaViz)
+
 
 #' Generate parameters for gLV simulation
 #' 
@@ -133,102 +171,110 @@ measure_start_end_change <- function(msim){
   return(Res)
 }
 
-
-
-n_species <- 20
-p_noint <- 0.2
-p_neg <- 0.8
-n_t <- 1000
-seed <- 7654
-id <- "aaaaaaaa" # NEED TO CHANGE THIS!!!!!
-
-set.seed(seed)
-params <- generate_params(n_species = n_species,
-                          p_noint = p_noint, 
-                          p_neg = p_neg)
-
-msim <- sim_glv(params = params, n_t = n_t)
-
-
-# colSums(is.na(assay(msim)))
-# colSums(is.infinite(assay(msim)))
-# summary(t(assay(msim)))
-# plotAbundanceDensity(msim)
-# plotSeries(msim, x = "time") 
-# warnings()
-
-# Identify surviving species
-x_t <- assay(msim)[,n_t]
-surv_specs <- which(x_t > 0)
-
-Sims <- tibble(id = id,
-               n_species = n_species,
-               p_noint = p_noint,
-               p_neg = p_neg,
-               n_t = n_t,
-               seed = seed,
-               extinct_species = NA,
-               spec_abun = NA,
-               spec_freq = NA,
-               params = list(params),
-               sim = list(assay(msim))) %>%
-  bind_cols(measure_start_end_change(msim))
-
-# Simulate each species extinction
-for(spec in surv_specs){
-  # spec <- surv_specs[1]
-  cat("Extinguishing species ", spec, "\n")
+if(!dir.exists(args$outdir)){
+  dir.create(args$outdir)
   
-  # Simulate extinction
-  x_e <- x_t
-  x_e <- x_e[-spec] 
+  if(!dir.exists(args$rdats)){
+    dir.create(args$rdats)
+  }
   
-  mu_e <- params$mu
-  mu_e <- mu_e[-spec]
-  
-  M_e <- params$M
-  M_e <- M_e[-spec, -spec]
-  
-  # New M params
-  n_species_e <- nrow(M_e)
-  ii_diag <- diag(n_species_e) == 1
-  n_int <- n_species_e ^ 2 - n_species_e
-  p_noint_e <- sum(M_e[!ii_diag] == 0) / n_int
-  p_neg_e <- sum((M_e[!ii_diag] != 0) & (M_e[!ii_diag] < 0)) / (n_int - sum(M_e[!ii_diag] == 0))
-
-  # Update parameters
-  params_e <- list(x0 = x_e, mu = mu_e, M = M_e)
-  
-  # Simulate time after extinction
-  msim_e <- sim_glv(params = params_e, n_t = n_t)
-  
-  res <- tibble(id = id,
-                n_species = n_species_e,
-                p_noint = p_noint_e,
-                p_neg = p_neg_e,
-                n_t = n_t,
-                seed = seed,
-                extinct_species = spec,
-                spec_abun = x_t[spec],
-                spec_freq = x_t[spec] / sum(x_t),
-                params = list(params_e),
-                sim = list(assay(msim_e))) %>%
-    bind_cols(measure_start_end_change(msim_e))
-
-  
-  Sims <- bind_rows(Sims, res)
-  res <- NULL
+  if(!dir.exists(args$tsvs)){
+    dir.create(args$tsvs)
+  }
 }
 
-save(Sims, file = paste0(id, ".rdat") )
+date()
+read_tsv(args$sims) %>%
+  select(id, n_species, p_noint, p_neg, seed) %>%
+  pmap(.f = function(id, n_species, p_noint, p_neg, seed){
+  
+    message(paste0("Simulation ", id))
+    # n_species <- 20
+    # p_noint <- 0.2
+    # p_neg <- 0.8
+    n_t <- 1000
+    # seed <- 7654
+    # id <- "aaaaaaaa" # NEED TO CHANGE THIS!!!!!
+    
+    # Generate parameters and simulate
+    set.seed(seed)
+    params <- generate_params(n_species = n_species,
+                              p_noint = p_noint, 
+                              p_neg = p_neg)
+    
+    print(params)
+    msim <- sim_glv(params = params, n_t = n_t)
+    
+    # Combine results in tibble
+    Sims <- tibble(id = id,
+                   n_species = n_species,
+                   p_noint = p_noint,
+                   p_neg = p_neg,
+                   n_t = n_t,
+                   seed = seed,
+                   extinct_species = NA,
+                   spec_abun = NA,
+                   spec_freq = NA,
+                   params = list(params),
+                   sim = list(assay(msim))) %>%
+      bind_cols(measure_start_end_change(msim))
+    
+    # Identify surviving species
+    x_t <- assay(msim)[,n_t]
+    surv_specs <- which(x_t > 0)
+    
+    # Simulate each species extinction
+    for(spec in surv_specs){
+      # spec <- surv_specs[1]
+      cat("Extinguishing species ", spec, "\n")
+      
+      # Simulate extinction
+      x_e <- x_t
+      x_e <- x_e[-spec] 
+      
+      mu_e <- params$mu
+      mu_e <- mu_e[-spec]
+      
+      M_e <- params$M
+      M_e <- M_e[-spec, -spec]
+      
+      # New M params
+      n_species_e <- nrow(M_e)
+      ii_diag <- diag(n_species_e) == 1
+      n_int <- n_species_e ^ 2 - n_species_e
+      p_noint_e <- sum(M_e[!ii_diag] == 0) / n_int
+      p_neg_e <- sum((M_e[!ii_diag] != 0) & (M_e[!ii_diag] < 0)) / (n_int - sum(M_e[!ii_diag] == 0))
+      
+      # Update parameters
+      params_e <- list(x0 = x_e, mu = mu_e, M = M_e)
+      
+      # Simulate time after extinction
+      msim_e <- sim_glv(params = params_e, n_t = n_t)
+      
+      res <- tibble(id = id,
+                    n_species = n_species_e,
+                    p_noint = p_noint_e,
+                    p_neg = p_neg_e,
+                    n_t = n_t,
+                    seed = seed,
+                    extinct_species = spec,
+                    spec_abun = x_t[spec],
+                    spec_freq = x_t[spec] / sum(x_t),
+                    params = list(params_e),
+                    sim = list(assay(msim_e))) %>%
+        bind_cols(measure_start_end_change(msim_e))
+      
+      
+      Sims <- bind_rows(Sims, res)
+      res <- NULL
+    }
+    
+    # Save full results and table
+    save(Sims, file = file.path(args$rdats, paste0(id, ".rdat") ))
+    Sims %>%
+      select(-params, -sim) %>%
+      write_tsv(file = file.path(args$tsvs, paste0(id, ".tsv")) )
+  })
 
-Sims %>%
-  select(-params, -sim) %>%
-  write_tsv(file = paste0(id, ".tsv"))
-
-
-Sims %>%
-  filter(!is.na(extinct_species)) %>%
-  ggplot(aes(x = spec_abun, y = shannon_end - shannon_start)) +
-  geom_point() +
-  theme_classic()
+date()
+sessionInfo()
