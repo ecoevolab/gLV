@@ -282,7 +282,7 @@ date()
 # hyper <- read_tsv(args$sims)
 Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
-  pmap(.f = function(simid, n_species, p_noint, p_neg, seed){
+  pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
     
     # i <- 5
     # n_species <- hyper$n_species[i]
@@ -325,3 +325,4 @@ write_tsv(Tab, file.path(args$outdir, "summary.tsv"))
 
 date()
 sessionInfo()
+
