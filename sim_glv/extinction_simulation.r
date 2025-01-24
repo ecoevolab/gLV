@@ -254,8 +254,8 @@ simulate_all_extinctions <- function(sim, params){
     # Simulate time after extinction
     sim_e <- sim_glv(params = params_e, n_t = n_t)
     sim_e$extinct_species <- as.numeric(spec)
-    sim_e$species_abun <- as.numeric(x_t[spec])
-    sim_e$species_freq <- as.numeric(sim_e$species_abun / sum(x_t))
+    sim_e$spec_abun <- as.numeric(x_t[spec])
+    sim_e$spec_freq <- as.numeric(sim_e$spec_abun / sum(x_t))
     
     Ext <- bind_rows(Ext, sim_e)
     sim_e <- NULL
