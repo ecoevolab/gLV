@@ -306,7 +306,9 @@ Tab <- read_tsv(args$sims) %>%
     
     # Simulate extinctions
     Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params)
-    Ext$id <- simid
+    if(!is.null(Ext)){
+      Ext$id <- simid
+    }
     Sims <- bind_rows(Sims, Ext)
     
     # Save full results and table
