@@ -11,10 +11,7 @@
 #'   \item  \strong{\code{Outputs}}: Directory where the simulation matrix of population changes over time is saved.
 #'   \item  \strong{\code{Parameters}}: Directory for saving the parameters used to generate the data. 
 #'          Parameters can be saved either by line using \link{params_line_saver}, or by seed using \link{params_seed_saver}.
-#'   \item  \strong{\code{Scan}}: Directory where the results of the steady state search algorithms are saved, including 
-#'          global stable generations (using \link{all_SS_find_and_save}) or by individual species (using \link{individual_SS_find_and_save}).
 #'   \item  \strong{\code{Differences}}: Directory where the log-transformed differences \eqn{\log(t+1) - \log(t)} of the output matrix are saved.
-#'   \item  \strong{\code{Extinctions}}: Directory where the output matrix with \emph{n} species extinct at \emph{t} times is saved.
 #' }
 #' 
 #' @return Prints messages to the console indicating which directories were created or if they already existed.
@@ -52,17 +49,10 @@ forge_directories <- function(wd) {
   params_path <- file.path(wd, "Parameters")
   detect(params_path)
   
-  # Create Scan directory
-  scan_path <- file.path(wd, "Scan")
-  detect(scan_path)
-  
   # Create Differences directory
   diff_path <- file.path(wd, "Differences")
   detect(diff_path)
   
-  # Create Extinctions directory
-  diff_path <- file.path(wd, "Extinctions")
-  detect(diff_path)
 }
 
 
