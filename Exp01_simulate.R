@@ -6,39 +6,38 @@ cat(
 )
 
 #------------Load master table#------------#
-params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Params-exp01.tsv")
+params_table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Params-exp01.tsv", sep = "\t", header = TRUE)
 
 #'-----------------------function is for generating the parameters-------------#
 regenerate <- function(index) {
   
+  # Convert all required index values once
   N_species <- as.numeric(index["N_specs"])
+  seeds <- as.numeric(index[c("Population_seed", "Growth_seed", "Interactions_seed")])
+  probs <- as.numeric(index[c("Prob_neg", "Prob_0", "Diagonal")])
   
-  #------------------Populations-----------------------------#
-  set.seed(as.numeric(index["Population_seed"]))
-  Pobl <- stats::runif(N_species, min = 0.1, max = 1)
+  # Generate Population parameter
+  set.seed(seeds[1])
+  Pobl <- runif(n = N_species, min = 0.1, max = 1)
   
-  #------------------------Growth Rates---------------------#
-  set.seed(as.numeric(index["Growth_seed"]))
-  Grow <- stats::runif(N_species, min = 0.001, max = 1)
+  # Generate Growth rates parameter
+  set.seed(seeds[2])
+  Grow <- runif(n = N_species, min = 0.001, max = 1)
   
-  #--------------------Interactions-------------------------#c
-  set.seed(as.numeric(index["Interactions_seed"]))
-  
-  # Generate random interaction values
-  P_neg <- stats::rbinom(N_species * N_species, 1, as.numeric(index["Prob_neg"]))
-  tmp <- stats::rbinom(N_species * N_species, 1, 1 - as.numeric(index["Prob_0"])) * ifelse(P_neg != 0, stats::runif(N_species * N_species, min = 0, max = 1), -stats::runif(N_species * N_species, min = 0, max = 1))
-  inter <- matrix(tmp, nrow = N_species, ncol = N_species)
+  # Generate Interactions parameter
+  set.seed(seeds[3])
+  P_neg <- rbinom(n = N_species^2, size = 1, prob = probs[1])
+  interaction_values <- runif(n = N_species^2, min = 0, max = 1) * ifelse(P_neg == 1, -1, 1)
+  V_noint <- rbinom(n = N_species^2, size = 1, prob = 1 - probs[2])
+  inter <- matrix(V_noint * interaction_values, N_species)
   
   # Set diagonal values
-  diag(inter) <- as.numeric(index["Diagonal"])
+  diag(inter) <- probs[3]
   
-  # Return parameters as a list
-  params <- list(Population = Pobl,
-                 Interactions = inter,
-                 Growths = Grow)
-  
-  return(params)
+  # Return as a list
+  list(Population = Pobl, Interactions = inter, Growths = Grow)
 }
+
 
 #------------------------------------Regenerate simulations----------------------------#
 
@@ -48,26 +47,22 @@ ode_function <- function (times, params, atol, rtol) {
   
   # Define the equation
   glv_model <- function(t, x, params) {
-    r <- params$Growths         # Growth rate vector
-    A <- params$Interactions          # Interaction matrix
-    
-    # Compute dx/dt for each species
-    dx <- x * (r + A %*% x)
+    dx <- x * (params$Growths + params$Interactions %*% x)
     list(dx)
   }
   
-  time_seq <- seq(0, times, by = 1)  # Define the time sequence
+  time_seq <- seq_len(times) # Faster sequence generation
   
-  # Get solution
-  results <- deSolve::ode(y = params$Population, times = time_seq, func = glv_model, parms = params, method = "ode45",
-                          rtol = rtol, 
-                          atol = atol)
+  # Solve the ODE
+  results <- deSolve::ode(y = params$Population, times = time_seq, func = glv_model, 
+                          parms = params, method = "ode45", rtol = rtol, atol = atol)
   
-  # Remove the column of times and get the transversal, where rows are species and column generations
-  ode_df <- as.matrix(t(results))[-1, -ncol(results)]
+  # Transform results: remove time column, transpose
+  ode_df <- t(results[-1, -1, drop = FALSE])  # Efficient subsetting
   
-  # Get the proportion of each specie by column value/columnsum
-  ode_df <- apply(ode_df, 2, function(x) x / sum(x))
+  # Normalize each column (species proportions)
+  col_sums <- colSums(ode_df)
+  ode_df <- sweep(ode_df, 2, col_sums, "/")  # Faster than apply()
   
   return(ode_df)
 }
@@ -154,7 +149,7 @@ completed_ids <- mclapply(1:num_cores, function(core_id) {
 cat("The number of simulations repeated with the combination of tolerances was: ", 
     length(as.vector(unlist(completed_ids))), "\n\n")
 
-
+#------------------------------------------------------------------#
 cat(
   paste0(rep("=", 20), collapse = ""), "  Ending code at: ", 
   format(Sys.time(), "%B %d, %Y %I:%M:%S %p"), " ", 
