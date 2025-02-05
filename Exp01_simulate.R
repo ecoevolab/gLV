@@ -40,8 +40,8 @@ regenerate <- function(index) {
   return(params)
 }
 
+#------------------------------------Regenerate simulations----------------------------#
 
-#'-----------------------function is for solving the gLV equation-------------#
 requireNamespace("deSolve")
 
 ode_function <- function (times, params, atol, rtol) {
@@ -59,10 +59,17 @@ ode_function <- function (times, params, atol, rtol) {
   time_seq <- seq(0, times, by = 1)  # Define the time sequence
   
   # Get solution
-  results <- deSolve::ode(y = params$Population, times = time_seq, func = glv_model, parms = params,
-                          method = "ode45",
+  results <- deSolve::ode(y = params$Population, times = time_seq, func = glv_model, parms = params, method = "ode45",
                           rtol = rtol, 
                           atol = atol)
+  
+  # Remove the column of times and get the transversal, where rows are species and column generations
+  ode_df <- as.matrix(t(results))[-1, -ncol(results)]
+  
+  # Get the proportion of each specie by column value/columnsum
+  ode_df <- apply(ode_df, 2, function(x) x / sum(x))
+  
+  return(ode_df)
 }
 
 #'-----------------------Separate table by chunks-------------#
@@ -80,7 +87,7 @@ chunks <- split_table(params_table, num_cores)
 
 #'-------------------------Generate workers directory-------------#
 
-main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/Mc_run02"
+main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/Mc-run_01"
 
 # Create the main directory if it doesn't exist
 if (!dir.exists(main_dir)) {
@@ -145,7 +152,8 @@ completed_ids <- mclapply(1:num_cores, function(core_id) {
 }, mc.cores = num_cores)
 
 cat("The number of simulations repeated with the combination of tolerances was: ", 
-    length(as.vector(unlist(completed_ids))), "\n")
+    length(as.vector(unlist(completed_ids))), "\n\n")
+
 
 cat(
   paste0(rep("=", 20), collapse = ""), "  Ending code at: ", 
@@ -153,4 +161,6 @@ cat(
   paste0(rep("=", 20), collapse = ""), 
   "\n"
 )
+
+
 
