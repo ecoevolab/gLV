@@ -44,7 +44,7 @@ process_arguments <- function(){
 
 args <- process_arguments()
 # args <- list()
-# args$sims <- "/Users/sur/lab/exp/2025/today/simulations_batch1.tsv"
+# args$sims <- "/Users/sur/lab/exp/2025/2025-01-24.prepare_simulation_grid_glv//simulations_batch17.tsv"
 # args$outdir <- "output"
 # args$rdats <- file.path(args$outdir, "rdats")
 # args$tsvs <- file.path(args$outdir, "tsvs")
@@ -70,6 +70,8 @@ library(miaViz)
 #'
 #' @return A list with starting conditions (x0), growth rates (mu), and
 #' interaction matrix (M) for gLV simulation
+#' 
+#' @export
 generate_params <- function(n_species = 20,
                             p_noint = 0.5,
                             p_neg = 0.5){
@@ -108,6 +110,8 @@ generate_params <- function(n_species = 20,
 #' @param n_t Number of timepoints to simulate
 #'
 #' @return A tibble where column sim has the results of the simulation
+#' 
+#' @export
 sim_glv <- function(params = params, n_t = n_t){
   
   # Check that matrrix is square
@@ -116,6 +120,7 @@ sim_glv <- function(params = params, n_t = n_t){
   
   # Use miaSim to simulate standard gLV
   msim <- simulateGLV(n_species = nrow(params$M), 
+                      names_species = names(params$x0),
                       A = params$M,
                       x0 = params$x0,
                       growth_rates = params$mu,
@@ -129,6 +134,14 @@ sim_glv <- function(params = params, n_t = n_t){
                       norm = FALSE,
                       t_end = n_t)
   sim <- assay(msim)
+  
+  # We need to define extinctions, miasim sets abundances to zero below
+  # 10^-8 to calculate derivative. Given that differential equation
+  # is defined as:
+  # dx <- x0 * (growth_rates + A %*% x0)
+  # This means that once abundance goes below threshold it cannot change
+  # anymore, being effectively extinct.
+  sim[ sim < 10^-8 ] <- 0
   
   # Check if NA's or Inf's
   if( (any(colSums(is.na(sim)) != 0)) || (any(colSums(is.infinite(sim)) != 0))){
@@ -166,6 +179,8 @@ sim_glv <- function(params = params, n_t = n_t){
 #' miaSim::simulateGLV
 #'
 #' @return A tibble with various diversity and change estimates
+#' 
+#' @export
 measure_start_end_change <- function(msim){
   
   if(is(msim, "TreeSummarizedExperiment")){
@@ -200,7 +215,7 @@ measure_start_end_change <- function(msim){
   return(Res)
 }
 
-#' Simulate all extinction
+#' Simulate all extinctions
 #' 
 #' For a given simulation and parameters, simulate the extinction of all
 #' surviving species for the same time as the original simulation
@@ -212,8 +227,12 @@ measure_start_end_change <- function(msim){
 #' @param n_t 
 #'
 #' @return A tibble with the results of all the extinction simulations
+#' 
+#' @export
 simulate_all_extinctions <- function(sim, params){
-
+  
+  # sim <- Sims$sim[[1]]
+  
   # Check if simulations are needed
   if(is(sim, "logical") && is.na(sim)){
     return(NULL)
@@ -228,7 +247,7 @@ simulate_all_extinctions <- function(sim, params){
   # Simulate each species extinction
   Ext <- NULL
   for(spec in surv_specs){
-    # spec <- surv_specs[1]
+    # spec <- surv_specs[6]
     cat("Extinguishing species ", spec, "\n")
     
     # Simulate extinction
@@ -241,12 +260,18 @@ simulate_all_extinctions <- function(sim, params){
     M_e <- params$M
     M_e <- M_e[-spec, -spec]
     
+    # Remove extra species
+    ii <- x_e > 0
+    x_e <- x_e[ii]
+    mu_e <- mu_e[ii]
+    M_e <- M_e[ii,ii]
+    
     # New M params
-    n_species_e <- nrow(M_e)
-    ii_diag <- diag(n_species_e) == 1
-    n_int <- n_species_e ^ 2 - n_species_e
-    p_noint_e <- sum(M_e[!ii_diag] == 0) / n_int
-    p_neg_e <- sum((M_e[!ii_diag] != 0) & (M_e[!ii_diag] < 0)) / (n_int - sum(M_e[!ii_diag] == 0))
+    # n_species_e <- nrow(M_e)
+    # ii_diag <- diag(n_species_e) == 1
+    # n_int <- n_species_e ^ 2 - n_species_e
+    # p_noint_e <- sum(M_e[!ii_diag] == 0) / n_int
+    # p_neg_e <- sum((M_e[!ii_diag] != 0) & (M_e[!ii_diag] < 0)) / (n_int - sum(M_e[!ii_diag] == 0))
     
     # Update parameters
     params_e <- list(x0 = x_e, mu = mu_e, M = M_e)
@@ -284,7 +309,7 @@ Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
   pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
     
-    # i <- 5
+    # i <- 69
     # n_species <- hyper$n_species[i]
     # p_noint <- hyper$p_noint[i]
     # p_neg <- hyper$p_neg[i]
