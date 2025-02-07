@@ -130,6 +130,7 @@ reps_fun <- function(grid, index, params, worker_path) {
 
 #'-----------------------------------------------------------------#
 
+library("doParallel", lib = "/mnt/atgc-d3/sur/modules/pkgs/tidyverse_mrc")
 cl <- makeCluster(num_cores)
 registerDoParallel(cl)
 
