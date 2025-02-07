@@ -2,9 +2,9 @@
 #--------------------------------Create symbolic links--------------------------------#
 
 # Define source and target directories
-source_parent <- "/mnt/atgc-d3/sur/users/mrivera/testing/repetition"
+source_parent <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/Mc-run_01"
 
-target_parent <- "/mnt/atgc-d3/sur/users/mrivera/testing/Sims_Exp02/Combination-tols"
+target_parent <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/Tolerances-united"
 
 
 # Get all worker directories

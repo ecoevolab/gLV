@@ -71,7 +71,7 @@ ode_function <- function (times, params, atol, rtol) {
 
 library(parallel)
 
-num_cores <- detectCores() - 3  # Use one less than the total number of cores
+num_cores <- 20  # Use one less than the total number of cores
 cat("The number of cores that will be used are: ", num_cores, "\n")
 
 split_table <- function(df, n_chunks) {
@@ -86,12 +86,13 @@ main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/M
 
 # Create the main directory if it doesn't exist
 if (!dir.exists(main_dir)) {
-  dir.create(main_dir, recursive = TRUE)
+  invisible(dir.create(main_dir, recursive = TRUE,  showWarnings = FALSE))
 }
 
 # Ensure each worker has its own directory
 worker_dirs <- file.path(main_dir, paste0("worker_", seq_len(num_cores)))
-lapply(worker_dirs, dir.create, showWarnings = FALSE)
+invisible( lapply(worker_dirs, dir.create, showWarnings = FALSE) )
+cat("Directories for the cores created, in total ", num_cores, " cores were created \n")
 
 #'-------------------------Function for repeating simulations--------#
 
@@ -141,6 +142,8 @@ completed_ids <- mclapply(1:num_cores, function(core_id) {
     reps_fun(grid, index, params, worker_path)
     return(index["ID_simulation"])
   })
+  
+  cat("Worker #", core_id, " completed its chunk... \n")
   
   return(as.vector(unlist(ids_vector)) )
   
