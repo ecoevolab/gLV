@@ -82,7 +82,7 @@ chunks <- split_table(params_table, num_cores)
 
 #'-------------------------Generate workers directory-------------#
 
-main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/Mc-run_01"
+main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/Mc-run_02"
 
 # Create the main directory if it doesn't exist
 if (!dir.exists(main_dir)) {
@@ -130,12 +130,15 @@ reps_fun <- function(grid, index, params, worker_path) {
 
 #'-----------------------------------------------------------------#
 
-completed_ids <- mclapply(1:num_cores, function(core_id) {
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+completed_ids <- foreach(core_id = 1:num_cores, .combine = c, .packages = c("deSolve")) %dopar% {
+  cat("Starting worker:", core_id, "\n")
+  core_chunk <- chunks[[core_id]]
+  worker_path <- worker_dirs[[core_id]]
   
-  core_chunk <- chunks[[core_id]]  # rows assigned to this core
-  worker_path <- worker_dirs[[core_id]]  # Worker directory
-  
-  ids_vector <- lapply(seq_len(nrow(core_chunk)), function(i) {
+  ids_vector <- sapply(seq_len(nrow(core_chunk)), function(i) {
     index <- as.list(core_chunk[i, ])
     params <- regenerate(index)
     
@@ -143,11 +146,11 @@ completed_ids <- mclapply(1:num_cores, function(core_id) {
     return(index["ID_simulation"])
   })
   
-  cat("Worker #", core_id, " completed its chunk... \n")
-  
-  return(as.vector(unlist(ids_vector)) )
-  
-}, mc.cores = num_cores)
+  cat("Worker #", core_id, " completed.\n")
+  return(ids_vector)
+}
+
+stopCluster(cl)
 
 cat("The number of simulations repeated with the combination of tolerances was: ", 
     length(as.vector(unlist(completed_ids))), "\n\n")
