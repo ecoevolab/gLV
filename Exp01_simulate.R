@@ -60,10 +60,6 @@ ode_function <- function (times, params, atol, rtol) {
   # Transform results: remove time column, transpose
   ode_df <- t(results[-1, -1, drop = FALSE])  # Efficient subsetting
   
-  # Normalize each column (species proportions)
-  col_sums <- colSums(ode_df)
-  ode_df <- sweep(ode_df, 2, col_sums, "/")  # Faster than apply()
-  
   return(ode_df)
 }
 
@@ -82,7 +78,7 @@ chunks <- split_table(params_table, num_cores)
 
 #'-------------------------Generate workers directory-------------#
 
-main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/D10M02Y24_01"
+main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/D10M02Y24-RAW"
 
 # Create the main directory if it doesn't exist
 if (!dir.exists(main_dir)) {
