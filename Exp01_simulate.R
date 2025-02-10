@@ -71,7 +71,7 @@ ode_function <- function (times, params, atol, rtol) {
 
 library(parallel)
 
-num_cores <- 20  # Use one less than the total number of cores
+num_cores <- detectCores() -1  # Use one less than the total number of cores
 cat("The number of cores that will be used are: ", num_cores, "\n")
 
 split_table <- function(df, n_chunks) {
@@ -82,7 +82,7 @@ chunks <- split_table(params_table, num_cores)
 
 #'-------------------------Generate workers directory-------------#
 
-main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/Mc-run_02"
+main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Experiment-01/D10M02Y24_01"
 
 # Create the main directory if it doesn't exist
 if (!dir.exists(main_dir)) {
@@ -130,16 +130,12 @@ reps_fun <- function(grid, index, params, worker_path) {
 
 #'-----------------------------------------------------------------#
 
-library("doParallel", lib = "/mnt/atgc-d3/sur/modules/pkgs/tidyverse_mrc")
-cl <- makeCluster(num_cores)
-registerDoParallel(cl)
-
-completed_ids <- foreach(core_id = 1:num_cores, .combine = c, .packages = c("deSolve")) %dopar% {
-  cat("Starting worker:", core_id, "\n")
-  core_chunk <- chunks[[core_id]]
-  worker_path <- worker_dirs[[core_id]]
+completed_ids <- mclapply(1:num_cores, function(core_id) {
   
-  ids_vector <- sapply(seq_len(nrow(core_chunk)), function(i) {
+  core_chunk <- chunks[[core_id]]  # rows assigned to this core
+  worker_path <- worker_dirs[[core_id]]  # Worker directory
+  
+  ids_vector <- lapply(seq_len(nrow(core_chunk)), function(i) {
     index <- as.list(core_chunk[i, ])
     params <- regenerate(index)
     
@@ -147,11 +143,11 @@ completed_ids <- foreach(core_id = 1:num_cores, .combine = c, .packages = c("deS
     return(index["ID_simulation"])
   })
   
-  cat("Worker #", core_id, " completed.\n")
-  return(ids_vector)
-}
-
-stopCluster(cl)
+  cat("Worker #", core_id, " completed its chunk... \n")
+  
+  return(as.vector(unlist(ids_vector)) )
+  
+}, mc.cores = num_cores)
 
 cat("The number of simulations repeated with the combination of tolerances was: ", 
     length(as.vector(unlist(completed_ids))), "\n\n")
