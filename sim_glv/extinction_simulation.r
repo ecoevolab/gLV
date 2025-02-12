@@ -108,31 +108,40 @@ generate_params <- function(n_species = 20,
 #' @param params A list with starting conditions (x0), growth rates (mu), and
 #' interaction matrix (M) for gLV simulation
 #' @param n_t Number of timepoints to simulate
+#' @param timeout Number of seconds to wait for simulation to end before
+#' stopping it
 #'
 #' @return A tibble where column sim has the results of the simulation
 #' 
 #' @export
-sim_glv <- function(params = params, n_t = n_t){
+sim_glv <- function(params = params, n_t = n_t, timeout = 600){
   
   # Check that matrrix is square
   if(nrow(params$M) != ncol(params$M))
     stop("ERROR", call. = TRUE)
   
   # Use miaSim to simulate standard gLV
-  msim <- simulateGLV(n_species = nrow(params$M), 
-                      names_species = names(params$x0),
-                      A = params$M,
-                      x0 = params$x0,
-                      growth_rates = params$mu,
-                      sigma_migration = 0,
-                      epoch_p = 0,
-                      t_external_events = NULL,
-                      t_external_durations = NULL,
-                      stochastic = FALSE,
-                      migration_p = 0,
-                      error_variance = 0,
-                      norm = FALSE,
-                      t_end = n_t)
+  # Added timeout for dealing with rare instance where simulation
+  # keeps going forever
+  msim <- tryCatch(
+    R.utils::withTimeout(msim <- simulateGLV(n_species = nrow(params$M), 
+                                             names_species = names(params$x0),
+                                             A = params$M,
+                                             x0 = params$x0,
+                                             growth_rates = params$mu,
+                                             sigma_migration = 0,
+                                             epoch_p = 0,
+                                             t_external_events = NULL,
+                                             t_external_durations = NULL,
+                                             stochastic = FALSE,
+                                             migration_p = 0,
+                                             error_variance = 0,
+                                             norm = FALSE,
+                                             t_end = n_t),
+                         timeout = timeout), 
+    error = function(e){
+      cat(">>Simulation failed...skipping")
+      matrix(NA)})
   sim <- assay(msim)
   
   # We need to define extinctions, miasim sets abundances to zero below
@@ -224,12 +233,12 @@ measure_start_end_change <- function(msim){
 #' the results of a simulation
 #' @param params  list with starting conditions (x0), growth rates (mu), and
 #' interaction matrix (M) for gLV simulation
-#' @param n_t 
+#' @param timeout Number of seconds to wait before stopping simulation 
 #'
 #' @return A tibble with the results of all the extinction simulations
 #' 
 #' @export
-simulate_all_extinctions <- function(sim, params){
+simulate_all_extinctions <- function(sim, params, timeout = 600){
   
   # sim <- Sims$sim[[1]]
   
@@ -277,7 +286,7 @@ simulate_all_extinctions <- function(sim, params){
     params_e <- list(x0 = x_e, mu = mu_e, M = M_e)
     
     # Simulate time after extinction
-    sim_e <- sim_glv(params = params_e, n_t = n_t)
+    sim_e <- sim_glv(params = params_e, n_t = n_t, timeout = timeout)
     sim_e$extinct_species <- as.numeric(spec)
     sim_e$spec_abun <- as.numeric(x_t[spec])
     sim_e$spec_freq <- as.numeric(sim_e$spec_abun / sum(x_t))
@@ -326,11 +335,12 @@ Tab <- read_tsv(args$sims) %>%
                               p_neg = p_neg)
     
     # print(params)
-    Sims <- sim_glv(params = params, n_t = n_t)
+    Sims <- sim_glv(params = params, n_t = n_t, timeout = 600)
     Sims$id <- simid
     
     # Simulate extinctions
-    Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params)
+    Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params,
+                                    timeout = 600)
     if(!is.null(Ext)){
       Ext$id <- simid
     }
