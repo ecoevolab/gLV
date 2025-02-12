@@ -122,7 +122,8 @@ sim_glv <- function(params = params, n_t = n_t, timeout = 600){
   
   # Use miaSim to simulate standard gLV
   # Added timeout for dealing with rare instance where simulation
-  # keeps going forever
+  # keeps going forever. An issue is that we cannto distinguish failure
+  # by timeout from other types of failure.
   msim <- tryCatch(
     R.utils::withTimeout(msim <- simulateGLV(n_species = nrow(params$M), 
                                              names_species = names(params$x0),
