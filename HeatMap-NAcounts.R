@@ -3,7 +3,7 @@
 
 #--------------------------Obtener los conteos------------------#
 
-counts_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified/NA-RawUnified-D10M02Y24.tsv"
+counts_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified/NA-PropsUnified-D10M02Y24.tsv"
   
 counts_table <- data.table::fread(counts_path)
 
@@ -26,10 +26,6 @@ rownames(df) <-   format(tols, scientific = TRUE, digits = 3)
 
 # Columns correspond to relative tolerance
 colnames(df) <-  format(tols, scientific = TRUE, digits = 3)
-
-# Optional: Guardar la tabla
-# counts_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/RawHeatMap-NA.tsv"
-# data.table::fwrite(df, file = counts_path, sep = "\t" )
 
 #--------------------------Convertirlo a Heat Map------------------#
 
@@ -61,4 +57,5 @@ p <- ggplot(df_long, aes(x = Tolerance_A, y = Tolerance_R, fill = Value)) +
 interactive_p <- ggplotly(p)
 
 # Save as an interactive HTML file
-saveWidget(interactive_p, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/RawHeatMap-NA.html", selfcontained = FALSE)
+library(htmlwidgets)
+saveWidget(interactive_p, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/PropsHeatMap-NA.html", selfcontained = FALSE)
