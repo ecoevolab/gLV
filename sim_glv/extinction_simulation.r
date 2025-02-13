@@ -342,13 +342,18 @@ Tab <- read_tsv(args$sims) %>%
     Sims <- sim_glv(params = params, n_t = n_t, timeout = 600)
     Sims$id <- simid
     
-    # Simulate extinctions
-    Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params,
-                                    timeout = 600)
-    if(!is.null(Ext)){
-      Ext$id <- simid
+    
+    if(Sims$richness_end > 1){
+      # Simulate extinctions
+      Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params,
+                                      timeout = 600)
+      if(!is.null(Ext)){
+        Ext$id <- simid
+      }
+      Sims <- bind_rows(Sims, Ext)
+    }else{
+      message("\t>Only one species survived, no additional extinctions.")
     }
-    Sims <- bind_rows(Sims, Ext)
     
     # Save full results and table
     save(Sims, file = file.path(args$rdats, paste0(simid, ".rdat") ))
