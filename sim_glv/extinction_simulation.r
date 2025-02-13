@@ -44,7 +44,7 @@ process_arguments <- function(){
 
 args <- process_arguments()
 # args <- list()
-# args$sims <- "/Users/sur/lab/exp/2025/2025-01-24.prepare_simulation_grid_glv//simulations_batch17.tsv"
+# args$sims <- "/Users/sur/lab/exp/2025/2025-01-24.prepare_simulation_grid_glv//simulations_batch2.tsv"
 # args$outdir <- "output"
 # args$rdats <- file.path(args$outdir, "rdats")
 # args$tsvs <- file.path(args$outdir, "tsvs")
@@ -242,6 +242,7 @@ measure_start_end_change <- function(msim){
 simulate_all_extinctions <- function(sim, params, timeout = 600){
   
   # sim <- Sims$sim[[1]]
+  # timeout <- 600
   
   # Check if simulations are needed
   if(is(sim, "logical") && is.na(sim)){
@@ -257,7 +258,7 @@ simulate_all_extinctions <- function(sim, params, timeout = 600){
   # Simulate each species extinction
   Ext <- NULL
   for(spec in surv_specs){
-    # spec <- surv_specs[6]
+    # spec <- surv_specs[1]
     cat("Extinguishing species ", spec, "\n")
     
     # Simulate extinction
@@ -271,10 +272,12 @@ simulate_all_extinctions <- function(sim, params, timeout = 600){
     M_e <- M_e[-spec, -spec]
     
     # Remove extra species
+    # Ensure simulation works when only one species is left after
+    # extinction
     ii <- x_e > 0
     x_e <- x_e[ii]
     mu_e <- mu_e[ii]
-    M_e <- M_e[ii,ii]
+    M_e <- M_e[ii,ii, drop = FALSE]
     
     # New M params
     # n_species_e <- nrow(M_e)
@@ -319,7 +322,7 @@ Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
   pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
     
-    # i <- 69
+    # i <- 43
     # n_species <- hyper$n_species[i]
     # p_noint <- hyper$p_noint[i]
     # p_neg <- hyper$p_neg[i]
