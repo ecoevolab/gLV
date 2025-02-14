@@ -3,7 +3,7 @@
 
 #--------------------------Obtener los conteos------------------#
 
-counts_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified/NA-PropsUnified-D10M02Y24.tsv"
+counts_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified-exp01/NA-PropsUnified-D10M02Y24.tsv"
   
 counts_table <- data.table::fread(counts_path)
 
@@ -51,11 +51,11 @@ p <- ggplot(df_long, aes(x = Tolerance_A, y = Tolerance_R, fill = Value)) +
   theme(
     plot.title = element_text(hjust = 0.5)  # This centers the title
   ) +
-  labs(title = "Raw ODE data", x = "Absolute tolerance", y = "Relative tolerance")
+  labs(title = "NA Counting Across All Simulations Using the Raw Method", x = "Absolute tolerance", y = "Relative tolerance")
 
 # Convert ggplot to an interactive plot
 interactive_p <- ggplotly(p)
 
 # Save as an interactive HTML file
 library(htmlwidgets)
-saveWidget(interactive_p, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/PropsHeatMap-NA.html", selfcontained = FALSE)
+saveWidget(interactive_p, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified-exp01/Plots/RawHeatMap-NA.html", selfcontained = FALSE)
