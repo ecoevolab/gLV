@@ -1,8 +1,8 @@
 
 #------------Load master table#------------#
-data <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified-exp01/NA-PropsUnified-D10M02Y24.tsv", sep = "\t", header = TRUE)
+data <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25/NAcount-D13M02Y25.tsv", sep = "\t", header = TRUE)
 
-params_table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Params-exp01.tsv", sep = "\t", header = TRUE)
+params_table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/D13M02Y25.tsv", sep = "\t", header = TRUE)
 
 # Cargar paquetes
 library(dplyr)
@@ -19,12 +19,20 @@ df_selected <- df_mutate %>%
   select(1, last_col()) %>%
   rename("NA-counts" = last_col())
 
+#--------------------------
 # Unir con params_table y redondear columnas
 df_joined <- df_selected %>%
   left_join(params_table %>% select(ID_simulation, Prob_neg, Prob_0, N_specs), 
             by = c("TSV_ID" = "ID_simulation")) %>%
   mutate(across(c(Prob_neg, Prob_0), round, 1))
 
+# Code for grid method
+df_joined <- df_selected %>%
+  left_join(params_table %>% select(id, p_neg, p_noint, n_species), 
+            by = c("TSV_ID" = "id")) %>%
+  mutate(across(c(p_neg, p_noint), ~ round(.x, 1)))
+
+#-------------------------------
 # Sumar y contar valores por grupo
 df_summed <- df_joined %>%
   group_by(Prob_neg, Prob_0) %>%
@@ -52,5 +60,5 @@ interactive_p <- ggplotly(p)
 
 # Save as an interactive HTML file
 library(htmlwidgets)
-saveWidget(interactive_p, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified-exp01/Plots/PropsHeatMap-Params.html", selfcontained = FALSE)
+saveWidget(interactive_p, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/Params/D13M02Y25-C0CN", selfcontained = FALSE)
 

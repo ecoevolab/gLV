@@ -6,7 +6,7 @@ cat(
 )
 
 #------------Load master table------------#
-params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/Sims_Exp03/Parameters/DATA.tsv")
+params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/D13M02Y25.tsv")
 
 #'-----------------------function is for generating the parameters-------------#
 regenerate <- function(index) {
@@ -21,8 +21,6 @@ regenerate <- function(index) {
   set.seed(as.numeric(index[["Growth_seed"]]))
   Grow <- stats::runif(N_species, min = 0.001, max = 1)
   
-  print(Grow)
-
   #--------------------Interactions-------------------------#c
   set.seed(as.numeric(index[["A_seed"]]))
 
@@ -84,7 +82,7 @@ ode_function <- function (times, params) {
 
 library(parallel)
 
-num_cores <- detectCores()-3  # Use one less than the total number of cores
+num_cores <- detectCores() - 3  # Use one less than the total number of cores
 cat("The number of cores that will be used are: ", num_cores, "\n")
 
 split_table <- function(df, n_chunks) {
@@ -95,7 +93,7 @@ chunks <- split_table(params_table, num_cores)
 
 #'-------------------------Generate workers directory-------------#
 
-main_dir <- "/mnt/atgc-d3/sur/users/mrivera/Sims_Exp03/Mc-outs"
+main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25"
 
 # Create the main directory if it doesn't exist
 if (!dir.exists(main_dir)) {
@@ -134,9 +132,13 @@ parsims <- function(index, worker_path) {
 
 completed_ids <- mclapply(1:num_cores, function(core_id) {
   
+  cat("Starting worker ", core_id, "....\n")
+  
   core_chunk <- chunks[[core_id]]  # rows assigned to this core
   worker_path <- worker_dirs[[core_id]]  # Worker directory
   ids_vector <- lapply(1:nrow(core_chunk), function(i) parsims(core_chunk[i, ], worker_path))
+  
+  cat("Ending worker ", core_id, "....\n")
   
   return(as.vector(unlist(ids_vector)) )
   

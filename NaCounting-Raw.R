@@ -6,7 +6,7 @@ cat(
 )
 
 # Define the root path
-root_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified/RawUnified-D10M02Y24"
+root_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-outs"
 
 
 rtol_values <- c(1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1) # Relative tolerance
@@ -57,7 +57,7 @@ library(dplyr)
 final_df <- Reduce(function(x, y) merge(x, y, by = "TSV_ID", all = TRUE), na_counts_list)
 
 # Optionally, save the final data frame to a CSV
-save_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Unified/NA-RawUnified-D10M02Y24.tsv"
+save_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25/NAcount-D13M02Y25.tsv"
 data.table::fwrite(final_df, file = save_path, sep = "\t")
 
 cat(
