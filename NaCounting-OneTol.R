@@ -9,7 +9,7 @@ library(dplyr)
 library(data.table) 
 
 # Define the root path
-root_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-outs"
+root_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-miaSim/Unified"
 
 # Función para calcular la cantidad de NAs en un archivo
 calculate_nas <- function(file_path) {
@@ -32,7 +32,7 @@ na_counts_list <- lapply(files, function(file) {
 final_df <- bind_rows(na_counts_list)
 
 # Optionally, save the final data frame to a CSV
-save_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25/NAcount-D13M02Y25.tsv"
+save_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-miaSim/NAcount-D13M02Y25-miaSim.tsv"
 data.table::fwrite(final_df, file = save_path, sep = "\t")
 
 cat(

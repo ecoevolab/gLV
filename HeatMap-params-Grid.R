@@ -1,6 +1,6 @@
 
 #------------Load master table#------------#
-data <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25/NAcount-D13M02Y25.tsv", sep = "\t", header = TRUE)
+data <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-miaSim/NAcount-D13M02Y25-miaSim.tsv", sep = "\t", header = TRUE)
 
 params_table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/D13M02Y25.tsv", sep = "\t", header = TRUE)
 
@@ -39,7 +39,7 @@ p <- ggplot(df_summed, aes(x = p_neg, y = p_noint, fill = NA_SimsProps,
   scale_fill_distiller(palette = "RdBu", direction = 1) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(title = "Proportions HeatMap of NA Counts by Parameters ODE method", 
+  labs(title = "Proportions HeatMap of NA Counts by Parameters miaSim method", 
        x = "Negative Probability", 
        y = "No Interaction Probability", 
        fill = "NAs") +
@@ -50,4 +50,4 @@ p_interactive <- ggplotly(p, tooltip = "text") %>%
   layout(hoverlabel = list(bgcolor = "white"))
 
 # Save as interactive HTML if needed
-htmlwidgets::saveWidget(p_interactive, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/Params/D13M02Y25-C0CN.html", selfcontained = FALSE)
+htmlwidgets::saveWidget(p_interactive, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/Params/D13M02Y25-miaSim-C0CN.html", selfcontained = FALSE)

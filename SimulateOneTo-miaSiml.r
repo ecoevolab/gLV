@@ -54,7 +54,6 @@ regenerate <- function(index) {
   return(params)
 }
 
-
 #' Simulate gLV
 #' 
 #' Wrapper for miaSim. Takes output from enerate_params and runs

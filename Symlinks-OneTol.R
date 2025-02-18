@@ -1,15 +1,15 @@
 
 #--------------------------------Create symbolic links--------------------------------#
 # Define source and target directories
-source_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25"
+source_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-miaSim"
 
-target_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-outs"
+target_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-miaSim/Unified"
 
 # Create target directories if they don't exist
 if (!dir.exists(target_path)) dir.create(target_path, recursive = TRUE) 
 
 # Get all worker directories
-worker_dirs <- list.dirs(source_path, recursive = FALSE, full.names = TRUE)
+worker_dirs <- dir(source_path, recursive = FALSE, full.names = TRUE,  pattern = "^worker_.*")
 
 lapply(worker_dirs, function(worker) {
   
