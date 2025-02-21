@@ -322,7 +322,7 @@ Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
   pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
     
-    # i <- 43
+    # i <- 1
     # n_species <- hyper$n_species[i]
     # p_noint <- hyper$p_noint[i]
     # p_neg <- hyper$p_neg[i]
@@ -343,18 +343,23 @@ Tab <- read_tsv(args$sims) %>%
     Sims$id <- simid
     
     
-    if(Sims$richness_end > 1){
-      # Simulate extinctions
-      Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params,
-                                      timeout = 600)
-      if(!is.null(Ext)){
-        Ext$id <- simid
+    if( !is.logical(Sims$sim[[1]]) ){
+      if(Sims$richness_end > 1){
+        # Simulate extinctions
+        Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params,
+                                        timeout = 600)
+        if(!is.null(Ext)){
+          Ext$id <- simid
+        }
+        Sims <- bind_rows(Sims, Ext)
+      }else{
+        message("\t>Only one species survived, no additional extinctions.")
       }
-      Sims <- bind_rows(Sims, Ext)
-    }else{
-      message("\t>Only one species survived, no additional extinctions.")
+    } else{
+      message("\t>Main simulation failed. Extinctions cannot be tested.")
     }
     
+
     # Save full results and table
     save(Sims, file = file.path(args$rdats, paste0(simid, ".rdat") ))
     Tab <- Sims %>%
