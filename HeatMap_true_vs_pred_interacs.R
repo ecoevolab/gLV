@@ -65,42 +65,52 @@ tmp_df <- as.data.frame(t(tmp))
 
 #' The following code selects only the column of interest from `params_table`,  
 #' adds the counts of true negative and null interactions (`tmp_df`),  
-#' and calculates the `Row-wise Root Mean Squared Error` between Observed and Expected values and the #' average of both parameters 
+#' and calculates the `Root Mean Squared Error` between Observed and Expected values.
+#' 
+#' In total, hm_df should have: length(unique(hm_df$p_neg)) * length(unique(hm_df$p_noint))
+#' Because the data should be grouped by the combination of parameters.
 library(dplyr)
 hm_df <- params_table %>%
   select(p_noint, p_neg) %>% # select columns of interest
   mutate( # Add columns
     tmp_df, # Add counts
-    RMSE_neg = sqrt((true_negs - p_neg)^2) ,  # Compute RMSE for negatives
-    RMSE_noint = sqrt((true_noint - p_noint)^2) 
+    SE_neg = (true_negs - p_neg)^2 ,  # Compute Squared Error for negatives
+    SE_noint = (true_noint - p_noint)^2 # Compute Squared Error for no interactions
   )  %>% 
   group_by(p_neg, p_noint) %>% 
-summarise(
-  Total_Sims = n(),  # Count total simulations
-  Sum_RMSE_neg = sum(RMSE_neg, na.rm = TRUE), 
-  Sum_RMSE_noint = sum(RMSE_noint, na.rm = TRUE),  
+ summarise(
+  Sims_done = n(),  # Count total simulations done with the combination of parameters
+  RMSE_neg = sqrt(mean(SE_neg, na.rm = TRUE)), 
+  RMSE_noint = sqrt(mean(SE_noint, na.rm = TRUE)),
+  # RMSE_combined = sqrt(sum(RMSE_neg, RMSE_noint)/2),
   .groups = "drop"
-) %>%
-
-head(hm_df)
-
-  
+)
 
 #' The following code is for creating the heatmap.
 library(ggplot2)
 library(plotly)
 
 # Create heatmap
-heatmap_plot1 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = true_negs)) +
+heatmap_plot1 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_neg,
+                                   text = paste("Total Sims:", Sims_done,
+                                                "<br>p_neg:", p_neg,
+                                                "<br>p_noint:", p_noint,
+                                                "<br>RMSE:", RMSE_neg,
+                                                ))) +
   geom_tile(colour = "black") +  # Adjust 'size' to make the line thicker
   scale_fill_gradient(low = "white",  high = "steelblue") +
-  labs(x = "p_neg", y = "p_noint", fill = "true_negs") +
+  labs(x = "p_neg", y = "p_noint", fill = "RMSE_neg") +
   theme_minimal()
 # Create heatmap
-heatmap_plot2 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = true_noint)) +
+heatmap_plot2 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_noint,
+                                   text = paste("Total Sims:", Sims_done,
+                                                "<br>p_neg:", p_neg,
+                                                "<br>p_noint:", p_noint,
+                                                "<br>RMSE:", RMSE_noint,
+                                   ))) +
   geom_tile(colour = "black") +  # Adjust 'size' to make the line thicker
   scale_fill_gradient(low = "white",  high = "tomato") +
-  labs(x = "p_neg", y = "p_noint", fill = "true_noint") +
+  labs(x = "p_neg", y = "p_noint", fill = "RMSE_noint") +
   theme_minimal()
 
 # Convert to interactive plots
@@ -112,8 +122,8 @@ interactive_heatmap2 <- ggplotly(heatmap_plot2, tooltip = "text") %>% layout(hov
 combined_plot <- subplot(interactive_heatmap1, interactive_heatmap2, nrows = 1, shareY = TRUE, titleX = TRUE) %>%
   layout(
     annotations = list(
-      list(x = 0.2, y = 1, text = "True negative proportion", showarrow = FALSE, xref='paper', yref='paper', font=list(size=16)),
-      list(x = 0.8, y = 1, text = "True null  proportion", showarrow = FALSE, xref='paper', yref='paper', font=list(size=16))
+      list(x = 0.2, y = 1, text = "RMSE negative int", showarrow = FALSE, xref='paper', yref='paper', font=list(size=16)),
+      list(x = 0.8, y = 1, text = "RMSE null int", showarrow = FALSE, xref='paper', yref='paper', font=list(size=16))
     ),
     xaxis = list(title = "Negative Probability"),
     xaxis2 = list(title = "Negative Probability"),
