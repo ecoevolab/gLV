@@ -6,7 +6,6 @@ params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/D
 
 
 index <- params_table[1,]
-M <- matrix(NA, nrow = 5, ncol = 5)
 
 #' The following function is an updated version of the code to generate parameters based on the `parameters_table`.  
 #' More information can be found in the `Forge-gLV-Parameters.R` file.  
@@ -25,41 +24,58 @@ regenerate <- function(index) {
   
   #--------------------Interactions-------------------------#
   
-  #' Create a matrix full of ones and diagonal of 0
-  M <- matrix(1, nrow = n_species, ncol = n_species)
-  diag(M) <- -0.5
+  # Create a matrix full of NAs
+  M <- rep(NA, times = n_species^2)
   
-  #' Define proportions for zero and negative values
+  # Assign diagonal elements as -0.5
+  diagonal <- seq(from = 1, to = n_species^2, by = n_species + 1)
+  M[diagonal] <- -0.5
+  
+  # Define proportions for zero and negative values
   p_noint <- as.numeric(index[["p_noint"]])
   p_neg <- as.numeric(index[["p_neg"]])
   set.seed(as.numeric(index[["A_seed"]]))
   
-  #' Calculate off-diagonal indices and interaction counts
-  indices_off_diag <- which(row(M) != col(M), arr.ind = TRUE)
-  Noff_diag <- nrow(indices_off_diag)
-  num_0 <- floor(p_noint * Noff_diag)
-  num_negs <- floor(p_neg * (Noff_diag - num_0))
-  num_pos <- Noff_diag - (num_0 + num_negs)
+  # Calculate interaction counts
+  #' For testing run the next: num_noint + num_negs + num_pos
+  interactions_index <- which(is.na(M))  # Indices of off-diagonal elements
+  num_noint <- floor(p_noint * (n_species^2 - n_species))  # Neutral interactions
+  num_negs <- floor(p_neg * ((n_species^2 - n_species) - num_noint))  # Negative interactions
+  num_pos <- (n_species^2 - n_species) - (num_noint + num_negs)  # Positive interactions
   
-  # Reorder the off-diagonal `indices` randomly
-  zero_index <- sample(Noff_diag, num_0)
+  # Assign neutral interactions (set to zero)
+  #' sort(sample_noint)
+  #' sort(interactions_index)
+  sample_noint <- sample(interactions_index, size = num_noint, replace = FALSE)
+  M[sample_noint] <- 0
+  interactions_index <- interactions_index[!interactions_index %in% sample_noint]  # Remove from pool
   
-  # Assign null interactions (set to zero)
-  M[indices_off_diag[zero_index, 1], indices_off_diag[zero_index, 2]] <- 0
+  # Assign negative interactions (set to random negative values)
+  if (num_negs > 1) {
+    sample_negs <- sample(interactions_index, size = num_negs, replace = FALSE)
+    M[sample_negs] <- -runif(n = num_negs, min = 0, max = 1)
+    interactions_index <- interactions_index[!interactions_index %in% sample_negs]  # Remove from pool
+  } 
   
+  if (num_negs == 1) {
+    M[interactions_index] <- -runif(n = num_negs, min = 0, max = 1)
+    interactions_index <- c()
+  }
   
-  # Assign negative interactions
-  M[indices_off_diag[reorder_index[(num_0 + 1):(num_0 + num_negs)], ]] <- -runif(n = num_negs, min = 0, max = 1) 
+  # Assign positive interactions to remaining positions
+  if (length(interactions_index) != 0) {
+    M[interactions_index] <- runif(n = num_pos, min = 0, max = 1)
+  } 
   
-  # Assign positive interactions
-  M[indices_off_diag[reorder_index[(num_0 + num_negs + 1):Noff_diag], ]] <- runif(n = num_pos, min = 0, max = 1) 
+  # Reshape the vector into a matrix and round it
+  M_df <- matrix(round(M, digits = 5), nrow = n_species, ncol = n_species)
   
   # Extract ID
   id <- index[["id"]]
   
   # Return parameters as a list
   params <- list(x0 = x0,
-                 M = M,
+                 M = M_df,
                  mu = mu,
                  id = id,
                  n = n_species)
@@ -67,22 +83,13 @@ regenerate <- function(index) {
   return(params)
 }
 
-#' These lines are for testing purposes, dont need to be runned. 
-x <- params_table[1,]
-p <- regenerate(x)
-# 
-# non_diag_indices <- which(row(p$M) != col(p$M), arr.ind = TRUE)
-# test_pos <- sum(p$M[non_diag_indices] > 0)/(p$n^2-p$n)
-# test_neg <- sum(p$M[non_diag_indices] < 0)/(p$n^2-p$n)
-# test_noint <- sum(p$M[non_diag_indices] == 0)/(p$n^2-p$n)
-
 #' The following code regenerates the parameters for each simulation with the function `regenerate`,  
 #' calculates the proportions of observed null and negative interactions, returns the results as a matrix, 
 #' and converts it to a data frame for column binding.  
 tmp <-  lapply(1:nrow(params_table), function(i) {
   
-  p <- regenerate(i) # Regenerate the parameters
-  # p$M = 2 - diag(3)
+  cat("Starting simulation ", i,"...\n")
+  p <- regenerate(params_table[i,]) # Regenerate the parameters
 
   # Get non-diagonal elements in one step
   non_diag_elements <- p$M[row(p$M) != col(p$M)]
@@ -94,45 +101,12 @@ tmp <-  lapply(1:nrow(params_table), function(i) {
   
   # Return named vector
   return(c(PropsPos = true_pos, PropsNeg = true_neg, PropsZer = true_noint))
-}) 
-
-tmp <- lapply(1:nrow(params_table), function(i) {
-  print(params_table[i, ])  # Check the row
-  
-  p <- regenerate(params_table[i, ])  # Pass the row to regenerate
-  print(p)  # Inspect the returned value
-  
-  # Additional debugging can be added inside regenerate()
 })
 
+res <- unlist(tmp)
+tmp_df <- as.data.frame(matrix(res, ncol = 3, byrow = TRUE))
+colnames(tmp_df) <- unique(names(res))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Convert to data frame
-tmp_df <- as.data.frame(t(tmp))
-
-# 
 #' The following code selects only the column of interest from `params_table`,  
 #' adds the counts of true negative and null interactions (`tmp_df`),  
 #' and calculates the `Root Mean Squared Error` between Observed and Expected values.
@@ -141,18 +115,19 @@ tmp_df <- as.data.frame(t(tmp))
 #' Because the data should be grouped by the combination of parameters.
 library(dplyr)
 hm_df <- params_table %>%
-  select(p_noint, p_neg) %>% # select columns of interest
+  select(p_noint, p_neg, n_species) %>% # select columns of interest
   mutate( # Add columns
     tmp_df, # Add counts
-    SE_neg = (true_negs - p_neg)^2 ,  # Compute Squared Error for negatives
-    SE_noint = (true_noint - p_noint)^2 # Compute Squared Error for no interactions
+    SE_negs = (PropsNeg - p_neg)^2,
+    SE_noint = (PropsZer - p_noint)^2
   )  %>% 
   group_by(p_neg, p_noint) %>% 
  summarise(
+  Total_specs = sum(n_species), # Calculate total number of species
   Sims_done = n(),  # Count total simulations done with the combination of parameters
-  RMSE_neg = sqrt(mean(SE_neg, na.rm = TRUE)), 
+  RMSE_neg = sqrt(mean(SE_negs, na.rm = TRUE)), 
   RMSE_noint = sqrt(mean(SE_noint, na.rm = TRUE)),
-  # RMSE_combined = sqrt(sum(RMSE_neg, RMSE_noint)/2),
+  RMSE_total = sqrt(mean(RMSE_noint, RMSE_neg)),
   .groups = "drop"
 )
 
@@ -161,45 +136,23 @@ library(ggplot2)
 library(plotly)
 
 # Create heatmap
-heatmap_plot1 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_neg,
+heatmap_plot1 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_total,
                                    text = paste("Total Sims:", Sims_done,
+                                                "<br>Total_species:", Total_specs,
                                                 "<br>p_neg:", p_neg,
                                                 "<br>p_noint:", p_noint,
-                                                "<br>RMSE:", RMSE_neg,
+                                                "<br>RMS_neg:", RMSE_neg,
+                                                "<br>RMSE_noint:", RMSE_noint
                                                 ))) +
   geom_tile(colour = "black") +  # Adjust 'size' to make the line thicker
   scale_fill_gradient(low = "white",  high = "steelblue") +
-  labs(x = "p_neg", y = "p_noint", fill = "RMSE_neg") +
+  labs(x = "p_neg", y = "p_noint", fill = "RMSE_total") +
   theme_minimal()
-# Create heatmap
-heatmap_plot2 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_noint,
-                                   text = paste("Total Sims:", Sims_done,
-                                                "<br>p_neg:", p_neg,
-                                                "<br>p_noint:", p_noint,
-                                                "<br>RMSE:", RMSE_noint,
-                                   ))) +
-  geom_tile(colour = "black") +  # Adjust 'size' to make the line thicker
-  scale_fill_gradient(low = "white",  high = "tomato") +
-  labs(x = "p_neg", y = "p_noint", fill = "RMSE_noint") +
-  theme_minimal()
+
 
 # Convert to interactive plots
 interactive_heatmap1 <- ggplotly(heatmap_plot1, tooltip = "text") %>% layout(hoverlabel = list(bgcolor = "white"))
-interactive_heatmap2 <- ggplotly(heatmap_plot2, tooltip = "text") %>% layout(hoverlabel = list(bgcolor = "white"))
-
-#-----------------------------------#
-# Combine both interactive plots in a single figure
-combined_plot <- subplot(interactive_heatmap1, interactive_heatmap2, nrows = 1, shareY = TRUE, titleX = TRUE) %>%
-  layout(
-    annotations = list(
-      list(x = 0.2, y = 1, text = "RMSE negative int", showarrow = FALSE, xref='paper', yref='paper', font=list(size=16)),
-      list(x = 0.8, y = 1, text = "RMSE null int", showarrow = FALSE, xref='paper', yref='paper', font=list(size=16))
-    ),
-    xaxis = list(title = "Negative Probability"),
-    xaxis2 = list(title = "Negative Probability"),
-    yaxis = list(title = "No Interaction Probability")
-  )
 
 # Save as an interactive HTML file
 library(htmlwidgets)
-saveWidget(combined_plot, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/heatmap_plot.html", selfcontained = FALSE)
+saveWidget(interactive_heatmap1, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/New-D23M02-updated01.html", selfcontained = FALSE)
