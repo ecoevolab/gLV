@@ -24,58 +24,41 @@ regenerate <- function(index) {
   
   #--------------------Interactions-------------------------#
   
-  # Create a matrix full of NAs
-  M <- rep(NA, times = n_species^2)
+  # Create matrix with NA values and fill the diagonal with -0.5
+  M <- matrix(NA, nrow = n_species, ncol = n_species)
+  diag(M) <- -0.5
   
-  # Assign diagonal elements as -0.5
-  diagonal <- seq(from = 1, to = n_species^2, by = n_species + 1)
-  M[diagonal] <- -0.5
-  
-  # Define proportions for zero and negative values
+  #' Define proportions for zero and negative values
   p_noint <- as.numeric(index[["p_noint"]])
   p_neg <- as.numeric(index[["p_neg"]])
+  
+  # Define the number of interactions
+  num_off_diag <- n_species * (n_species - 1)  # Total off-diagonal elements
+  num_noint <- floor(p_noint * num_off_diag)   # Number of null interactions
+  num_negs <- floor(p_neg * (num_off_diag - num_noint)) # Number of negative interactions
+  num_pos <- num_off_diag - (num_noint + num_negs) # Remaining are positive interactions
+  
+  # Create the interaction vector
   set.seed(as.numeric(index[["A_seed"]]))
+  interaction_values <- c(rep(0, num_noint),
+                          -runif(num_negs, min = 0, max = 1),
+                          runif(num_pos, min = 0, max = 1))
   
-  # Calculate interaction counts
-  #' For testing run the next: num_noint + num_negs + num_pos
-  interactions_index <- which(is.na(M))  # Indices of off-diagonal elements
-  num_noint <- floor(p_noint * (n_species^2 - n_species))  # Neutral interactions
-  num_negs <- floor(p_neg * ((n_species^2 - n_species) - num_noint))  # Negative interactions
-  num_pos <- (n_species^2 - n_species) - (num_noint + num_negs)  # Positive interactions
+  # Shuffle the interaction vector
+  interaction_values <- sample(interaction_values)
   
-  # Assign neutral interactions (set to zero)
-  #' sort(sample_noint)
-  #' sort(interactions_index)
-  sample_noint <- sample(interactions_index, size = num_noint, replace = FALSE)
-  M[sample_noint] <- 0
-  interactions_index <- interactions_index[!interactions_index %in% sample_noint]  # Remove from pool
+  # Assign to off-diagonal elements
+  M[upper.tri(M, diag = FALSE) | lower.tri(M, diag = FALSE)] <- interaction_values
   
-  # Assign negative interactions (set to random negative values)
-  if (num_negs > 1) {
-    sample_negs <- sample(interactions_index, size = num_negs, replace = FALSE)
-    M[sample_negs] <- -runif(n = num_negs, min = 0, max = 1)
-    interactions_index <- interactions_index[!interactions_index %in% sample_negs]  # Remove from pool
-  } 
-  
-  if (num_negs == 1) {
-    M[interactions_index] <- -runif(n = num_negs, min = 0, max = 1)
-    interactions_index <- c()
-  }
-  
-  # Assign positive interactions to remaining positions
-  if (length(interactions_index) != 0) {
-    M[interactions_index] <- runif(n = num_pos, min = 0, max = 1)
-  } 
-  
-  # Reshape the vector into a matrix and round it
-  M_df <- matrix(round(M, digits = 5), nrow = n_species, ncol = n_species)
+  # Optional: Round if needed
+  M <- round(M, digits = 5)
   
   # Extract ID
   id <- index[["id"]]
   
   # Return parameters as a list
   params <- list(x0 = x0,
-                 M = M_df,
+                 M = M,
                  mu = mu,
                  id = id,
                  n = n_species)
@@ -86,21 +69,23 @@ regenerate <- function(index) {
 #' The following code regenerates the parameters for each simulation with the function `regenerate`,  
 #' calculates the proportions of observed null and negative interactions, returns the results as a matrix, 
 #' and converts it to a data frame for column binding.  
-tmp <-  lapply(1:nrow(params_table), function(i) {
+system.time({
+  tmp <-  lapply(1:nrow(params_table), function(i) {
+    
+    # cat("Starting simulation ", i,"...\n")
+    p <- regenerate(params_table[i,]) # Regenerate the parameters
   
-  cat("Starting simulation ", i,"...\n")
-  p <- regenerate(params_table[i,]) # Regenerate the parameters
-
-  # Get non-diagonal elements in one step
-  non_diag_elements <- p$M[row(p$M) != col(p$M)]
-  
-  # Efficiently compute proportions using mean (avoids explicit sums)
-  true_pos <- mean(non_diag_elements > 0)
-  true_neg <- mean(non_diag_elements < 0)
-  true_noint <- mean(non_diag_elements == 0)
-  
-  # Return named vector
-  return(c(PropsPos = true_pos, PropsNeg = true_neg, PropsZer = true_noint))
+    # Get non-diagonal elements in one step
+    non_diag_elements <- p$M[row(p$M) != col(p$M)]
+    
+    # Efficiently compute proportions using mean (avoids explicit sums)
+    true_pos <- mean(non_diag_elements > 0)
+    true_neg <- mean(non_diag_elements < 0)
+    true_noint <- mean(non_diag_elements == 0)
+    
+    # Return named vector
+    return(c(PropsPos = true_pos, PropsNeg = true_neg, PropsZer = true_noint))
+  })
 })
 
 res <- unlist(tmp)
@@ -136,7 +121,7 @@ library(ggplot2)
 library(plotly)
 
 # Create heatmap
-heatmap_plot1 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_total,
+heatmap_plot1 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_neg,
                                    text = paste("Total Sims:", Sims_done,
                                                 "<br>Total_species:", Total_specs,
                                                 "<br>p_neg:", p_neg,
@@ -146,7 +131,7 @@ heatmap_plot1 <- ggplot(hm_df, aes(x = p_neg, y = p_noint, fill = RMSE_total,
                                                 ))) +
   geom_tile(colour = "black") +  # Adjust 'size' to make the line thicker
   scale_fill_gradient(low = "white",  high = "steelblue") +
-  labs(x = "p_neg", y = "p_noint", fill = "RMSE_total") +
+  labs(x = "p_neg", y = "p_noint", fill = "RMSE_neg") +
   theme_minimal()
 
 
