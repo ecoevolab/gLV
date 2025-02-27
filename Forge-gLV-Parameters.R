@@ -7,7 +7,8 @@
 #' non-diagonal element in the interaction matrix is zero. 
 #' 
 #' @param p_neg Probability of a negative effect, i.e. probability that
-#' a non-diagonal non-zero element of the interaction matrix is negative
+#' a non-diagonal non-zero element of the interaction matrix is negative 
+#' (`Pr(M_ij < 0 | M_ij != 0)`)
 #'
 #' Each parameter is calculated in the next way:
 #' `x0` This parameter represents the initial population of each species at time 0. It is
@@ -17,7 +18,8 @@
 #' It is calculated from a uniform distribution (from 0.001 to 1)
 #' 
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
-#'  positive interactions or negatives
+#'  positive interactions or negatives. 
+
 regenerate <- function(index) {
   
   n_species <- as.numeric(index[["n_species"]])
@@ -32,43 +34,35 @@ regenerate <- function(index) {
   
   #--------------------Interactions-------------------------#
   
-  #' Create a matrix full of ones and diagonal of 0
-  M <- 1 - diag(n_species)
+  # Create matrix with NA values and fill the diagonal with -0.5
+  M <- matrix(NA, nrow = n_species, ncol = n_species)
+  diag(M) <- -0.5
   
   #' Define proportions for zero and negative values
   p_noint <- as.numeric(index[["p_noint"]])
   p_neg <- as.numeric(index[["p_neg"]])
-  A_seed <- as.numeric(index[["A_seed"]])
+  p_pos <- as.numeric(index[["p_pos"]])
   
-  #' Set seed for reproducibility
-  set.seed(A_seed)
+  # Define the number of interactions
+  num_off_diag <- n_species * (n_species - 1)  # Total off-diagonal elements
+  num_noint <- floor(p_noint * num_off_diag)   # Number of null interactions
+  num_negs <- floor(p_neg * (num_off_diag - num_noint)) # Number of negative interactions
+  num_pos <- num_off_diag - (num_noint + num_negs) # Remaining are positive interactions
   
-  #' Testin purpose line
-  Noff_diag <- sum(M == 1) 
-  num_0 <- floor(p_noint * Noff_diag)
-  num_negs <- floor(p_neg * (Noff_diag - num_0))
-  num_pos <- Noff_diag - (num_0 + num_negs)
+  # Create the interaction vector
+  set.seed(as.numeric(index[["A_seed"]]))
+  interaction_values <- c(rep(0, num_noint),
+                          -runif(num_negs, min = 0, max = 1),
+                          runif(num_pos, min = 0, max = 1))
   
-  #' Fill zeroes
-  indices_1 <- which(M == 1, arr.ind = TRUE)
-  sampled_0 <- sample(x = indices_1, size = num_0)
-  zero_elements <- indices_1[sampled_0, ]
-  M[zero_elements] <- 0
+  # Shuffle the interaction vector
+  interaction_values <- sample(interaction_values)
   
-  #' Assign -0.5 to the diagonal
-  diag(M) <- -0.5
+  # Assign to off-diagonal elements
+  M[upper.tri(M, diag = FALSE) | lower.tri(M, diag = FALSE)] <- interaction_values
   
-  #' Assign negative interactions
-  indices_1 <- which(M == 1, arr.ind = TRUE)
-  sampled_neg <- sample(x = indices_1, size = num_negs)
-  neg_elements <- indices_1[sampled_neg, ]
-  M[neg_elements] <- -runif(num_negs, min = 0, max = 1)
-  
-  #' Assign positive interactions
-  indices_1 <- which(M == 1, arr.ind = TRUE)
-  sampled_pos <- sample(x = indices_1, size = num_pos)
-  pos_elements <- indices_1[sampled_pos, ]
-  M[pos_elements] <- runif(num_negs, min = 0, max = 1)
+  # Optional: Round if needed
+  M <- round(M, digits = 5)
   
   # Extract ID
   id <- index[["id"]]

@@ -5,64 +5,21 @@ cat(
   "\n"
 )
 
-#------------Load master table------------#
-params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/D13M02Y25.tsv")
+#' Load Parameters table
+params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Data-D25M02.tsv")
 
-#'-----------------------function is for generating the parameters-------------#
-regenerate <- function(index) {
-  
-  N_species <- as.numeric(index[["n_species"]])
+#' Add function to generate the parameters
+source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Forge-gLV-Parameters.R")
 
-  #------------------Populations-----------------------------#
-  set.seed(as.numeric(index[["Pop_seed"]]))
-  Pobl <- stats::runif(N_species, min = 0.1, max = 1)
-  
-  #------------------------Growth Rates---------------------#
-  set.seed(as.numeric(index[["Growth_seed"]]))
-  Grow <- stats::runif(N_species, min = 0.001, max = 1)
-  
-  #--------------------Interactions-------------------------#c
-  set.seed(as.numeric(index[["A_seed"]]))
-
-  # Probability of negative interaction and vector of 0's and 1's
-  p_neg <- as.numeric(index[["p_neg"]])
-  V_neg <- stats::rbinom(N_species * N_species, 1, p_neg)
-
-  # Probability of null interaction and vector of 0's and 1's
-  p_noint <- as.numeric(index[["p_noint"]])
-  V_noint <- stats::rbinom(N_species * N_species, 1, 1 - p_noint)
-
-  tmp <- V_noint * ifelse(V_neg != 0,
-           stats::runif(N_species * N_species, min = 0, max = 1),
-           -stats::runif(N_species * N_species, min = 0, max = 1)
-           )
-
-  inter <- matrix(tmp, nrow = N_species, ncol = N_species)
-
-  # Set diagonal values
-  diag(inter) <- -0.5
-  
-  # Extract ID
-  id <- index[["id"]]
-  
-  # Return parameters as a list
-  params <- list(Population = Pobl,
-                 Interactions = inter,
-                 Growths = Grow,
-                 ID = id)
-
-  return(params)
-}
-
-#'-----------------------function is for solving the gLV equation-------------#
+#' The next function is for solvide gLV model with ode45
 requireNamespace("deSolve")
 
 ode_function <- function (times, params) {
   
   # Define the equation
   glv_model <- function(t, x, params) {
-    r <- params$Growths         # Growth rate vector
-    A <- params$Interactions          # Interaction matrix
+    r <- params$mu         # Growth rate vector
+    A <- params$M          # Interaction matrix
     
     # Compute dx/dt for each species
     dx <- x * (r + A %*% x)
@@ -72,10 +29,54 @@ ode_function <- function (times, params) {
   time_seq <- seq(0, times, by = 1)  # Define the time sequence
   
   # Get solution
-  results <- deSolve::ode(y = params$Population, times = time_seq, func = glv_model, parms = params,
+  results <- deSolve::ode(y = params$x0, times = time_seq, func = glv_model, parms = params,
                           method = "ode45",
                           rtol = 1e-06, 
                           atol = 1e-06)
+}
+
+#' The next function is for solving gLV equation with miaSim
+sim_glv <- function(params = params, n_t = n_t){
+  
+  # Check that matrrix is square
+  if (nrow(params$M) != ncol(params$M)) {
+    stop("Matrix is not n*n", call. = TRUE)
+  }
+  
+  
+  # Use miaSim to simulate standard gLV
+  # Added timeout for dealing with rare instance where simulation
+  # keeps going forever. An issue is that we cannto distinguish failure
+  # by timeout from other types of failure.
+  msim <- tryCatch(
+    R.utils::withTimeout(miaSim::simulateGLV(n_species = nrow(params$M), 
+                                             names_species = names(params$x0),
+                                             A = params$M,
+                                             x0 = params$x0,
+                                             growth_rates = params$mu,
+                                             sigma_migration = 0,
+                                             epoch_p = 0,
+                                             t_external_events = NULL,
+                                             t_external_durations = NULL,
+                                             stochastic = FALSE,
+                                             migration_p = 0,
+                                             error_variance = 0,
+                                             norm = FALSE,
+                                             t_end = n_t),
+                         timeout = 600), 
+    error = function(e) {
+      message(">> Simulation failed... skipping")
+      return(NULL) # Return NULL instead of an NA matrix
+    })
+  
+  # Ensure msim is valid before extracting counts
+  if (inherits(msim, "TreeSummarizedExperiment")) {
+    counts <- SummarizedExperiment::assay(msim, "counts")
+    colnames(counts) <- round(msim$time, 1)
+    return(counts)
+  } else {
+    return(matrix(NA, nrow = nrow(params$M), ncol = n_t)) # Return properly shaped NA matrix
+  }
 }
 
 #'-----------------------Separate table by chunks-------------#
@@ -93,36 +94,43 @@ chunks <- split_table(params_table, num_cores)
 
 #'-------------------------Generate workers directory-------------#
 
-main_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25"
+mias_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D25M02/Simulate_miaSim"
+ode_dir <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D25M02/Simulate_ODE"
 
-# Create the main directory if it doesn't exist
-if (!dir.exists(main_dir)) {
-  dir.create(main_dir, recursive = TRUE)
+# Function to create main and worker directories
+create_dirs <- function(main_dir, num_cores) {
+  if (!dir.exists(main_dir)) dir.create(main_dir, recursive = TRUE)
+  
+  # Create worker directories
+  worker_dirs <- file.path(main_dir, paste0("worker_", seq_len(num_cores)))
+  invisible(lapply(worker_dirs, dir.create, showWarnings = FALSE))
+  
+  return(worker_dirs)
 }
 
-# Ensure each worker has its own directory
-worker_dirs <- file.path(main_dir, paste0("worker_", seq_len(num_cores)))
-lapply(worker_dirs, dir.create, showWarnings = FALSE)
+# Create directories for both simulations
+workers_mia <- create_dirs(mias_dir, num_cores)
+workers_ODE <- create_dirs(ode_dir, num_cores)
 
 #'-------------------------Function for repeating simulations--------#
 
-parsims <- function(index, worker_path) {
+parsims <- function(index, workers_ODE, workers_miaSim) {
     
     # Generate parameters
     params <- regenerate(index)
     
     # Run simulation
-    output <- ode_function(times = 700, params)
+    output_ode <- ode_function(times = 700, params)
+    output_mia <- sim_glv(params = params, n_t = 700)
     
     # Define paths
     id <- params$ID
-    save_path <- file.path(worker_path, paste0("O_", id, ".tsv"))
-    
-    # Create the main directory if it doesn't exist
-    dir.create(dirname(save_path), recursive = TRUE,  showWarnings = FALSE)
+    save_ode <- file.path(workers_ODE, paste0("O_", id, ".tsv"))
+    save_mia <- file.path(workers_miaSim, paste0("O_", id, ".tsv"))
     
     # Save simulation
-    utils::write.table(output, file = save_path, sep = "\t", row.names = FALSE, col.names = TRUE)
+    utils::write.table(output_ode, file = save_ode, sep = "\t", row.names = FALSE, col.names = TRUE)
+    utils::write.table(output_mia, file = save_mia, sep = "\t", row.names = FALSE, col.names = TRUE)
     
     return(id)
 }
@@ -135,8 +143,7 @@ completed_ids <- mclapply(1:num_cores, function(core_id) {
   cat("Starting worker ", core_id, "....\n")
   
   core_chunk <- chunks[[core_id]]  # rows assigned to this core
-  worker_path <- worker_dirs[[core_id]]  # Worker directory
-  ids_vector <- lapply(1:nrow(core_chunk), function(i) parsims(core_chunk[i, ], worker_path))
+  ids_vector <- lapply(1:nrow(core_chunk), function(i) parsims(core_chunk[i, ], workers_ODE, workers_mia))
   
   cat("Ending worker ", core_id, "....\n")
   

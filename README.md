@@ -22,3 +22,10 @@ This code was created to generate symlinks for the simulations with different to
 
 + `NaCounting-tols.R`
 This code was created to count the number of NAs in the simulations generated using the 36 possible combinations of relative and absolute tolerances (1e-01 to 1e-06).
+
+
+## List of updated functions
++ `ForgeParameters-GridMethod.R`
++ `Forge-gLV-Parameters.R`
++ `miaSim-runner.R`
++ `Forge-simulations-ode.R`
