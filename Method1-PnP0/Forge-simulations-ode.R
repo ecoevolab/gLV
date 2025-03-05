@@ -1,6 +1,6 @@
 
 library("tictoc", lib = "/mnt/atgc-d3/sur/modules/pkgs/tidyverse_mrc")
-tictoc::tic("Code running time:")
+tictoc::tic("Section 0: Total running time:")
 
 # ==== Load data and declare functions ====
 
@@ -109,13 +109,13 @@ parallel.sims <- function(index, path_ODE) {
 # ==== Parallelize it ====
 tictoc::tic("Section 3: Run simulations using the parallel package")
 
-NAs_vecs <- mclapply(1:num_cores, function(core_id) {
+NAs_vecs <- parallel::mclapply(1:num_cores, function(core_id) {
   
   message("Starting worker ", core_id, "....\n")
   
   core_chunk <- chunks[[core_id]]  # rows assigned to this core
   
-  cat("\nODE path", workers_ODE[core_id], "\n")
+  # cat("\nODE path", workers_ODE[core_id], "\n")
   
   na.vec <- lapply(1:nrow(core_chunk), function(i) {
     parallel.sims(core_chunk[i, ], 

@@ -1,35 +1,36 @@
 
-#------------Load master table#------------#
-data_miasim <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25-miaSim/NAcount-D13M02Y25-miaSim.tsv", sep = "\t", header = TRUE)
+# ==== Load data====
+params_table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Exp03-D25M02.tsv", 
+           sep = "\t", header = TRUE)
 
-data_ode <-  read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/D13M02Y25/NAcount-D13M02Y25.tsv", sep = "\t", header = TRUE)
+NA.table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Exp03-D25M02/Nas-counting.tsv", 
+           sep = "\t", header = TRUE)
 
-params_table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/D13M02Y25.tsv", sep = "\t", header = TRUE)
-
-#--------------------------------------HeatMap miaSim method-----------------------#
+# ==== Join tables====
 library(dplyr)
 library(ggplot2)
 library(plotly)
 
 # Function to process and summarize data
-process_data <- function(data, params_table) {
-  data %>%
+
+# Function to process and summarize data
+process_data <- function(NA.table, params_table) {
+  NA.table %>% 
     mutate(across(-1, ~ if_else(. > 0, 1, .))) %>% # Convert to 0's or 1's
     # Join parameters
-    left_join(params_table %>% select(id, p_neg, p_noint), by = c("TSV_ID" = "id")) %>%
+    left_join(params_table %>% select(id, p_neg, p_noint), by = "id") %>%
     mutate(across(c(p_neg, p_noint), ~ round(.x, 2))) %>%
     group_by(p_neg, p_noint) %>%
     summarise(
-      NA_Simulations = sum(NA_Counts, na.rm = FALSE),
-      Total_Sims = n(),
-      NA_SimsProps = NA_Simulations / Total_Sims,
+      NA_Simulations = sum(Total.NAs, na.rm = FALSE), # Sum simulations that failed
+      Total_Sims = n(), # Calculate number of simulations
+      NA_SimsProps = NA_Simulations / Total_Sims, # Calculate proportions
       .groups = "drop"
     )
 }
 
 # Apply function to both datasets
-summed_miasim <- process_data(data_miasim, params_table)
-summed_ode <- process_data(data_ode, params_table)
+summed_ode <- process_data(NA.table, params_table)
 
 # Function to create a heatmap
 create_heatmap <- function(data) {
