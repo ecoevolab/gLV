@@ -1,0 +1,372 @@
+---
+title: "Exp01-D01M03"
+author: "Manuel Rivera"
+date: "2025-03-01"
+output: html_document
+---
+
+## Compare observed probabilities vs expected probabilities.
+
+```{r}
+# Load the parameters table (local path)
+params_table <- data.table::fread("/home/rivera/Cluster/glv-research/Data/Exp01-D01M03.tsv")
+
+# For cluster environment, use the appropriate path:
+# params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Exp03-D25M02.tsv")
+
+
+# ==== Load necessary libraries and declare functions ====
+
+suppressPackageStartupMessages(library(dplyr))
+
+params_table <- params_table %>%
+  # Standardize column names for consistency
+  rename(
+    n_species = N_specs,           # Number of species
+    p_noint = Prob_0,              # Probability of no interaction
+    p_neg = Prob_neg,              # Probability of negative interaction
+    id = ID_simulation,            # Simulation identifier
+    Pop_seed = Population_seed,    # Seed for population
+    A_seed = Interactions_seed     # Seed for interaction matrix
+  ) %>%
+  
+  # Round the number of species to the nearest multiple of 10
+  mutate(across(n_species, ~ round(., digits = -1))) %>%
+  
+  # Round interaction probabilities to one decimal place
+  mutate(across(p_noint, ~ round(., digits = 1))) %>%
+  mutate(across(p_neg, ~ round(., digits = 1))) %>%
+  
+  # Exclude cases where p_noint is 1 but p_neg is not 0 (inconsistent values)
+  filter(!(p_noint == 1 & p_neg != 0))
+  
+  # Optional: Round species to the nearest multiple of 5
+  # mutate(across(N_specs, ~ ifelse(. %% 5 >= 3, ceiling(. / 5) * 5, floor(. / 5) * 5)))
+
+# Display the first rows of the processed table
+head(params_table)
+
+```
+
+Remove simulations that failed, this is probably because the number of species is 0.
+```{r}
+# Read the error log file containing information about failed simulations
+error.txt <- readLines("/home/rivera/Cluster/glv-research/Results/Exp01-D01M03/R02D01_March_25-run.error") 
+
+# For cluster environment, use this path instead:
+# error.txt <- readLines("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Exp01-D01M03/R02D01_March_25-run.error") 
+
+# Extract simulations that failed by searching for lines containing '>>' (indicating failure)
+failed.sims <- grep(">>", error.txt, value = TRUE)
+
+# Extract the simulation IDs from the failed simulations using regular expression
+id.fails <- sub(".*Simulation\\s+(.*?)\\s+failed.*", "\\1", failed.sims)
+
+# Filter the `params_table` to get the rows of simulations that failed based on the extracted IDs
+failed.sims <- params_table %>% 
+  filter(id %in% id.fails)
+
+# Display summary statistics of the failed simulations
+summary(failed.sims)
+
+# Filter the `params_table` to get the rows of simulations that did not fail
+runned.sims <- params_table %>% 
+  filter(!(id %in% id.fails))  # Exclude the failed simulations from the results
+
+```
+
+
+
+Regenerate the parameters for each simulation using the `regenerate` function. For each set of parameters, calculate the observed probabilities of null (zero) and negative interactions from the non-diagonal elements of the interaction matrix.
+```{r}
+# Load the updated function to generate parameters from the `parameters_table`.
+# More details are available in the `Forge-gLV-Parameters.R` script.
+source("/home/rivera/Cluster/glv-research/GIT-gLV/Forge-gLV-Parameters.R")
+
+# For cluster environment, use this path:
+# source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Forge-gLV-Parameters.R")
+
+
+# === Calculate observed probabilities of null and negative interactions ===
+
+# Apply the regeneration process to each row of the parameters table.
+tmp <- lapply(1:nrow(runned.sims), function(i) {
+    
+    # Regenerate parameters for the current row
+    p <- regenerate(params_table[i, ])
+  
+    # Extract non-diagonal elements (off-diagonal interactions)
+    non_diag_elements <- p$M[row(p$M) != col(p$M)]
+    
+    # Calculate observed probabilities:
+    # - p_neg_obs: Proportion of negative interactions
+    # - p_nint_obs: Proportion of null (zero) interactions
+    p_neg_obs <- mean(non_diag_elements < 0)    # Negative interactions
+    p_noint_obs <- mean(non_diag_elements == 0)  # Null interactions
+    
+    # Return a named vector with both proportions
+    return(c(p_neg_obs = p_neg_obs, 
+             p_noint_obs = p_noint_obs))
+})
+
+# Combine the results into a data frame for further analysis
+res <- unlist(tmp)
+tmp_df <- as.data.frame(matrix(res, ncol = 2, byrow = TRUE))
+
+# Set column names using the unique names from the result
+colnames(tmp_df) <- unique(names(res))
+
+# Preview the first rows of the resulting data frame
+head(tmp_df)
+
+```
+
+
+Select relevant columns from `params_table`, append the observed counts of negative and null interactions from `tmp_df`, and compute the error between observed and expected values.
+```{r}
+suppressPackageStartupMessages(library(dplyr))
+error.df <- runned.sims %>%
+  select(p_noint, p_neg, n_species) %>% # select columns of interest
+  mutate(tmp_df) %>%  # Negative and Null oserved probabilities 
+  group_by(p_neg, p_noint) %>% 
+ summarise(
+  Total_specs = sum(n_species), # Calculate total number of species
+  Sims_done = n(),  # Count total simulations done with the combination of parameters
+  er_noint = p_noint_obs - p_noint, # Calculate error for null interaction probabilities
+  er_negs = p_neg_obs - p_neg, # Calculate error for negative interaction probabilities
+  .groups = "drop"
+)
+
+head(error.df)
+```
+
+
+Create graph:
+```{r}
+# Suppress startup messages when loading ggplot2
+suppressPackageStartupMessages(library(ggplot2))
+
+# Create a histogram plot of the error values (er_negs) with faceting by p_noint and p_neg
+p1 <- error.df %>%
+  ggplot(aes(x = er_negs)) +  # Plot error for negative interactions on the x-axis
+  facet_grid(p_noint ~ p_neg) +  # Facet the plot by p_noint and p_neg values
+  geom_histogram(bins = 5) +  # Plot histogram with 5 bins
+  geom_vline(xintercept = 0, col = "red") +  # Add a vertical line at x = 0 (red) to indicate the baseline
+  theme_classic() +  # Use a classic theme for the plot
+  theme(axis.text.x = element_text(angle = 90)) +  # Rotate the x-axis labels by 90 degrees for better readability
+  scale_x_continuous(sec.axis = dup_axis(name = "p_neg")) +  # Add a secondary x-axis with the name "p_neg"
+  scale_y_continuous(sec.axis = dup_axis(name = "p_noint"))  # Add a secondary y-axis with the name "p_noint"
+
+# Display the plot
+p1
+```
+
+
+Save the graph
+```{r}
+ggsave("/home/rivera/Pictures/glv-Graphs/Exp01-ObsError.svg", width = 6, height = 6)
+```
+
+# Generate plots of failed simulations
+
+Load parameters table and NA counting table
+```{r}
+# Load the NA counts
+NA.table <- read.delim("/home/rivera/Cluster/glv-research/Results/Exp01-D01M03/Nas-counting.tsv", 
+           sep = "\t", header = TRUE)
+
+# For cluster environment, use the appropriate path:
+# NA.table <- read.delim(""/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Exp01-D01M03/Nas-counting.tsv", sep = "\t", header = TRUE)
+
+
+# Filter the `NA.table` to get the rows of simulations that did not fail
+NA.clean <- NA.table %>% 
+  filter(!(id %in% id.fails))  # Exclude the failed simulations from the results
+
+# ==== Join tables====
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(plotly))
+
+# Function to process and summarize data
+process_data <- function(NA.table, params_table) {
+  NA.table %>% 
+    mutate(across(-1, ~ if_else(. > 0, 1, .))) %>%  # Convert to 0's or 1's
+    # Join parameters from params_table
+    full_join(params_table %>% select(n_species, id, p_neg, p_noint), by = "id") %>%
+    mutate(across(c(p_neg, p_noint), ~ round(.x, 2))) %>%
+    group_by(p_neg, p_noint, n_species) %>%
+    summarize(
+      n_failed = sum(Total.NAs != 0, na.rm = TRUE),  # Count failed simulations
+      n_ran = sum(Total.NAs == 0, na.rm = TRUE),     # Count run simulations
+      n_total = n(),                                  # Count total simulations in each group
+      run_props = n_ran/n_total
+    )
+}
+
+# Apply function to both datasets
+summed_ode <- process_data(NA.clean, runned.sims)
+head(summed_ode)
+```
+
+
+Declare function for creating blackbox on every panel.
+```{r}
+#' Blackbox theme
+#' 
+#' ggplot2 theme that places a black margin on every
+#' panel
+#'
+#' @param border.size Thickness of the margin.
+#'
+#' @return A \code{theme gg} object.
+#' @export
+#' @author Sur Herrera Paredes
+theme_blackbox <- function(border.size = 3){
+  theme(axis.text = element_text(color="black"),
+        axis.title = element_text(face="bold"),
+        panel.background = element_rect(color = "black",
+                                        size = border.size,
+                                        fill = NA),
+        panel.grid = element_blank())
+}
+```
+
+Generate heat map plot.
+```{r}
+p1 <- summed_ode %>%
+  ggplot(aes(x = p_noint, y = p_neg)) + 
+  facet_wrap(~ n_species) +
+  geom_tile(aes(fill = run_props), color = "black") + 
+  scale_fill_gradientn(colours = c("#fee8c8", "#e34a33"), values = c(0,1)) +
+  scale_x_continuous(breaks = seq(0, 1, by = 0.1)) +  # Set x-axis breaks at 0.1 intervals
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1)) +  # Set y-axis breaks at 0.1 intervals
+  theme_blackbox() +
+   theme(
+    axis.text.x = element_text(size = 7),  # Smaller x-axis text
+    axis.text.y = element_text(size = 7)   # Smaller y-axis text
+  )
+p1
+```
+
+Save HeatMap
+```{r}
+ggsave("/home/rivera/Pictures/glv-Graphs/Exp01-HMrunned.svg", width = 6, height = 4)
+```
+
+# Plots of Old data
+
+```{r}
+# Load the parameters table (local path)
+params_table <- data.table::fread("/home/rivera/Cluster/glv-research/Data/Exp01-D01M03.tsv")
+
+# For cluster environment, use the appropriate path:
+# params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Exp03-D25M02.tsv")
+
+
+# ==== Load necessary libraries and declare functions ====
+
+suppressPackageStartupMessages(library(dplyr))
+
+params_table <- params_table %>%
+  # Standardize column names for consistency
+  rename(
+    n_species = N_specs,           # Number of species
+    p_noint = Prob_0,              # Probability of no interaction
+    p_neg = Prob_neg,              # Probability of negative interaction
+    id = ID_simulation,            # Simulation identifier
+    Pop_seed = Population_seed,    # Seed for population
+    A_seed = Interactions_seed     # Seed for interaction matrix
+  ) %>%
+  
+  # Round the number of species to the nearest multiple of 10
+  mutate(across(n_species, ~ round(., digits = -1))) %>%
+  
+  # Round interaction probabilities to one decimal place
+  mutate(across(p_noint, ~ round(., digits = 1))) %>%
+  mutate(across(p_neg, ~ round(., digits = 1)))
+  
+  # Exclude cases where p_noint is 1 but p_neg is not 0 (inconsistent values)
+  #filter(!(p_noint == 1 & p_neg != 0))
+```
+
+```{r}
+# Load the NA counts
+oldNA.table <- read.delim("/home/rivera/Cluster/glv-research/Results/Old-Exp01/Unified-exp01/NA-RawUnified-D10M02Y24.tsv", sep = "\t", header = TRUE)
+
+# For cluster environment, use the appropriate path:
+# NA.table <- read.delim("/mnt/atgc-d3/sur/users/mrivera/glv-research/Results/Old-Exp01/Unified-exp01/NA-RawUnified-D10M02Y24.tsv", sep = "\t", header = TRUE)
+
+# Select id column and 1e-06 tolerance
+x <- oldNA.table %>% 
+  select(TSV_ID, 2)  %>% # select columns
+   rename(id = TSV_ID, # Rename Id column
+          Tol1e_06 = X1e.06.1e.06)
+  
+
+head(x)
+```
+
+
+```{r}
+# Function to process and summarize data
+old.summed_ode <- x %>% 
+    mutate(across(-1, ~ if_else(. > 0, 1, .))) %>%  # Convert to 0's or 1's
+    # Join parameters from params_table
+    full_join(params_table %>% select(n_species, id, p_neg, p_noint), by = "id") %>%
+    mutate(across(c(p_neg, p_noint), ~ round(.x, 2))) %>%
+    group_by(p_neg, p_noint, n_species) %>%
+    summarize(
+      n_failed = sum(Tol1e_06 != 0, na.rm = TRUE),  # Count failed simulations
+      n_ran = sum(Tol1e_06 == 0, na.rm = TRUE),     # Count run simulations
+      n_total = n(),                                  # Count total simulations in each group
+      run_props = n_ran/n_total
+    )
+    
+
+head(old.summed_ode)
+```
+
+Filter cases not possible
+```{r}
+old.summed_ode <- old.summed_ode %>%
+  filter(!(p_noint == 1 & p_neg != 0))
+```
+
+Generate heat map plot.
+```{r}
+p2 <- old.summed_ode %>%
+  ggplot(aes(x = p_noint, y = p_neg)) + 
+  facet_wrap(~ n_species) +
+  geom_tile(aes(fill = run_props), color = "black") + 
+  scale_fill_gradientn(colours = c("#fee8c8", "#e34a33"), values = c(0,1)) +
+  scale_x_continuous(breaks = seq(0, 1, by = 0.1)) +  # Set x-axis breaks at 0.1 intervals
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1)) +  # Set y-axis breaks at 0.1 intervals
+  theme_blackbox() +
+   theme(
+    axis.text.x = element_text(size = 7),  # Smaller x-axis text
+    axis.text.y = element_text(size = 7)   # Smaller y-axis text
+  )
+p2
+```
+
+
+Compare plots
+```{r}
+library(patchwork)
+
+# Add title 
+p1_1 <- p1 + ggtitle("New simulations")
+
+# Second plot
+p2_2 <- p2 + ggtitle("Old simulations")
+
+p3 <- p1_1 | p2_2
+p3
+```
+
+
+Save HeatMap
+```{r}
+ggsave("/home/rivera/Pictures/glv-Graphs/Exp01-comparing.svg", width = 6, height = 4)
+```
