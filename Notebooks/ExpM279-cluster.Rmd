@@ -233,7 +233,7 @@ theme_blackbox <- function(border.size = 3){
 }
 ```
 
-```{r}
+```{r, eval=FALSE}
 p2 <- error.df %>%
   filter(sigma %% 1 == 0) %>% # Filters rows where the value is an integer (no decimals)
   unnest(cols = values) %>% 
