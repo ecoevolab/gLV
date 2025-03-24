@@ -6,6 +6,9 @@ library(dplyr)
 library(tidyr)
 require(tidyverse, lib.loc = "/mnt/atgc-d3/sur/modules/pkgs/tidyverse_mrc")
 library(purrr)
+library(ggplot2)
+library(svglite, lib.loc = "/mnt/atgc-d3/sur/modules/pkgs/tidyverse_mrc")
+library(plotly)
 
 #======= Prepare data ======
 
@@ -30,7 +33,7 @@ head(df_table)
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Method1-PnP0/Forge-gLV-Parameters.R")
 print(regenerate)
 
-#======= Define gLV model ======
+#======= Define gLV model for Dormand Prince ======
 # Define the equation
 glv_model <- function(x0, params) {
   r <- params$mu         # Growth rate vector
@@ -39,6 +42,45 @@ glv_model <- function(x0, params) {
   # Compute dx/dt for each species
   dx <- x0 * (r + A %*% x0)
   return(as.vector(dx))
+}
+
+
+# ==== ODE solver ====
+ode.simulate <- function(times, params) {
+  
+  # Define the equation
+  glv_model <- function(t, x0, params) {
+    r <- params$mu         # Growth rate vector
+    A <- params$M          # Interaction matrix
+    
+    # Compute dx/dt for each species
+    dx <- x0 * (r + A %*% x0)
+    list(dx)
+  }
+  
+  time_seq <- seq(1, times, by = 1)  # Define the time sequence
+  
+  # Get solution
+  results <- tryCatch(
+    R.utils::withTimeout(deSolve::ode(y = params$x0, times = time_seq, func = glv_model, 
+                                      parms = params,
+                                      method = "ode45",
+                                      rtol = 1e-06, 
+                                      atol = 1e-06),
+                         timeout = 600), 
+    error = function(e) {
+      message(">> Simulation failed... skipping")
+      return(NULL) # Return NULL instead of an NA matrix
+    })
+  
+  
+  # Remove the first column (`time`) and transpose it so columns represent generations
+  # Check for valid output and return transposed results
+  if (!is.null(results) && ncol(results) > 1) {
+    return(t(results[, -1]))
+  } else {
+    return(matrix(NA, nrow = nrow(params$M), ncol = times)) # Return properly shaped NA matrix
+  }
 }
 
 #======= Identify failed generation ======
@@ -154,13 +196,21 @@ index <- df_table[1,]
 params <- regenerate(index)
 params
 
+# Simulate with ode solver
+output1 <- ode.simulate(times = 100, params)
+output2 <- map_dfc(1:100, ~ {
+  params$x0 <- DP_RK(glv_model, params)  # Update x0
+  as.data.frame(params$x0)  # Ensure returning a data frame
+})
+
+
 # Find column at wchich NA values appear
-output <- data.table::fread(file.path(outs_dir, paste0("O_", params$id, ".tsv")) )
+output_readed <- data.table::fread(file.path(outs_dir, paste0("O_", params$id, ".tsv")) )
 na_col <- search_failed(outs_dir, params)
 tmp <- as.numeric(na_col - 1)
 old_x0 <- output[,1] 
 new_x0 <- output[,..tmp] 
-cat("The old x0 value is ", unlist(output[,1]), " \nthe new value is: ", unlist(new_x0))
+cat("The old x0 value is ", unlist(output_readed[,1]), " \nthe new value is: ", unlist(new_x0))
 
 # Set population parameters one time before Na values appear
 params$x0 <- unname(unlist(new_x0))
@@ -171,7 +221,29 @@ results <- map_dfc(1:100, ~ {
   as.data.frame(params$x0)  # Ensure returning a data frame
 })
 
-results <- as.data.frame(results)
+results <- as.data.frame(results) %>%
+  rename_with(~ as.character(1:ncol(results))) %>% # Assign time points 
+  mutate(Species = factor(1:n())) %>%  # Assign species numbers
+  pivot_longer(cols = -Species, names_to = "Time", values_to = "Frequency") %>%
+  mutate(Time = as.numeric(Time))  # Convert time indices to numeric
+
+# Plot
+p1 <- ggplot(results, aes(x = Time, y = Frequency, color = Species, group = Species)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Time", y = "Frequency", title = "Species Frequencies Over Time") +
+  theme_minimal()
+
+interactive_plot1 <- plot_ly(results, x = ~Time, y = ~Frequency, color = ~Species, 
+                             type = "scatter", mode = "lines+markers") %>%
+  layout(title = "Species Frequencies Over Time",
+         xaxis = list(title = "Time"),
+         yaxis = list(title = "Frequency"),
+         hovermode = "closest")
+
+# Save plots
+htmlwidgets::saveWidget(interactive_plot1, "/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/Exp03-D25M02-DPRK.html")
+ggsave("/mnt/atgc-d3/sur/users/mrivera/glv-research/Graphs/Exp03-D25M02-DPRK.svg", width = 6, height = 4)
 
 #======= Work in progress ======
 

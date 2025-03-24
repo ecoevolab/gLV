@@ -23,11 +23,11 @@ regenerate <- function(index) {
   n_species <- as.numeric(index[["n_species"]])
   
   #------------------Populations-----------------------------#
-  set.seed(as.numeric(index[["Pop_seed"]]))
+  set.seed(as.numeric(index[["x0_seed"]]))
   x0 <- stats::runif(n_species, min = 0.1, max = 1)
   
   #------------------------Growth Rates---------------------#
-  set.seed(as.numeric(index[["Growth_seed"]]))
+  set.seed(as.numeric(index[["mu_seed"]]))
   mu <- stats::runif(n_species, min = 0.001, max = 1)
   
   #--------------------Interactions-------------------------#
@@ -39,7 +39,6 @@ regenerate <- function(index) {
   #' Define proportions for zero and negative values
   p_noint <- as.numeric(index[["p_noint"]])
   p_neg <- as.numeric(index[["p_neg"]])
-  p_pos <- as.numeric(index[["p_pos"]])
   
   # Define the number of interactions
   num_off_diag <- n_species * (n_species - 1)  # Total off-diagonal elements
