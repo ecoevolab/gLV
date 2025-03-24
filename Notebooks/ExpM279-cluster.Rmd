@@ -14,7 +14,7 @@ output:
 ## Generate parameters 
 
 ### Attach Packages
-```{r, eval = FALSE, warning = FALSE}
+```{r eval=FALSE, warning=FALSE}
 library(dplyr) 
 library(tidyr)
 require(tidyverse, lib.loc = "/mnt/atgc-d3/sur/modules/pkgs/tidyverse_mrc")
@@ -34,7 +34,7 @@ Create a grid of parameters.
 - Seed for initial population (`x0_seed`)
 - Seed for growth rates population  (`mu_seed`)
 - Seed for interactions  (`A_seed`)
-```{r, eval=FALSE}
+```{r eval=FALSE}
 param.generate.fun <- function() {
   n_species <- rep(c(10, 30, 100), times = 10)
   
@@ -62,7 +62,7 @@ params.to.sim <- param.generate.fun()
 
 ### Verify parameters
 
-```{r}
+```{r eval=FALSE}
 # For cluster environment, use the appropriate path: 
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Method2-normal/generate-gLV-normal.R")
 print(regenerate_Dnormal)
@@ -70,14 +70,14 @@ print(regenerate_Dnormal)
 
 ## Load parameters table
 
-```{r}
+```{r eval=FALSE}
 # For cluster environment, use the appropriate path: 
 params_table <- data.table::fread("/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/ExpM279-D06M03.tsv")
 head(params_table)
 ```
 
 
-```{r}
+```{r eval=FALSE}
 # Calculate the observed null and negative probability.
 tmp <-  lapply(1:nrow(params_table), function(i) {
   
@@ -107,7 +107,7 @@ df.result <- bind_rows(tmp)
 ```
 
 
-```{r}
+```{r eval=FALSE}
 tictoc::tic("Section 1: Divide data into chunks")
 num_cores <- parallel::detectCores() - 1  # Use one less than the total number of cores
 cat("The number of cores that will be used are: ", num_cores, "\n")
@@ -121,7 +121,7 @@ toc() # For section 1
 ```
 
 
-```{r}
+```{r eval=FALSE}
 
 # Regenerate parameters for each of the simulations
 parallel.params <- function(index) {
@@ -149,7 +149,7 @@ parallel.params <- function(index) {
 ```
 
 
-```{r}
+```{r eval=FALSE}
 results <- parallel::mclapply(1:num_cores, function(core_id) {
   
   message("Starting worker ", core_id, "....\n")
@@ -169,16 +169,10 @@ results <- parallel::mclapply(1:num_cores, function(core_id) {
 
 # Convert list to a tibble or data frame
 result_df <- bind_rows(results)
-
-```
-
-
-```{r}
 glimpse(result_df)
 ```
 
-
-```{r}
+```{r eval=FALSE}
 
 error.df <- params_table %>%
   select(id, n_species, Norm_mu, sigma, p_noint) %>% # select columns of interest
@@ -197,7 +191,7 @@ head(error.df)
 ## Create graphs
 
 Errors graphs:
-```{r, eval=FALSE}
+```{r eval=FALSE}
 suppressPackageStartupMessages(library(ggplot2))
 
 p1 <- error.df %>%
@@ -212,7 +206,7 @@ ggsave("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Notebooks/ExpM279-er
 ```
 
 
-```{r}
+```{r  eval=FALSE}
 #' Blackbox theme
 #' 
 #' ggplot2 theme that places a black margin on every
@@ -233,7 +227,7 @@ theme_blackbox <- function(border.size = 3){
 }
 ```
 
-```{r, eval=FALSE}
+```{r eval=FALSE}
 p2 <- error.df %>%
   filter(sigma %% 1 == 0) %>% # Filters rows where the value is an integer (no decimals)
   unnest(cols = values) %>% 
@@ -263,7 +257,7 @@ ggsave("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Notebooks/ExpM279-te
 ```
 
 
-```{r, eval=FALSE}
+```{r eval=FALSE}
 
 
 ggsave("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Notebooks/ExpM279-p2.svg", width = 6, height = 4)
