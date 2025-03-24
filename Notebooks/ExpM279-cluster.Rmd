@@ -14,7 +14,7 @@ output:
 ## Generate parameters 
 
 ### Attach Packages
-```{r, eval = FLASE, warning = FALSE}
+```{r, eval = FALSE, warning = FALSE}
 library(dplyr) 
 library(tidyr)
 require(tidyverse, lib.loc = "/mnt/atgc-d3/sur/modules/pkgs/tidyverse_mrc")
@@ -263,7 +263,7 @@ ggsave("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Notebooks/ExpM279-te
 ```
 
 
-```{r, eval = FALSE}
+```{r, eval=FALSE}
 
 
 ggsave("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/Notebooks/ExpM279-p2.svg", width = 6, height = 4)
