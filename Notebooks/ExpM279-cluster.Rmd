@@ -197,7 +197,7 @@ head(error.df)
 ## Create graphs
 
 Errors graphs:
-```{r}
+```{r, eval=FALSE}
 suppressPackageStartupMessages(library(ggplot2))
 
 p1 <- error.df %>%
