@@ -232,7 +232,7 @@ theme_blackbox <- function(border.size = 3){
 ```
 
 Generate heat map plot.
-```{r}
+```{r, eval=FALSE}
 p1 <- summed_ode %>%
   ggplot(aes(x = sigma, y = p_noint)) + 
   facet_wrap(~ n_species) +
@@ -245,6 +245,6 @@ p1
 ```
 
 Save HeatMap
-```{r}
+```{r, eval=FALSE}
 ggsave("/home/rivera/Pictures/glv-Graphs/ExpM279-HMrunned.svg", width = 6, height = 4)
 ```
