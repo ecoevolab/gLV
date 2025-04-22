@@ -12,10 +12,12 @@
 
 solve_gLV <- function(times, params) {
   
+  suppressPackageStartupMessages(library(dplyr))
   
   # Define the equation
   glv_model <- function(t, x0, params) {
     
+    x0[x0 < 10^-8 ] <- 0
     r <- params$mu         # Growth rate vector
     A <- params$M          # Interaction matrix
     
@@ -24,11 +26,6 @@ solve_gLV <- function(times, params) {
     list(dx)
   }
   
-  # Define extinction thershold function
-  ext_thr <- function(t, y, params) {
-    y[y < 10^-8 ] <- 0
-    return(y)
-  }
   
   time_seq <- seq(1, times, by = 1)  # Define the time sequence
   
@@ -41,8 +38,7 @@ solve_gLV <- function(times, params) {
                    parms = params, # parameters for gLV
                    method = "ode45", # Dormand-Prince method
                    rtol = 1e-06, # relative tolerance
-                   atol = 1e-06,
-                   events = list(func = ext_thr, time = time_seq)),
+                   atol = 1e-06),
     timeout = 600), # 600 seconds cap (10 minutes)
     error = function(e) {
       message(">> Simulation failed... skipping")
@@ -53,7 +49,11 @@ solve_gLV <- function(times, params) {
   # Remove the first column (`time`) and transpose it so columns represent generations
   # Check for valid output and return transposed results
   if (!is.null(results) && ncol(results) > 1) {
-    return(t(results[, -1]))
+    tmp <-  t(results[, -1]) %>%
+      as.data.frame() %>%
+      mutate(across(everything(), ~ replace(., . < 0.6, 0)))
+    
+    return(tmp)
   } else {
     return(matrix(NA, nrow = nrow(params$M), ncol = times)) # Return properly shaped NA matrix
   }

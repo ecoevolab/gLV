@@ -1,9 +1,14 @@
 ---
-title: "Experiment05 code raw"
-output:
-  pdf_document:
-    keep_tex: true
-date: 2025-03-20
+title: "Exp05 notebook"
+author: "Manuel Rivera"
+date: "2025-03-04"
+output: 
+  html_document:
+  toc: true           # Enable Table of Contents
+theme: sandstone
+toc_float: true
+collapsed: false
+smooth_scroll: true
 ---
 First we generate the parameters for simulation:
 
