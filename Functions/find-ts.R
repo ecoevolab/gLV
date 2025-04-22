@@ -8,30 +8,34 @@
 #' reaches a stable state for the given condition. The output is the time at which stability is reached, defined 
 #' as the maximum time where at least 10 successive time points have small changes in frequency.
 #'
-#' @param output_ode A matrix or data frame where rows correspond to species' frequencies 
+#' @param output A matrix or data frame where rows correspond to species' frequencies 
 #' over time and columns correspond to time points.The values in the table represent the frequencies of the species at each time step.
 #'
 #' @return A numeric value representing the **stability time** of the community. This is the time at which the species' frequencies 
 #'         stabilize, based on the condition of having 10 successive time points with absolute changes less than or equal to 0.05.
 #'
-
-find_ts <- function(output_ode) {
+find_ts <- function(output) {
   
-  x <- apply(output_ode, 1, function(row){
-    test <- abs(diff(row)) <= 0.05
-    rle_res = rle(test) # run-length encoding
+  # Apply the logic across each row of output
+  x <- vapply(1:nrow(output), function(i) {
+    row <- as.numeric(output[i, ])
     
-    # Find 10 successive TRUES
+    # Identify differences less than or equal to 0.05
+    test <- abs(diff(row)) <= 0.05
+    rle_res <- rle(test)  # Run-length encoding
+    
+    # Find the positions where TRUE values have length >= 10
     valid_runs <- which(rle_res$values == TRUE & rle_res$lengths >= 10)
     
-    # Identify the starting positions of these runs
-    # The 2 is for accounting the next item and the missing time
-    # as a result of diff function
-    t <- sum(rle_res$length[-valid_runs]) + 2
+    # Identify the starting positions (adjusted for diff)
+    if (length(valid_runs) > 0) {
+      t <- sum(rle_res$length[-valid_runs]) + 1
+    } else {
+      t <- NA  # In case no valid runs are found
+    }
     return(t)
-  })
+  }, FUN.VALUE = numeric(1))  # Pre-allocate to numeric vector
   
-  # Return maximum time
-  ts <- max(x)
-  return(ts)
+  # Return the maximum time
+  max(x, na.rm = TRUE)  # Ensure that NA values are ignored
 }
