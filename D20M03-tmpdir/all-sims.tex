@@ -1,0 +1,369 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={A report generated from a pure R script},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{A report generated from a pure R script}
+\author{}
+\date{\vspace{-2.5em}2025-03-20}
+
+\begin{document}
+\maketitle
+
+First we generate the parameters for simulation:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Load libraries}
+\FunctionTok{library}\NormalTok{(}\StringTok{"tictoc"}\NormalTok{, }\AttributeTok{lib =} \StringTok{"/mnt/atgc{-}d3/sur/modules/pkgs/tidyverse\_mrc"}\NormalTok{)}
+\FunctionTok{library}\NormalTok{(tidyverse, }\AttributeTok{lib.loc =} \StringTok{"/mnt/atgc{-}d3/sur/modules/pkgs/tidyverse\_mrc"}\NormalTok{)}
+\FunctionTok{library}\NormalTok{(tidyr)}
+\CommentTok{\# library(tidyverse) }
+
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{tic}\NormalTok{(}\StringTok{"Section 0: Total running time"}\NormalTok{)}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{tic}\NormalTok{(}\StringTok{"Section 1: Time for Parameter Generation:"}\NormalTok{)}
+
+\CommentTok{\# ==== Generate parameters ====}
+\CommentTok{\# Generate experiment name}
+\NormalTok{generate\_id }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{() \{}
+\NormalTok{  day }\OtherTok{\textless{}{-}} \FunctionTok{format}\NormalTok{(}\FunctionTok{Sys.Date}\NormalTok{(), }\StringTok{"\%d"}\NormalTok{)}
+\NormalTok{  month }\OtherTok{\textless{}{-}} \FunctionTok{format}\NormalTok{(}\FunctionTok{Sys.Date}\NormalTok{(), }\StringTok{"\%m"}\NormalTok{)}
+  
+\NormalTok{  char\_string }\OtherTok{\textless{}{-}} \FunctionTok{paste0}\NormalTok{(}\FunctionTok{sample}\NormalTok{(}\FunctionTok{c}\NormalTok{(LETTERS, }\DecValTok{0}\SpecialCharTok{:}\DecValTok{9}\NormalTok{), }\DecValTok{4}\NormalTok{, }\AttributeTok{replace =} \ConstantTok{TRUE}\NormalTok{), }\AttributeTok{collapse =} \StringTok{""}\NormalTok{)}
+  \FunctionTok{paste0}\NormalTok{(}\StringTok{"Exp\_"}\NormalTok{, char\_string, }\StringTok{"{-}D"}\NormalTok{, day, }\StringTok{"M"}\NormalTok{, month)}
+\NormalTok{\}}
+
+\NormalTok{wd }\OtherTok{\textless{}{-}} \StringTok{"/mnt/atgc{-}d3/sur/users/mrivera/glv{-}research"}
+\NormalTok{exp\_id }\OtherTok{\textless{}{-}} \FunctionTok{generate\_id}\NormalTok{()}
+\NormalTok{params\_path }\OtherTok{\textless{}{-}} \FunctionTok{file.path}\NormalTok{(wd, }\StringTok{"Data"}\NormalTok{, }\FunctionTok{paste0}\NormalTok{(exp\_id, }\StringTok{".tsv"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+Generate grid of parameters:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{params\_to\_sim }\OtherTok{\textless{}{-}} \FunctionTok{expand\_grid}\NormalTok{(}\AttributeTok{n\_species =} \FunctionTok{rep}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\DecValTok{20}\NormalTok{, }\DecValTok{40}\NormalTok{, }\DecValTok{100}\NormalTok{), }\AttributeTok{times =} \DecValTok{100}\NormalTok{), }\AttributeTok{p\_neg =} \DecValTok{1}\NormalTok{, }\AttributeTok{p\_noint =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{1}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.05}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{id =}\NormalTok{ ids}\SpecialCharTok{::}\FunctionTok{random\_id}\NormalTok{(}\AttributeTok{n =} \FunctionTok{length}\NormalTok{(n\_species), }\AttributeTok{bytes =} \DecValTok{4}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{x0\_seed =} \FunctionTok{as.vector}\NormalTok{(}\FunctionTok{sample}\NormalTok{(}\DecValTok{1}\SpecialCharTok{:}\FloatTok{1e6}\NormalTok{, }\FunctionTok{length}\NormalTok{(n\_species), }\AttributeTok{replace =} \ConstantTok{FALSE}\NormalTok{))) }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{mu\_seed =} \FunctionTok{as.vector}\NormalTok{(}\FunctionTok{sample}\NormalTok{(}\DecValTok{1}\SpecialCharTok{:}\FloatTok{1e6}\NormalTok{, }\FunctionTok{length}\NormalTok{(n\_species),}\AttributeTok{replace =} \ConstantTok{FALSE}\NormalTok{))) }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{A\_seed =} \FunctionTok{as.vector}\NormalTok{(}\FunctionTok{sample}\NormalTok{(}\DecValTok{1}\SpecialCharTok{:}\FloatTok{1e6}\NormalTok{, }\FunctionTok{length}\NormalTok{(n\_species), }\AttributeTok{replace =} \ConstantTok{FALSE}\NormalTok{)))}
+
+\CommentTok{\# Verify if ids are unique and in case they are, save the parameters.}
+\ControlFlowTok{if}\NormalTok{ (}\FunctionTok{nrow}\NormalTok{(params\_to\_sim) }\SpecialCharTok{==} \FunctionTok{length}\NormalTok{(}\FunctionTok{unique}\NormalTok{(params\_to\_sim}\SpecialCharTok{$}\NormalTok{id))) \{ }
+  \CommentTok{\# Save Parameters as TSV}
+\NormalTok{  data.table}\SpecialCharTok{::}\FunctionTok{fwrite}\NormalTok{(params\_to\_sim, exp\_id, }\AttributeTok{sep =} \StringTok{"}\SpecialCharTok{\textbackslash{}t}\StringTok{"}\NormalTok{)}
+  \FunctionTok{message}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{Parameteres generated and saved...}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\NormalTok{\} }\ControlFlowTok{else}\NormalTok{ \{}
+  \FunctionTok{message}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{An error ocurred. IDs are not unique}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\NormalTok{\}}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{toc}\NormalTok{()}
+\end{Highlighting}
+\end{Shaded}
+
+We split the data into chunks of \texttt{n\_cores}:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ==== Split data into chunks====}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{tic}\NormalTok{(}\StringTok{"Section 2: Divide data into chunks"}\NormalTok{)}
+\NormalTok{num\_cores }\OtherTok{\textless{}{-}}\NormalTok{ parallel}\SpecialCharTok{::}\FunctionTok{detectCores}\NormalTok{() }\SpecialCharTok{{-}} \DecValTok{1}  \CommentTok{\# Use one less than the total number of cores}
+\FunctionTok{cat}\NormalTok{(}\StringTok{"The number of cores that will be used are: "}\NormalTok{, num\_cores, }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+
+\NormalTok{split\_table }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(df, n\_chunks) \{}
+  \FunctionTok{split}\NormalTok{(df, }\FunctionTok{cut}\NormalTok{(}\FunctionTok{seq\_len}\NormalTok{(}\FunctionTok{nrow}\NormalTok{(df)), }\AttributeTok{breaks =}\NormalTok{ n\_chunks, }\AttributeTok{labels =} \ConstantTok{FALSE}\NormalTok{))}
+\NormalTok{\}}
+
+\NormalTok{chunks }\OtherTok{\textless{}{-}} \FunctionTok{split\_table}\NormalTok{(params\_to\_sim, num\_cores)}
+\FunctionTok{message}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{Data split completed...}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{toc}\NormalTok{() }\CommentTok{\# For section 2}
+\end{Highlighting}
+\end{Shaded}
+
+We create a separate directory for each core to prevent race conditions
+(when two cores access the same directory simultaneously).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ==== Generate directories for each core ====}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{tic}\NormalTok{(}\StringTok{"Section 3: Generate directories for each core"}\NormalTok{)}
+
+\CommentTok{\# Generate workers directories}
+\NormalTok{ode\_dir }\OtherTok{\textless{}{-}} \FunctionTok{file.path}\NormalTok{(wd, }\StringTok{"Results"}\NormalTok{, exp\_id, }\StringTok{"Parallel"}\NormalTok{)}
+
+\CommentTok{\# Function to create main and worker directories}
+\NormalTok{create\_dirs }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(main\_dir, num\_cores) \{}
+  \ControlFlowTok{if}\NormalTok{ (}\SpecialCharTok{!}\FunctionTok{dir.exists}\NormalTok{(main\_dir)) }\FunctionTok{dir.create}\NormalTok{(main\_dir, }\AttributeTok{recursive =} \ConstantTok{TRUE}\NormalTok{)}
+  
+  \CommentTok{\# Create worker directories}
+\NormalTok{  worker\_dirs }\OtherTok{\textless{}{-}} \FunctionTok{file.path}\NormalTok{(main\_dir, }\FunctionTok{paste0}\NormalTok{(}\StringTok{"worker\_"}\NormalTok{, }\FunctionTok{seq\_len}\NormalTok{(num\_cores)))}
+  \FunctionTok{invisible}\NormalTok{(}\FunctionTok{lapply}\NormalTok{(worker\_dirs, dir.create, }\AttributeTok{showWarnings =} \ConstantTok{FALSE}\NormalTok{))}
+  
+  \FunctionTok{return}\NormalTok{(worker\_dirs)}
+\NormalTok{\}}
+\CommentTok{\# Create directories }
+\NormalTok{workers\_ODE }\OtherTok{\textless{}{-}} \FunctionTok{create\_dirs}\NormalTok{(ode\_dir, num\_cores)}
+\FunctionTok{message}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{Working directories created at path:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{, ode\_dir,}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{toc}\NormalTok{() }\CommentTok{\# For section 3}
+\end{Highlighting}
+\end{Shaded}
+
+We source the function to generate the gLV parameters using the initial
+parameters and for solve it:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Source function to regenerate parameters}
+\FunctionTok{source}\NormalTok{(}\StringTok{"/mnt/atgc{-}d3/sur/users/mrivera/glv{-}research/GIT{-}gLV/D20M03{-}tmpdir/gLV{-}Params.r"}\NormalTok{)}
+\FunctionTok{print}\NormalTok{(regenerate)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## function (index) 
+## {
+##     n_species <- as.numeric(index[["n_species"]])
+##     set.seed(as.numeric(index[["x0_seed"]]))
+##     x0 <- stats::runif(n_species, min = 0.1, max = 1)
+##     set.seed(as.numeric(index[["mu_seed"]]))
+##     mu <- stats::runif(n_species, min = 0.001, max = 1)
+##     M <- matrix(NA, nrow = n_species, ncol = n_species)
+##     diag(M) <- -0.5
+##     p_noint <- as.numeric(index[["p_noint"]])
+##     p_neg <- as.numeric(index[["p_neg"]])
+##     num_off_diag <- n_species * (n_species - 1)
+##     num_noint <- floor(p_noint * num_off_diag)
+##     num_negs <- floor(p_neg * (num_off_diag - num_noint))
+##     num_pos <- num_off_diag - (num_noint + num_negs)
+##     set.seed(as.numeric(index[["A_seed"]]))
+##     interaction_values <- c(rep(0, num_noint), -runif(num_negs, 
+##         min = 0, max = 1), runif(num_pos, min = 0, max = 1))
+##     interaction_values <- sample(interaction_values)
+##     M[upper.tri(M, diag = FALSE) | lower.tri(M, diag = FALSE)] <- interaction_values
+##     M <- round(M, digits = 5)
+##     id <- index[["id"]]
+##     params <- list(x0 = x0, M = M, mu = mu, id = id, n = n_species)
+##     return(params)
+## }
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Source function to solve gLV equations}
+\FunctionTok{source}\NormalTok{(}\StringTok{"/mnt/atgc{-}d3/sur/users/mrivera/glv{-}research/GIT{-}gLV/D20M03{-}tmpdir/solve{-}gLV.r"}\NormalTok{)}
+\FunctionTok{print}\NormalTok{(solve\_gLV)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## function (times, params) 
+## {
+##     glv_model <- function(t, x0, params) {
+##         r <- params$mu
+##         A <- params$M
+##         dx <- x0 * (r + A %*% x0)
+##         list(dx)
+##     }
+##     time_seq <- seq(1, times, by = 1)
+##     results <- tryCatch(R.utils::withTimeout(deSolve::ode(y = params$x0, 
+##         times = time_seq, func = glv_model, parms = params, method = "ode45", 
+##         rtol = 1e-06, atol = 1e-06), timeout = 600), error = function(e) {
+##         message(">> Simulation failed... skipping")
+##         return(NULL)
+##     })
+##     if (!is.null(results) && ncol(results) > 1) {
+##         return(t(results[, -1]))
+##     }
+##     else {
+##         return(matrix(NA, nrow = nrow(params$M), ncol = times))
+##     }
+## }
+\end{verbatim}
+
+We wrap the code for parallelizing the simulations.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ==== Wrapper for running all required steps ====}
+\NormalTok{parallel.sims }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(index, path\_ODE) \{}
+  
+  \CommentTok{\# Generate parameters}
+\NormalTok{  params }\OtherTok{\textless{}{-}} \FunctionTok{regenerate}\NormalTok{(index)}
+  
+  \CommentTok{\# Run simulation}
+\NormalTok{  output\_ode }\OtherTok{\textless{}{-}} \FunctionTok{solve\_gLV}\NormalTok{(}\AttributeTok{times =} \DecValTok{700}\NormalTok{, params)}
+  
+  \CommentTok{\# Define paths}
+\NormalTok{  save\_ode }\OtherTok{\textless{}{-}} \FunctionTok{file.path}\NormalTok{(path\_ODE, }\FunctionTok{paste0}\NormalTok{(}\StringTok{"O\_"}\NormalTok{, params}\SpecialCharTok{$}\NormalTok{id, }\StringTok{".tsv"}\NormalTok{))}
+  
+  \CommentTok{\# Calculate NAs}
+\NormalTok{  NA\_count }\OtherTok{\textless{}{-}} \FunctionTok{sum}\NormalTok{(}\FunctionTok{is.na}\NormalTok{(output\_ode))}
+  
+  \CommentTok{\# Save simulation}
+\NormalTok{  utils}\SpecialCharTok{::}\FunctionTok{write.table}\NormalTok{(output\_ode, }\AttributeTok{file =}\NormalTok{ save\_ode, }\AttributeTok{sep =} \StringTok{"}\SpecialCharTok{\textbackslash{}t}\StringTok{"}\NormalTok{, }\AttributeTok{row.names =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{col.names =} \ConstantTok{TRUE}\NormalTok{)}
+  
+  \FunctionTok{return}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\AttributeTok{id =}\NormalTok{ id, }\AttributeTok{NA\_count =}\NormalTok{ NA\_count))}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+We Parallelize the code and get the \texttt{NA\ counting}.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ==== Parallelize it ====}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{tic}\NormalTok{(}\StringTok{"Section 4: Run simulations using the parallel package"}\NormalTok{)}
+
+\NormalTok{NAs\_vecs }\OtherTok{\textless{}{-}}\NormalTok{ parallel}\SpecialCharTok{::}\FunctionTok{mclapply}\NormalTok{(}\DecValTok{1}\SpecialCharTok{:}\NormalTok{num\_cores, }\ControlFlowTok{function}\NormalTok{(core\_id) \{}
+  
+  \FunctionTok{message}\NormalTok{(}\StringTok{"Starting worker "}\NormalTok{, core\_id, }\StringTok{"....}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+  
+\NormalTok{  core\_chunk }\OtherTok{\textless{}{-}}\NormalTok{ chunks[[core\_id]]  }\CommentTok{\# rows assigned to this core}
+  
+\NormalTok{  na.vec }\OtherTok{\textless{}{-}} \FunctionTok{lapply}\NormalTok{(}\DecValTok{1}\SpecialCharTok{:}\FunctionTok{nrow}\NormalTok{(core\_chunk), }\ControlFlowTok{function}\NormalTok{(i) \{}
+    \FunctionTok{parallel.sims}\NormalTok{(core\_chunk[i, ], }
+    \AttributeTok{path\_ODE =}\NormalTok{ workers\_ODE[core\_id])}
+\NormalTok{  \})}
+  
+  \FunctionTok{message}\NormalTok{(}\StringTok{"Ending worker "}\NormalTok{, core\_id, }\StringTok{"....}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+  
+  \FunctionTok{return}\NormalTok{(na.vec)}
+  
+\NormalTok{\}, }\AttributeTok{mc.cores =}\NormalTok{ num\_cores)}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{toc}\NormalTok{() }\CommentTok{\# For section 4}
+
+
+\CommentTok{\# ==== Get NAs number on simulations====}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{tic}\NormalTok{(}\StringTok{"Section 5: Count total number of NAs"}\NormalTok{)}
+\NormalTok{NAs\_counts }\OtherTok{\textless{}{-}} \FunctionTok{unlist}\NormalTok{(NAs\_vecs)}
+\NormalTok{counts\_df }\OtherTok{\textless{}{-}} \FunctionTok{as.data.frame}\NormalTok{(}\FunctionTok{matrix}\NormalTok{(NAs\_counts, }\AttributeTok{ncol =} \DecValTok{2}\NormalTok{, }\AttributeTok{byrow =} \ConstantTok{TRUE}\NormalTok{))}
+\FunctionTok{colnames}\NormalTok{(counts\_df) }\OtherTok{\textless{}{-}} \FunctionTok{unique}\NormalTok{(}\FunctionTok{names}\NormalTok{(NAs\_counts))}
+
+\CommentTok{\# Save Parameters as TSV}
+\NormalTok{save\_path }\OtherTok{\textless{}{-}} \FunctionTok{file.path}\NormalTok{(wd, }\StringTok{"Nas{-}counting.tsv"}\NormalTok{)}
+\NormalTok{data.table}\SpecialCharTok{::}\FunctionTok{fwrite}\NormalTok{(}\AttributeTok{x =}\NormalTok{ counts\_df, }\AttributeTok{file =}\NormalTok{ save\_path, }\AttributeTok{sep =} \StringTok{"}\SpecialCharTok{\textbackslash{}t}\StringTok{"}\NormalTok{)}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{toc}\NormalTok{() }\CommentTok{\# For section 5}
+\end{Highlighting}
+\end{Shaded}
+
+We create symbolic links of the simulation\ldots{}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ==== Create symbolic links====}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{tic}\NormalTok{(}\StringTok{"Section 6: Generate symbolic links"}\NormalTok{)}
+
+\FunctionTok{source}\NormalTok{(}\StringTok{"/mnt/atgc{-}d3/sur/users/mrivera/glv{-}research/GIT{-}gLV/Forge\_symlinks.R"}\NormalTok{)}
+
+\CommentTok{\# Define source and target directories}
+\NormalTok{source\_path }\OtherTok{\textless{}{-}} \FunctionTok{file.path}\NormalTok{(wd, }\StringTok{"Simulate\_ODE"}\NormalTok{)}
+\NormalTok{target\_path }\OtherTok{\textless{}{-}} \FunctionTok{file.path}\NormalTok{(wd, }\StringTok{"Unified"}\NormalTok{)}
+\FunctionTok{generate\_symlinks}\NormalTok{(}\AttributeTok{source\_path =}\NormalTok{ source\_path, }\AttributeTok{target\_path =}\NormalTok{ target\_path)}
+
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{toc}\NormalTok{() }\CommentTok{\# For section 6}
+\NormalTok{tictoc}\SpecialCharTok{::}\FunctionTok{toc}\NormalTok{() }\CommentTok{\# For Total running time}
+\end{Highlighting}
+\end{Shaded}
+
+
+\end{document}
