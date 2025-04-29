@@ -36,7 +36,9 @@ sim_all_ext <- function(output, params) {
   # Function to simulate extinction for a single species
   results <- lapply(survivors, function(spec) {
     
-    params$x0[spec] <- 0 # Remove species from initial population
+    tmp <- old_x0 # temporal variable
+    tmp[spec] <- 0 # Remove species from initial population
+    params$x0 <- tmp # Add it to parameters for rerunning
 
     # Rerun simulation
     ext_out <- solve_gLV(times = 1000, params)
@@ -54,22 +56,27 @@ sim_all_ext <- function(output, params) {
 
     # Time to Stability
     ext_ts <- find_ts(ext_out)
-    list(new_ext = new_ext, BC_diss = bray_curtis, K_s = K_s, data = ext_out, spec = spec, ext_ts = ext_ts)
+
+    # Data-frame with information
+    df <- data.frame(
+      id = params$id,
+      spec = spec, # specie extinct
+      new_ext = new_ext, # subsequent extinctions
+      BC_diss = bray_curtis, 
+      K_s = K_s, 
+      ext_ts = ext_ts
+    )
+    list(info = df, data = ext_out)
   })
+  all_tables = lapply(results, function(x) x$data)
+  names(all_tables) <- paste0("Sp", survivors)
+
+  res_list <- list( info = do.call(rbind, lapply(results, function(x) x$info)), # Information table
+  data = all_tables) # All extinction data
   
-  # Convert results into a tibble
-  tib <- tibble::tibble(
-    ID = params$id, # ID from params
-    specie = purrr::map_dbl(results, "spec"), # Extract species info as numeric
-    sub_ext = purrr::map_dbl(results, "new_ext"), # Subsequent extinctions
-    BC_diss = purrr::map_dbl(results, "BC_diss"), # Bray-Curtis dissimilarity
-    K_s = purrr::map_dbl(results, "K_s"), # Keystoneness
-    ts_ext = purrr::map_dbl(results, "ext_ts"), # Time to stability 
-    data = purrr::map(results, "data") # Extract data frames from results
-  )
-  
+
   cat("Extinctions done for simulation... ", params$id, "\n")
-  return(tib)
+  return(res_list)
 }
 
 

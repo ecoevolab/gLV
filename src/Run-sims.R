@@ -11,30 +11,40 @@
 #' smooth_scroll: true
 #' ---
 
+
+#' Indicate directories paths
+BASE_DIR <- "/mnt/atgc-d3/sur/users/mrivera/glv-research"
+DATA_DIR <- file.path(BASE_DIR, "Data")
+RESULTS_DIR <- file.path(BASE_DIR, "Results")
+exp_id <- paste0("Exp06-D", format(Sys.Date(), "%d-%b"))
+
+params_path <- file.path(DATA_DIR, paste0(exp_id, ".tsv")) # Parameters TSV
+mc_dir <- file.path(RESULTS_DIR, exp_id, "mc-apply") # Workers directory
+outs_path <- file.path(RESULTS_DIR, exp_id, "Outputs") # Outputs directory
+info_path <- file.path(RESULTS_DIR, exp_id, "Info.tsv") # Information TSV
+
 #' First we generate the parameters for simulation:
 #+ eval=FALSE
-
-# Load libraries
-library(tictoc)
-library(tidyverse)
-library(tidyr)
 
 tictoc::tic("Section 0: Total running time")
 
 # ==== Generate parameters ====
 tictoc::tic("Section 1: Time for Parameter Generation")
-wd <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Data"
-exp_id <- "Exp06-D24-Apr"
-params_path <- file.path(wd, paste0(exp_id, ".tsv"))
 
 #' Generate grid of parameters:
 #+ eval=FALSE
 generate_params <- function (){
-  expand_grid(n_species = rep(c(20, 100), times = 300), p_neg = 1, p_noint = seq(0, 1, by = 0.05)) %>%
-    mutate(id = ids::random_id(n = length(n_species), bytes = 5)) %>%
-    mutate(x0_seed = as.vector(sample(1:1e6, length(n_species), replace = FALSE))) %>%
-    mutate(mu_seed = as.vector(sample(1:1e6, length(n_species),replace = FALSE))) %>%
-    mutate(A_seed = as.vector(sample(1:1e6, length(n_species), replace = FALSE)))
+  dt <- data.table::CJ(n_species = rep(c(20, 100), times = 300), p_neg = 1, p_noint = seq(0, 1, by = 0.05))
+
+  # Add Columns with data table operator `:=`
+  dt[, `:=`(
+    id = ids::random_id(n = .N, bytes = 5),
+    x0_seed = sample(1:1e6, .N, replace = FALSE),
+    mu_seed = sample(1:1e6, .N, replace = FALSE),
+    A_seed = sample(1:1e6, .N, replace = FALSE)
+  )]
+  
+  return(dt)
 }
 
 params_df <- generate_params()
@@ -45,7 +55,11 @@ while (nrow(params_df) != length(unique(params_df$id))) {
 }
 
 # Save Parameters as TSV
-data.table::fwrite(x = params_df, file = params_path, sep = "\t")
+data.table::fwrite(x = params_df, file = params_path, 
+  sep = "\t",
+  quote = FALSE,      # Disable quoting for faster writing
+  row.names = FALSE,  # Don't write row names
+)
 message("\nParameteres generated and saved at path:\n", params_path, "\n")
 tictoc::toc() # For section 1
 
@@ -61,6 +75,10 @@ split_table <- function(df, n_chunks) {
   split(df, cut(seq_len(nrow(df)), breaks = n_chunks, labels = FALSE))
 }
 
+# Testing line:
+num_cores <- 5
+chunks <- split_table(params_df[1:10], num_cores)
+
 chunks <- split_table(params_df, num_cores)
 message("\nData split completed...\n")
 tictoc::toc() # For section 2
@@ -71,15 +89,13 @@ tictoc::toc() # For section 2
 tictoc::tic("Section 3: Generate directories for each core")
 
 # Generate workers directories
-wd <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results"
-mc_dir <- file.path(wd, exp_id, "mc-apply")
-
-# Function to create main and worker directories
 create_dirs <- function(main_dir, num_cores) {
   if (!dir.exists(main_dir)) dir.create(main_dir, recursive = TRUE)
   
   # Create worker directories
+  worker_dirs <- character(num_cores) # Preallocate vector
   worker_dirs <- file.path(main_dir, paste0("worker_", seq_len(num_cores)))
+  sapply(worker_dirs, dir.create, showWarnings = FALSE, recursive = FALSE)
   invisible(lapply(worker_dirs, dir.create, showWarnings = FALSE))
   
   return(worker_dirs)
@@ -96,20 +112,37 @@ tictoc::toc() # For section 3
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/generate-params.R") # regenerate parameters
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/solver-gLV.R") # solve gLV equations
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/forge-symls.R") # generate symbolic links
+source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/find-time-stability.R") # source function for ts
 
 #' We wrap the code for parallelizing the simulations.
 #+ eval=FALSE
 # ==== Wrapper for running all required steps ====
 par_sims <- function(index, path_core) {
   params <- regenerate(index) # Generate parameters
-  output_ode <- solve_gLV(times = 1000, params) # Run simulation
-  path_ode <- file.path(path_core, paste0("O_", params$id, ".tsv")) # Define paths
-  NA_count <- sum(is.na(output_ode)) # Calculate NAs
+  output <- solve_gLV(times = 1000, params) # Run simulation
+
+  # Define paths
+  path_ode <- file.path(path_core, paste0("O_", params$id, ".tsv")) # Output
+  ext_path <-  file.path(path_core, paste0("E_", params$id, "-Info.tsv")) # Extinctions
+
+  NA_count <- sum(is.na(output)) # Calculate NAs
+  ts_out <- find_ts(output) # Find time-to-stability (ts) OUTPUT
+  data.table::fwrite(x = output, file = path_ode, sep = "\t", row.names = FALSE, col.names = FALSE) # Save simulation
   
-  # Save simulation
-  utils::write.table(output_ode, file = path_ode, sep = "\t", row.names = FALSE, col.names = TRUE)
+  # Simulate extinctions
+  ext_list <- sim_all_ext(output, params) # Generate extinctions
+  ts_ext <- max(ext_list$info[["ext_ts"]]) # Find ts on EXTINCTIONS
+
+  tmp <- names(ext_list$data)
+  ext_paths <- paste0(path_core, "/E_", params$id, "-", tmp, ".feather") # Extinctions paths
+
+  # Save EXTINCTIONS output
+  lapply(seq_along(ext_list$data), function(e) {
+    arrow::write_feather(ext_list$data[[e]], ext_paths[e])
+  })
+  arrow::write_feather(ext_list$info, ext_path) # Save EXTINCTIONS info
   
-  return(c(id = params$id, NA_count = NA_count))
+  return(list(id = params$id, na_ct = NA_count, ts_out = ts_out, ts_ext = ts_ext ))
 }
 
 #' We Parallelize the code and get the `NA counting`. 
@@ -117,34 +150,28 @@ par_sims <- function(index, path_core) {
 # ==== Parallelize it ====
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
 
-nas_counts <- parallel::mclapply(1:num_cores, function(core_id) {
+sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
   
   message("Starting worker ", core_id, "....\n")
   
   core_chunk <- chunks[[core_id]]  # rows assigned to this core
   
-  na.vec <- lapply(1:nrow(core_chunk), function(i) {
-    par_sims(core_chunk[i, ], path_core = workers_ODE[core_id])
+  result <- lapply(1:nrow(core_chunk), function(i) {
+    par_sims(index = core_chunk[i, ], path_core = workers_ODE[core_id])
   })
-  
+
+  result <- rbindlist(result, use.names = TRUE) # Convert list to df
   message("Ending worker ", core_id, "....\n")
   
-  return(na.vec)
+  return(result)
   
 }, mc.cores = num_cores)
+
+
+sims_info_df <- data.table::rbindlist(sims_info) # Convert list (of df) to df
+data.table::fwrite(x = sims_info_df, file = info_path, sep = "\t")
 tictoc::toc() # For section 4
 
-
-# ==== Get NAs number on simulations====
-tictoc::tic("Section 5: Count total number of NAs")
-counts_df <- as.data.frame(matrix(unlist(nas_counts), ncol = 2, byrow = TRUE))
-colnames(counts_df) <- c("id", "na_count")
-
-# Save Parameters as TSV
-wd <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results"
-na_path <- file.path(wd, exp_id, "Na-count.tsv")
-data.table::fwrite(x = counts_df, file = na_path, sep = "\t")
-tictoc::toc() # For section 5
 
 
 #' We create symbolic links of the simulation...
@@ -153,8 +180,6 @@ tictoc::toc() # For section 5
 tictoc::tic("Section 6: Generate symbolic links")
 
 # Define source and target directories
-wd <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results"
-outs_path <- file.path(wd, exp_id, "Outputs")
 generate_symlinks(mc_dir, outs_path)
 tictoc::toc() # For section 6
 
