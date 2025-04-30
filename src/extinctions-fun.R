@@ -74,8 +74,6 @@ sim_all_ext <- function(output, params) {
   res_list <- list( info = do.call(rbind, lapply(results, function(x) x$info)), # Information table
   data = all_tables) # All extinction data
   
-
-  cat("Extinctions done for simulation... ", params$id, "\n")
   return(res_list)
 }
 

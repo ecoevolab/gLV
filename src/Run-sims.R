@@ -17,11 +17,12 @@ BASE_DIR <- "/mnt/atgc-d3/sur/users/mrivera/glv-research"
 DATA_DIR <- file.path(BASE_DIR, "Data")
 RESULTS_DIR <- file.path(BASE_DIR, "Results")
 exp_id <- paste0("Exp06-D", format(Sys.Date(), "%d-%b"))
+exp_dir <- file.path(RESULTS_DIR, exp_id) # Experiment directory
 
 params_path <- file.path(DATA_DIR, paste0(exp_id, ".tsv")) # Parameters TSV
 mc_dir <- file.path(RESULTS_DIR, exp_id, "mc-apply") # Workers directory
 outs_path <- file.path(RESULTS_DIR, exp_id, "Outputs") # Outputs directory
-info_path <- file.path(RESULTS_DIR, exp_id, "Info.tsv") # Information TSV
+info_path <- file.path(RESULTS_DIR, exp_id, "sims-summary.tsv") # Information TSV
 
 #' First we generate the parameters for simulation:
 #+ eval=FALSE
@@ -76,9 +77,8 @@ split_table <- function(df, n_chunks) {
 }
 
 # Testing line:
-num_cores <- 5
-chunks <- split_table(params_df[1:10], num_cores)
-
+# num_cores <- 5
+# chunks <- split_table(params_df[1:10], num_cores)
 chunks <- split_table(params_df, num_cores)
 message("\nData split completed...\n")
 tictoc::toc() # For section 2
@@ -113,11 +113,12 @@ source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/generate-params.
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/solver-gLV.R") # solve gLV equations
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/forge-symls.R") # generate symbolic links
 source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/find-time-stability.R") # source function for ts
+source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/extinctions-fun.R") # Extinction function
 
 #' We wrap the code for parallelizing the simulations.
 #+ eval=FALSE
 # ==== Wrapper for running all required steps ====
-par_sims <- function(index, path_core) {
+sims_wrapper <- function(index, path_core) {
   params <- regenerate(index) # Generate parameters
   output <- solve_gLV(times = 1000, params) # Run simulation
 
@@ -128,6 +129,7 @@ par_sims <- function(index, path_core) {
   NA_count <- sum(is.na(output)) # Calculate NAs
   ts_out <- find_ts(output) # Find time-to-stability (ts) OUTPUT
   data.table::fwrite(x = output, file = path_ode, sep = "\t", row.names = FALSE, col.names = FALSE) # Save simulation
+  arrow::write_feather(output, path_ode)
   
   # Simulate extinctions
   ext_list <- sim_all_ext(output, params) # Generate extinctions
@@ -140,12 +142,14 @@ par_sims <- function(index, path_core) {
   lapply(seq_along(ext_list$data), function(e) {
     arrow::write_feather(ext_list$data[[e]], ext_paths[e])
   })
+  ###############################################################################Error
   arrow::write_feather(ext_list$info, ext_path) # Save EXTINCTIONS info
-  
+
+  cat("Simulation ", params$id, " completed...\n")
   return(list(id = params$id, na_ct = NA_count, ts_out = ts_out, ts_ext = ts_ext ))
 }
 
-#' We Parallelize the code and get the `NA counting`. 
+#' We Parallelize the code and get the summary of simulations
 #+ eval=FALSE
 # ==== Parallelize it ====
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
@@ -157,17 +161,18 @@ sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
   core_chunk <- chunks[[core_id]]  # rows assigned to this core
   
   result <- lapply(1:nrow(core_chunk), function(i) {
-    par_sims(index = core_chunk[i, ], path_core = workers_ODE[core_id])
+    sims_wrapper(index = core_chunk[i, ], path_core = workers_ODE[core_id])
+    
   })
 
-  result <- rbindlist(result, use.names = TRUE) # Convert list to df
+  result <- data.table::rbindlist(result, use.names = TRUE) # Convert list to df
   message("Ending worker ", core_id, "....\n")
   
   return(result)
   
 }, mc.cores = num_cores)
 
-
+# Generate TSV file
 sims_info_df <- data.table::rbindlist(sims_info) # Convert list (of df) to df
 data.table::fwrite(x = sims_info_df, file = info_path, sep = "\t")
 tictoc::toc() # For section 4
@@ -177,55 +182,7 @@ tictoc::toc() # For section 4
 #' We create symbolic links of the simulation...
 #+ eval=FALSE
 # ==== Create symbolic links====
-tictoc::tic("Section 6: Generate symbolic links")
-
-# Define source and target directories
-generate_symlinks(mc_dir, outs_path)
-tictoc::toc() # For section 6
-
-
-
-#' We look for stability time...
-#+ eval=FALSE
-# ==== Create symbolic links====
-tictoc::tic("Section 7: Finding stable time")
-
-source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/find-time-stability.R") # source function for ts
-
-# List all outputs files
-files <- list.files(outs_path, full.names = TRUE)
-chunks <- split(files, cut(x = seq_along(files), breaks = num_cores, labels = FALSE))
-
-tsa_list <- parallel::mclapply(seq_len(num_cores), function(core) {
-
-  message("Starting worker ", core, "....\n")
-
-  files <- chunks[[core]]  # rows assigned to this core
-
-  res <- lapply(files, FUN = function(file) {
-    id <- sub(".*/O_(\\w+)\\.tsv$", "\\1", file) # Sub id
-    output <- data.table::fread(file, sep = "\t") # Load output
-    ts <- find_ts(output) # Find time-to-stability (ts)
-    return(list(id=id,ts=ts))
-  })
-  message("Ending worker ", core, "....\n")
-  return(res)
-}, mc.cores = num_cores)
-
-
-# Create data frame with time to stability for each community
-ts_df <- do.call(rbind, lapply(seq_along(tsa_list), function(i) {
-  core_list <- tsa_list[[i]]
-  do.call(rbind, lapply(core_list, function(e) {
-    data.frame(simulation = e$id, t_stable = e$ts)
-  }))
-}))
-
-# Save data frame
-wd <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Results"
-path <- file.path(wd, exp_id, "tsa-table.tsv")
-data.table::fwrite(x = ts_df, file = path, sep = "\t")
-tsa <- max(ts_df$t_stable)
-print(paste0("Time required for reaching stable state: ", tsa))
-tictoc::toc() # For section 7
+tictoc::tic("Section 5: Generate symbolic links")
+purrr::walk(workers_ODE, ~gen_syml(.x, exp_dir))
+tictoc::toc() # For section 5
 tictoc::toc() # For Total running time

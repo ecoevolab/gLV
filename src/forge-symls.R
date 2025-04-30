@@ -15,46 +15,58 @@
 #' generate_symlinks_OneTol("path/to/worker/directories", "path/to/target/directory")
 #'
 #' @export
-generate_symlinks <- function(source_path, target_path){
-  # Create target directories if they don't exist
-  if (!dir.exists(target_path)) dir.create(target_path, recursive = TRUE) 
-  
-  # Get all worker directories
-  worker_dirs <- dir(source_path, recursive = FALSE, full.names = TRUE,  pattern = "^worker_.*")
-  
-  lapply(worker_dirs, function(worker) {
+gen_syml <- function(worker_path, exp_dir) {
+
+  cat(rep("-", 30), "\n")
+  cat("Starting symbolic link of ", basename(worker_path), " ...\n")
     
-    message("Starting symbolic link of ", basename(worker), " ...\n")
+  # Define file patterns 
+  file_patterns <- c(
+    "^O_.*\\.feather$",           # Output files
+    "^E_.*-Info\\.feather$",      # Info extension files
+    "^E_.*-Sp.*\\.feather$"   # Spec extension files
+  )
+
+  # Define target directories
+  target_dirs <- c(
+    file.path(exp_dir, "Outputs"),
+    file.path(exp_dir, paste0("Exts-", "Info")),
+    file.path(exp_dir,  paste0("Exts-", "Specs"))
+  )
+
+
+  # Find files and create symlinks in one operation
+  mapply(function(pattern, target_dir) {
+    # Find files matching the pattern
+    files <- list.files(worker_path, recursive = TRUE, full.names = TRUE, pattern = pattern)
     
-    # Get all files in the worker directory recursively
-    files <- list.files(worker, recursive = TRUE, full.names = TRUE)
+    # Skip if no files found
+    if (length(files) == 0) return(invisible(NULL))
     
-    relative_paths <- sub(paste0("^", source_path, "/worker_\\d+/"), "", files)
+    # Create target directory if needed
+    if (!dir.exists(target_dir)) dir.create(target_dir, recursive = TRUE)
     
-    # Construct target paths
-    target_paths <- file.path(target_path, relative_paths)
+    # Create target paths
+    target_paths <- file.path(target_dir, basename(files))
     
-    # Get unique target directories and create them if missing
-    dirs_to_create <- unique(dirname(target_paths))
-    sapply(dirs_to_create, function(d) {
-      if (!dir.exists(d)) dir.create(d, recursive = TRUE)
-    })
+    # Create symlinks for files that don't already have them
+    needs_link <- !file.exists(target_paths)
     
-    # Create symbolic links, checking if they don't already exist
-    invisible(mapply(function(src, tgt) {
-      if (!file.exists(tgt)) {
-          file.symlink(src, tgt)
-        cat("Created symlink for: ", basename(tgt), "\n")
-      } else {
-        cat("Symlink already exists for: ", basename(tgt), "\n")
-      }
-      return(NULL)
-    }, files, target_paths))
+    if (any(needs_link)) {
+      # Create symlinks only where needed
+      mapply(file.symlink, files[needs_link], target_paths[needs_link])
+      cat("Created", sum(needs_link), "symlinks for pattern:", pattern, "\n")
+    }
     
-    message("Finished symbolic link of ", basename(worker), " ...\n")
-  })
-  
-  return()
+    # Report existing symlinks
+    if (any(!needs_link)) {
+      cat("Skipped", sum(!needs_link), "existing symlinks for pattern:", pattern, "\n")
+    }
+    
+    invisible(NULL)
+  }, file_patterns, target_dirs, SIMPLIFY = FALSE)
+
+  cat("Ending symbolic link of ", basename(worker_path), " ...\n")
 }
 
 
