@@ -11,6 +11,13 @@ import torch.nn as nn
 import rpy2.robjects as ro
 import numpy as np
 
+
+# Libraries for summary
+from torch.utils.tensorboard import SummaryWriter
+from torch_geometric.loader import DataLoader
+import os
+from datetime import datetime
+
 #=======================  Data loading =======================
 dir = "/home/mriveraceron/glv-research/Data/Exp06-D29-Apr"      # Parent-directory
 ints_path = os.path.join(dir, "Interacts")                      # Interactions-directory
@@ -33,7 +40,6 @@ for id in ids[:5]:
     interactions_np = pd.read_feather(path_in).to_numpy(dtype=np.float32)
     Inters_tensor = torch.from_numpy(np.round(interactions_np, 4))                            # Interactions matrix conversion -> Tensor
     edges = torch.nonzero(Inters_tensor, as_tuple=False).t().contiguous()                     # Adjacency FROM -> TO
-    weights = Inters_tensor[edges[0], edges[1]]                                               # weights
     #======================= Predictions (metrics) =======================
     Nspecs = Inters_tensor.shape[0]                                                           # Input nodes
     # Direct numpy to tensor conversion
@@ -43,36 +49,32 @@ for id in ids[:5]:
     y = torch.zeros(Nspecs, pred_tensor.shape[1], dtype=torch.float32)
     y[:pred_tensor.shape[0], :] = pred_tensor                                                     
     #======================= Input features =======================
-    # print("# The number of species are:", Nspecs, " for simulation ", id, "\n")
-    R_seed = pd.read_csv(tsv_file, sep="\t").query("id == @id")["x0_seed"].iloc[0]            # Extract population seed of simulation
-    ro.r(f"set.seed({R_seed})")                                                               # Set seed (R)
-    ro.r(f"x0 <- stats::runif({Nspecs}, min = 0.1, max = 1)")                                 # Generate X0 (R)
-    x0 = torch.tensor(np.array(ro.r("x0")).round(4), dtype=torch.float32)                     # Extract it to python
+    x = Inters_tensor                                           # Interaction-strength
     #======================= Save Data =======================
-    data = Data(x=x0.view(-1, 1), edge_index=edges.long(), edge_attr=weights, y=y)
+    data = Data(x=x, edge_index=edges.long(), y=y)
     # print("= The input X are: ", data.x, " the dimensions are: ", data.x.shape)
     # print("The weights are: ", data.edge_attr.dtype, "|| The inputs are: ", data.x.dtype, "|| The edges are: ", data.edge_index.dtype, " || The preds are: ", data.y.dtype )
     data_list.append(data)
-    
+        
 
 #=======================  GCN =======================
 class GCNModel(torch.nn.Module):
-    def __init__(self, in_features, hidden_features, out_features, num_predictions):
+    def __init__(self, in_features, hidden_features, num_predictions):
         super(GCNModel, self).__init__()
         # First GCN layer
         self.conv1 = GCNConv(in_features, hidden_features)
         # Second GCN layer  
         self.conv2 = GCNConv(hidden_features, hidden_features)
         # Output layer for predictions
-        self.output_layer = torch.nn.Linear(out_features, num_predictions)            # Regression 
+        self.output_layer = torch.nn.Linear(hidden_features, num_predictions)            # Regression 
         # Optional: Add dropout for regularization
         # self.dropout = torch.nn.Dropout(0.2)
     def forward(self, data):
-        x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr
+        x, edge_index = data.x, data.edge_index
         # First GCN layer with ReLU activation
-        x = F.relu(self.conv1(x, edge_index, edge_weight))
+        x = F.relu(self.conv1(x, edge_index))
         # Second GCN layer with ReLU activation
-        x = F.relu(self.conv2(x, edge_index, edge_weight))
+        x = F.relu(self.conv2(x, edge_index))
         # Output layer (no activation for regression)
         out = self.output_layer(x)
         return out     
@@ -84,24 +86,77 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # hidden_features ->  Hidden layer size (increased for better capacity)
 # out_features -> # of prediction features done (prediction. It should be the same number as last layer size.
 # num_predictions -> # predictions per node
-model = GCNModel(in_features=1, hidden_features=60, out_features=60, num_predictions=5).to(device)
+model = GCNModel(in_features=20, hidden_features=60, num_predictions=5).to(device)
 criterion = nn.MSELoss()                                                # Loss function for regression
 optimizer = optim.Adam(model.parameters(), lr=0.01)                     # Optimizer
 
 #======================= Train GCN =======================
-data_train = DataLoader(data_list[:int(len(data_list)*.8)], shuffle=True) 
-model.train()                                           # Training mode
-for epoch in range(30):                              # # of epochs
-    epoch = 1
-    data = data.to(device)                              # move data to gpu
-    optimizer.zero_grad()                               # Clear gradients
-    out = model(data)                                   # Evaluation
-    loss = criterion(out, data.y)                       # Loss-function
-    loss.backward()                                     
-    optimizer.step()                                    # Fix weights                           
-    if epoch % 10 == 0:
-        print(f'Epoch {epoch}, Loss: {loss.item():.6f}')
+data_train = DataLoader(data_list[:int(len(data_list)*.8)]) 
+data_val = DataLoader(data_list[int(len(data_list)*.8):])     
 
+# Create a unique log directory for this training run
+log_dir = f"/home/mriveraceron/glv-research/train-logs/GCN-logs"
+writer = SummaryWriter(log_dir)
+
+# Track best validation loss for model saving
+best_val_loss = float('inf')
+
+for epoch in range(50):
+    # ===== TRAINING PHASE =====
+    model.train()                                        # training-mode
+    total_train_loss = 0
+    num_batches = 0
+    for data in data_train:
+        data = data.to(device)                          # Move-data-to-gpu
+        optimizer.zero_grad()                           # Clear-gradients
+        out = model(data)                               # output
+        loss = criterion(out, data.y)
+        loss.backward()                                 # Backpropagation
+        optimizer.step()                                # Fix-weights 
+        # measure-performance
+        total_train_loss += loss.item()
+        num_batches += 1
+        avg_train_loss = total_train_loss / num_batches
+    # ===== VALIDATION =====
+    model.eval()
+    total_val_loss = 0
+    num_val_batches = 0
+    with torch.no_grad():
+        for data in data_val:
+            data = data.to(device)
+            out = model(data)
+            val_loss = criterion(out, data.y)
+            total_val_loss += val_loss.item()
+            num_val_batches += 1
+    # measure-loss
+    avg_val_loss = total_val_loss / num_val_batches
+    # ===== TENSORBOARD LOGGING =====
+    # Log epoch-level metrics
+    writer.add_scalar('Loss/Train', avg_train_loss, epoch)
+    writer.add_scalar('Loss/Validation', avg_val_loss, epoch)
+    # Log learning rate (if using scheduler)
+    writer.add_scalar('Learning_Rate', optimizer.param_groups[0]['lr'], epoch)
+    # Log model parameters (weights and gradients)
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            writer.add_histogram(f'Parameters/{name}', param.data, epoch)
+            writer.add_histogram(f'Gradients/{name}', param.grad.data, epoch)
+    # Save best model
+    if avg_val_loss < best_val_loss:
+        best_val_loss = avg_val_loss
+        torch.save(model.state_dict(), f'{log_dir}/best_model.pth')
+        writer.add_text('Model_Save', f'Best model saved at epoch {epoch}', epoch)
+    # Print progress
+    if epoch % 5 == 0:
+        print(f'Epoch {epoch:3d} | Train Loss: {avg_train_loss:.6f} | Val Loss: {avg_val_loss:.6f}')
+
+# Close the writer
+writer.close()
+
+print(f"Training complete! Results saved at: {log_dir}")
+
+
+#===========================================
 for data in data_train: 
     print(data)
     # print("The weights are: ", data.edge_attr.dtype, "|| The inputs are: ", data.x.dtype, "|| The edges are: ", data.edge_index.dtype, " || The preds are: ", data.y.dtype )
@@ -150,3 +205,11 @@ print("Number of GPUs:", torch.cuda.device_count())     # Number of available GP
 # Check device properties (including number of cores and more)
 gpu_properties = torch.cuda.get_device_properties(0)
 print("GPU Properties:", gpu_properties)
+
+
+# ========================== Some noise =============
+# print("# The number of species are:", Nspecs, " for simulation ", id, "\n")
+R_seed = pd.read_csv(tsv_file, sep="\t").query("id == @id")["x0_seed"].iloc[0]            # Extract population seed of simulation
+ro.r(f"set.seed({R_seed})")                                                               # Set seed (R)
+ro.r(f"x0 <- stats::runif({Nspecs}, min = 0.1, max = 1)")                                 # Generate X0 (R)
+x0 = torch.tensor(np.array(ro.r("x0")).round(4), dtype=torch.float32)       
