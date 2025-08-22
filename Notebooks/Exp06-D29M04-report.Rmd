@@ -1,0 +1,109 @@
+---
+title: "Exp06-D29M04_report"
+author: "Manuel Rivera"
+date: "2025-03-25"
+output: 
+  html_document:
+    toc: true           # Enable Table of Contents
+    theme: sandstone
+    toc_float: true
+    collapsed: false
+    smooth_scroll: true
+---
+
+## Create graphs
+
+```{r  eval=TRUE}
+#' Blackbox theme
+#' 
+#' ggplot2 theme that places a black margin on every
+#' panel
+#'
+#' @param border.size Thickness of the margin.
+#'
+#' @return A \code{theme gg} object.
+#' @export
+#' @author Sur Herrera Paredes
+theme_blackbox <- function(border.size = 3){
+  theme(axis.text = element_text(color="black"),
+        axis.title = element_text(face="bold"),
+        panel.background = element_rect(color = "black",
+                                        linewidth = border.size,
+                                        fill = NA),
+        panel.grid = element_blank())
+}
+```
+
+### Time to stability plot
+```{r eval=TRUE}
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(scales)
+library(plotly)
+library(svglite)
+
+# Load data
+data <- data.table::fread("/home/rivera/cluster/glv-research/Data/Exp06-D29-Apr.tsv")
+tab <- data.table::fread("/home/rivera/cluster/glv-research/Results/Exp06-D29-Apr/sims-summary.tsv")
+
+# Convert it to long format
+x_long1 <- data %>% select(n_species, id) %>% full_join(tab, by = "id") %>%
+  tidyr::pivot_longer(cols = c(ts_out, ts_ext), names_to = "event_type", values_to = "count") 
+
+arrow_data <- x_long1 %>%
+  group_by(event_type) %>%
+  summarise(
+    max_count = max(count),
+    mean_count = mean(count),
+    median_count = median(count),
+    .groups = "drop"
+  )
+
+p1 <- ggplot2::ggplot(x_long1, aes(x = count, fill = factor(n_species))) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap(~ event_type, scales = "free_y") +
+  scale_fill_viridis_d(name = "n_species") +
+  theme_minimal() +
+  labs(x = "Time", y = "Frequency", title = "Histograms of ts_out and ts_ext by n_species") +
+  theme_blackbox() +
+  geom_segment(data = arrow_data,
+               aes(x = max_count, xend = max_count, y = 100, yend = 25),
+               arrow = arrow(length = unit(0.4, "cm")), color = "red", inherit.aes = FALSE) +
+  geom_segment(data = arrow_data,
+               aes(x = mean_count, xend = mean_count, y = 100, yend = 25),
+               arrow = arrow(length = unit(0.4, "cm")), color = "blue", inherit.aes = FALSE) +
+  geom_segment(data = arrow_data,
+               aes(x = median_count, xend = median_count, y = 100, yend = 25),
+               arrow = arrow(length = unit(0.4, "cm")), color = "green", inherit.aes = FALSE)
+p1
+ggsave("/home/rivera/Documents/Weekly/Exp06-counts.svg", width = 6, height = 4)
+# ggplotly(p1)
+
+```
+
+Failed extinctions plots... (missing)
+```{r eval=TRUE}
+
+# Convert it to long format
+x_pie <- data %>%
+  select(n_species, id) %>%
+  full_join(tab, by = "id") %>%
+  mutate(na_ct_group = ifelse(na_ct > 0, "Failed", "Success")) %>%
+  count(na_ct_group, n_species) %>%
+  group_by(na_ct_group) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+# 2. Plot a pie chart per na_ct group
+p2 <- ggplot(x_pie, aes(x = "", y = percentage, fill = factor(n_species))) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  facet_wrap(~ na_ct_group) + 
+  theme_blackbox() +
+  scale_fill_viridis_d(name = "n_species") +
+  labs(title = "Proportion of failed simulations") 
+
+p2
+ggsave("/home/rivera/Documents/Weekly/Exp06-success.svg", width = 6, height = 4)
+```
+
