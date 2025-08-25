@@ -33,6 +33,10 @@ sim_all_ext <- function(output, params) {
   old_x0 <- output[[1000]] # Get population near steady state
   survivors <- which(old_x0 > 0)  # Indices of surviving species
   
+  # Return null if no extinctions will be performed...
+  if (!(length(survivors) > 1)) {
+    return(NULL)
+  }
   # Function to simulate extinction for a single species
   results <- lapply(survivors, function(spec) {
     
@@ -71,8 +75,7 @@ sim_all_ext <- function(output, params) {
   all_tables = lapply(results, function(x) x$data)
   names(all_tables) <- paste0("Sp", survivors)
 
-  res_list <- list( info = do.call(rbind, lapply(results, function(x) x$info)), # Information table
-  data = all_tables) # All extinction data
+  res_list <- list( info = do.call(rbind, lapply(results, function(x) x$info)), data = all_tables, n_ext = length(survivors)) 
   
   return(res_list)
 }

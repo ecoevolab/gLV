@@ -16,9 +16,8 @@
 pdir <- "/home/mrivera"                                                                 # Parent-dir
 dat_dir <- file.path(pdir, "Data")                                                      # data-dir
 res_dir <- file.path(pdir, "Experiments")                                               # experiment-dir
-exp_id <- paste0(substr(ids::proquint(), 1, 5),"-D", format(Sys.Date(), "%d%b"))         # exp-id
+exp_id <- paste0(substr(ids::proquint(), 1, 5),"-D", format(Sys.Date(), "%d%b"))        # exp-id
 exp_dir <- file.path(res_dir, exp_id)                                                   # Experiment directory
-
 params_path <- file.path(dat_dir, paste0(exp_id, ".tsv"))               # Parameters TSV
 mc_dir <- file.path(res_dir, exp_id, "mc-apply")                        # Workers directory
 info_path <- file.path(res_dir, exp_id, "sims-summary.tsv")             # Information TSV
@@ -46,21 +45,32 @@ generate_params <- function (){
   
   return(dt)
 }
+#====================================================================
+# Testing line
+params_path <- "/mnt/atgc-d3/sur/users/mrivera/glv-research/Data/Exp06-D29-Apr.tsv"
+#========================================================
+# Save Parameters as TSV or load them
+if (!(file.exists(params_path))) {
 
-params_df <- generate_params()
+  # Generate parameters
+  params_df <- generate_params()
 
-# Verify if ids are unique and in case they are, save the parameters.
-while (nrow(params_df) != length(unique(params_df$id))) {
-  params_df <- generate_params() # Repeat function
+  # Verify if ids are unique and in case they are, save the parameters.
+  while (nrow(params_df) != length(unique(params_df$id))) {
+    params_df <- generate_params() # Repeat function
+  }
+
+  # Save them
+  data.table::fwrite(x = params_df, file = params_path, 
+    sep = "\t",
+    quote = FALSE,      # Disable quoting for faster writing
+    row.names = FALSE,  # Don't write row names
+  )
+  message("\nParameteres generated and saved at path:\n", params_path, "\n")
+} else {
+  params_df <- data.table::fread(params_path)
+  message("\nParameters loaded..\n", params_path)
 }
-
-# Save Parameters as TSV
-data.table::fwrite(x = params_df, file = params_path, 
-  sep = "\t",
-  quote = FALSE,      # Disable quoting for faster writing
-  row.names = FALSE,  # Don't write row names
-)
-message("\nParameteres generated and saved at path:\n", params_path, "\n")
 tictoc::toc() # For section 1
 
 #' We split the data into chunks of `n_cores`:
@@ -75,9 +85,11 @@ split_table <- function(df, n_chunks) {
   split(df, cut(seq_len(nrow(df)), breaks = n_chunks, labels = FALSE))
 }
 
-# Testing line:
+#====================================================================
+# Testing line
 # num_cores <- 5
 # chunks <- split_table(params_df[1:10], num_cores)
+#====================================================================
 chunks <- split_table(params_df, num_cores)
 message("\nData split completed...\n")
 tictoc::toc() # For section 2
@@ -176,8 +188,6 @@ sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
 sims_info_df <- data.table::rbindlist(sims_info) # Convert list (of df) to df
 data.table::fwrite(x = sims_info_df, file = info_path, sep = "\t")
 tictoc::toc() # For section 4
-
-
 
 #' We create symbolic links of the simulation...
 #+ eval=FALSE
