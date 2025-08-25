@@ -41,10 +41,11 @@ regenerate <- function(index) {
   p_neg <- as.numeric(index[["p_neg"]])
   
   # Define the number of interactions
-  num_off_diag <- n_species * (n_species - 1)  # Total off-diagonal elements
-  num_noint <- floor(p_noint * num_off_diag)   # Number of null interactions
-  num_negs <- floor(p_neg * (num_off_diag - num_noint)) # Number of negative interactions
-  num_pos <- num_off_diag - (num_noint + num_negs) # Remaining are positive interactions
+  total <- n_species * (n_species - 1)     # Total off-diagonal elements
+  num_noint <- floor(p_noint * total)      # null-interactions
+  remaining <- total - num_noint           # Non-zero-interactions
+  num_negs <- floor(p_neg * remaining)     # Negative interactions
+  num_pos <- remaining - num_negs
   
   # Create the interaction vector
   set.seed(as.numeric(index[["A_seed"]]))

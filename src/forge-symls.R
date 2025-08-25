@@ -15,60 +15,42 @@
 #' generate_symlinks_OneTol("path/to/worker/directories", "path/to/target/directory")
 #'
 #' @export
-gen_syml <- function(worker_path, exp_dir) {
+gen_syml <- function(source_dir, tgt_dir) {
 
   cat(rep("-", 30), "\n")
-  cat("Starting symbolic link of ", basename(worker_path), " ...\n")
-    
+  cat("Starting symbolic link of ", basename(source_dir), " ...\n")
+  
+  # tictoc::tic("Starting symbolic links...\n")
   # Define file patterns 
-  file_patterns <- c(
-    "^O_.*\\.feather$",           # Output files
-    "^E_.*-Info\\.feather$",      # Info extension files
-    "^E_.*-Sp.*\\.feather$"   # Spec extension files
+  to_link <- list(
+    list(pattern = "O_*.feather", target = file.path(tgt_dir, "raw-ODEs")),                 # Output files
+    list(pattern = "E_*-S*.feather", target = file.path(tgt_dir, "exts-outs")),             # extinctions-output
+    list(pattern =  "E_*-Info.feather", target = file.path(tgt_dir,  "exts-info"))          # extinctions-info
   )
 
-  # Define target directories
-  target_dirs <- c(
-    file.path(exp_dir, "Outputs"),
-    file.path(exp_dir, paste0("Exts-", "Info")),
-    file.path(exp_dir,  paste0("Exts-", "Specs"))
-  )
-
-
-  # Find files and create symlinks in one operation
-  mapply(function(pattern, target_dir) {
-    # Find files matching the pattern
-    files <- list.files(worker_path, recursive = TRUE, full.names = TRUE, pattern = pattern)
-    
-    # Skip if no files found
-    if (length(files) == 0) return(invisible(NULL))
-    
-    # Create target directory if needed
-    if (!dir.exists(target_dir)) dir.create(target_dir, recursive = TRUE)
-    
-    # Create target paths
-    target_paths <- file.path(target_dir, basename(files))
-    
-    # Create symlinks for files that don't already have them
-    needs_link <- !file.exists(target_paths)
-    
-    if (any(needs_link)) {
-      # Create symlinks only where needed
-      mapply(file.symlink, files[needs_link], target_paths[needs_link])
-      cat("Created", sum(needs_link), "symlinks for pattern:", pattern, "\n")
+  for (dir in to_link) {
+    if (!(dir.exists(dir$target))){
+      dir.create(dir$target) 
+      print("Directory created: \n")
     }
     
-    # Report existing symlinks
-    if (any(!needs_link)) {
-      cat("Skipped", sum(!needs_link), "existing symlinks for pattern:", pattern, "\n")
-    }
+    #====================== Source-files ======================
+    mcmd <- sprintf('find "%s" -type f -name "%s" ', source_dir, dir$pattern)               # Command
+    src_files = system(mcmd, intern = TRUE)
+    src_basenames <- basename(src_files)                                                    # source-file-names
     
-    invisible(NULL)
-  }, file_patterns, target_dirs, SIMPLIFY = FALSE)
+    #====================== Already-existing-files ======================
+    mcmd <- sprintf('ls -l "%s" ', dir$target)                    # Command
+    tgt_files = system(mcmd, intern = TRUE)                       # files with symlink already
+    tgt_basenames <- basename(tgt_files)                          # target-file-names
 
-  cat("Ending symbolic link of ", basename(worker_path), " ...\n")
+    # Get files missing symlink
+    missing_files <- src_files[!src_basenames %in% tgt_basenames]
+    file.symlink(missing_files, file.path(dir$target, basename(missing_files)))
+
+  }
+  # tictoc::toc()
 }
-
 
 
 

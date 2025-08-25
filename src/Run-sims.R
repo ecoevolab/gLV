@@ -13,16 +13,15 @@
 
 
 #' Indicate directories paths
-BASE_DIR <- "/mnt/atgc-d3/sur/users/mrivera/glv-research"
-DATA_DIR <- file.path(BASE_DIR, "Data")
-RESULTS_DIR <- file.path(BASE_DIR, "Results")
-exp_id <- paste0("Exp06-D", format(Sys.Date(), "%d-%b"))
-exp_dir <- file.path(RESULTS_DIR, exp_id) # Experiment directory
+pdir <- "/home/mrivera"                                                                 # Parent-dir
+dat_dir <- file.path(pdir, "Data")                                                      # data-dir
+res_dir <- file.path(pdir, "Experiments")                                               # experiment-dir
+exp_id <- paste0(substr(ids::proquint(), 1, 5),"-D", format(Sys.Date(), "%d%b"))         # exp-id
+exp_dir <- file.path(res_dir, exp_id)                                                   # Experiment directory
 
-params_path <- file.path(DATA_DIR, paste0(exp_id, ".tsv")) # Parameters TSV
-mc_dir <- file.path(RESULTS_DIR, exp_id, "mc-apply") # Workers directory
-outs_path <- file.path(RESULTS_DIR, exp_id, "Outputs") # Outputs directory
-info_path <- file.path(RESULTS_DIR, exp_id, "sims-summary.tsv") # Information TSV
+params_path <- file.path(dat_dir, paste0(exp_id, ".tsv"))               # Parameters TSV
+mc_dir <- file.path(res_dir, exp_id, "mc-apply")                        # Workers directory
+info_path <- file.path(res_dir, exp_id, "sims-summary.tsv")             # Information TSV
 
 #' First we generate the parameters for simulation:
 #+ eval=FALSE
@@ -119,34 +118,35 @@ source("/mnt/atgc-d3/sur/users/mrivera/glv-research/GIT-gLV/src/extinctions-fun.
 #+ eval=FALSE
 # ==== Wrapper for running all required steps ====
 sims_wrapper <- function(index, path_core) {
-  params <- regenerate(index) # Generate parameters
-  output <- solve_gLV(times = 1000, params) # Run simulation
+  params <- regenerate(index)                       # Generate parameters
+  output <- solve_gLV(times = 1000, params)         # Run simulation
 
   # Define paths
-  path_ode <- file.path(path_core, paste0("O_", params$id, ".tsv")) # Output
+  path_ode <- file.path(path_core, paste0("O_", params$id, ".tsv"))       # Output
   ext_path <-  file.path(path_core, paste0("E_", params$id, "-Info.tsv")) # Extinctions
 
-  NA_count <- sum(is.na(output)) # Calculate NAs
-  ts_out <- find_ts(output) # Find time-to-stability (ts) OUTPUT
-  data.table::fwrite(x = output, file = path_ode, sep = "\t", row.names = FALSE, col.names = FALSE) # Save simulation
-  arrow::write_feather(output, path_ode)
+  NA_count <- sum(is.na(output))            # Calculate NAs
+  ts_out <- find_ts(output)                 # time-to-stability (ts) OUTPUT
+
+  # Save simulation ODE
+  # data.table::fwrite(x = output, file = path_ode, sep = "\t", row.names = FALSE, col.names = FALSE) 
+  arrow::write_feather(x = output, sink = path_ode)
   
-  # Simulate extinctions
-  ext_list <- sim_all_ext(output, params) # Generate extinctions
-  ts_ext <- max(ext_list$info[["ext_ts"]]) # Find ts on EXTINCTIONS
+  #=================== Extinctions ===================
+  ext_list <- sim_all_ext(output, params)                                     # Generate extinctions
+  ts_ext <- max(ext_list$info[["ext_ts"]])                                    # Find tts on EXTINCTIONS
+  tmp <- names(ext_list$data)                                                 # #-Spec (S1, S2, etc)
+  ext_paths <- paste0(path_core, "/E_", params$id, "-", tmp, ".feather")      # Extinctions paths
 
-  tmp <- names(ext_list$data)
-  ext_paths <- paste0(path_core, "/E_", params$id, "-", tmp, ".feather") # Extinctions paths
-
-  # Save EXTINCTIONS output
+  # Save extinctions-OUTPUT
   lapply(seq_along(ext_list$data), function(e) {
     arrow::write_feather(ext_list$data[[e]], ext_paths[e])
   })
-  ###############################################################################Error
-  arrow::write_feather(ext_list$info, ext_path) # Save EXTINCTIONS info
+  # Save extinctions-INFO
+  arrow::write_feather(ext_list$info, ext_path) 
 
   cat("Simulation ", params$id, " completed...\n")
-  return(list(id = params$id, na_ct = NA_count, ts_out = ts_out, ts_ext = ts_ext ))
+  return(list(id = params$id, na_ct = NA_count, tts_out = ts_out, tts_ext = ts_ext))
 }
 
 #' We Parallelize the code and get the summary of simulations
@@ -182,7 +182,7 @@ tictoc::toc() # For section 4
 #' We create symbolic links of the simulation...
 #+ eval=FALSE
 # ==== Create symbolic links====
-tictoc::tic("Section 5: Generate symbolic links")
-purrr::walk(workers_ODE, ~gen_syml(.x, exp_dir))
-tictoc::toc() # For section 5
+# tictoc::tic("Section 5: Generate symbolic links")
+# purrr::walk(workers_ODE, ~gen_syml(.x, exp_dir))
+# tictoc::toc() # For section 5
 tictoc::toc() # For Total running time
