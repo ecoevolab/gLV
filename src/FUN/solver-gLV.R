@@ -17,7 +17,7 @@ solve_gLV <- function(times, params) {
     x0[x0 < 1e-8] <- 0 # Ignore the effect of species with population below a threshold
     
     # dx/dt = X *(r + A * X) + D
-    dx <- (x0 * (params$mu + params$M %*% x0)) + 0.05
+    dx <- (x0 * (params$mu + params$M %*% x0)) + 1e-6
     list(dx)
   }
   
@@ -38,9 +38,11 @@ solve_gLV <- function(times, params) {
       timeout = 600
     ),
     error = function(e) {
-      message(">> Simulation failed... skipping")
-      return(NULL)
-    }
+    message(">> Error details: ", e$message)
+    message(">> Error class: ", class(e))
+    print(str(params))  # Check params structure
+    return(NULL)
+  }
   )
   
   # Process results if valid

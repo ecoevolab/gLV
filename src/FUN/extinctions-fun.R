@@ -28,56 +28,45 @@
 #' result <- sim_all_ext(output, params)
 #'
 
-sim_all_ext <- function(output, params) {
+sim_all_ext <- function(params, path_core) {
   
-  old_x0 <- output[[1000]] # Get population near steady state
-  survivors <- which(old_x0 > 0)  # Indices of surviving species
-  
-  # Return null if no extinctions will be performed...
-  if (!(length(survivors) > 1)) {
-    return(NULL)
-  }
   # Function to simulate extinction for a single species
-  results <- lapply(survivors, function(spec) {
-    
-    tmp <- old_x0 # temporal variable
-    tmp[spec] <- 0 # Remove species from initial population
-    params$x0 <- tmp # Add it to parameters for rerunning
-
-    # Rerun simulation
-    ext_out <- solve_gLV(times = 1000, params)
-    final_pop <- ext_out[[1000]]  # Extract final population
+  x = params$x0
+  df = data.frame()
+  for(i in seq_along(x)){
+    x_new = x
+    x_new[i] = 0                # extinct-specie i
+    params$x0 = x_new           # update params
+    new_out = solve_gLV(times = 1000, params)
+    x_end = new_out[,1000]
 
     # Compute Bray-Curtis dissimilarity
-    bray_curtis <- 1 - (2 * sum(pmin(old_x0, final_pop))) / (sum(old_x0) + sum(final_pop))
+    bray_curtis <- 1 - (2 * sum(pmin(x, x_end))) / (sum(x) + sum(x_end))
 
     # Count secondary extinctions
-    new_ext <- sum(final_pop == 0 & old_x0 != 0)
+    # FIXME
+    new_ext <- sum(x_end == 0 & x != 0)
 
     # Compute keystoneness
-    props <- final_pop / sum(final_pop) # final population proportions
-    K_s <- bray_curtis * (1 - props[spec])
+    props <- x_end / sum(x_end) # final population proportions
+    K_s <- bray_curtis * (1 - props[i])
 
     # Time to Stability
-    ext_ts <- find_ts(ext_out)
+    ext_ts <- find_ts(new_out)
 
-    # Data-frame with information
-    df <- data.frame(
+    row <- data.frame(
       id = params$id,
-      spec = spec, # specie extinct
-      new_ext = new_ext, # subsequent extinctions
-      BC_diss = bray_curtis, 
-      K_s = K_s, 
+      spec = i,                     # specie-extinct
+      new_ext = new_ext,            # new-extinctions
+      BC_diss = bray_curtis,        # 
+      K_s = K_s,                    # Keystoness
       ext_ts = ext_ts
     )
-    list(info = df, data = ext_out)
-  })
-  all_tables = lapply(results, function(x) x$data)
-  names(all_tables) <- paste0("Sp", survivors)
-
-  res_list <- list( info = do.call(rbind, lapply(results, function(x) x$info)), data = all_tables, n_ext = length(survivors)) 
-  
-  return(res_list)
+    df = rbind(df, row)
+    ext_path <- paste0(path_core, "/E_", params$id, "-S", i, ".feather")          # Extinctions-paths
+    arrow::write_feather(new_out, ext_path)                                       # Save-extinctions
+  }
+  return(df)
 }
 
 
