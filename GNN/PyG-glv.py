@@ -19,39 +19,36 @@ import os
 from datetime import datetime
 
 #=======================  Data loading =======================
-dir = "/home/mriveraceron/glv-research/Data/Exp06-D29-Apr"      # Parent-directory
-ints_path = os.path.join(dir, "Interacts")                      # Interactions-directory
-tsv_file = os.path.join(dir, "Exp06-D29-Apr.tsv")               # Parameters-table
-mets_path = os.path.join(dir, "CP-info")                        # Metrics
+dir = "/home/mriveraceron/data/2263e52c-8384"                    # Parent-directory
+A_paths = os.path.join(dir, "A-mat")                             # Interactions-matrix
+preds_paths = os.path.join(dir, "preds-ext")                     # Predictions
 
-# Get IDs from simulation from TSV table
+# FIX-ME
+tsv_file = os.path.join(dir, "2263e52c-8384.tsv")               # Parameters-table
 ids =  pd.read_csv(tsv_file, sep="\t")["id"].tolist()           # Extract simulation IDs     
 
 # List to store the Data objects
 data_list = []
-# nodes =[]
-
-id = "29fe5a3825"
+id = ids[1]
 for id in ids[:5]:
-    #======================= Declare paths =======================
-    path_out = os.path.join(mets_path, f"E_{id}-Info.feather")
-    path_in = os.path.join(ints_path, f"Intrs_{id}.feather")
     #======================= Adjacency matrix (interactions) =======================
-    interactions_np = pd.read_feather(path_in).to_numpy(dtype=np.float32)
-    Inters_tensor = torch.from_numpy(np.round(interactions_np, 4))                            # Interactions matrix conversion -> Tensor
-    edges = torch.nonzero(Inters_tensor, as_tuple=False).t().contiguous()                     # Adjacency FROM -> TO
+    A_path = os.path.join(A_paths, f"A_{id}.feather")
+    A_mat = pd.read_feather(A_path).to_numpy(dtype=np.float32)
+    A_tensor = torch.from_numpy(np.round(A_mat, 4))                                            # convert-to-Tensor
+    x = A_tensor  
+    edges = torch.nonzero(A_tensor, as_tuple=False).t().contiguous().to(torch.int32)                          # Adjacency FROM -> TO
     #======================= Predictions (metrics) =======================
-    Nspecs = Inters_tensor.shape[0]                                                           # Input nodes
+    Nspecs = A_tensor.shape[0]                                                           # Input nodes
     # Direct numpy to tensor conversion
-    pred_data = pd.read_feather(path_out).drop(columns="id").to_numpy(dtype=np.float32)
+    pred_path = os.path.join(preds_paths, f"Preds_{id}.feather")
+    pred_data = pd.read_feather(pred_path).drop(columns="id").to_numpy(dtype=np.float32)
     pred_tensor = torch.from_numpy(np.round(pred_data, 4))
+    y = pred_tensor
     # Pre-allocate with correct dtype
-    y = torch.zeros(Nspecs, pred_tensor.shape[1], dtype=torch.float32)
-    y[:pred_tensor.shape[0], :] = pred_tensor                                                     
-    #======================= Input features =======================
-    x = Inters_tensor                                           # Interaction-strength
+    # y = torch.zeros(Nspecs, pred_tensor.shape[1], dtype=torch.float32)
+    # y[:pred_tensor.shape[0], :] = pred_tensor                                                     
     #======================= Save Data =======================
-    data = Data(x=x, edge_index=edges.long(), y=y)
+    data = Data(x=x, edge_index=edges, y=y, nsp = Nspecs)
     # print("= The input X are: ", data.x, " the dimensions are: ", data.x.shape)
     # print("The weights are: ", data.edge_attr.dtype, "|| The inputs are: ", data.x.dtype, "|| The edges are: ", data.edge_index.dtype, " || The preds are: ", data.y.dtype )
     data_list.append(data)
@@ -89,6 +86,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = GCNModel(in_features=20, hidden_features=60, num_predictions=5).to(device)
 criterion = nn.MSELoss()                                                # Loss function for regression
 optimizer = optim.Adam(model.parameters(), lr=0.01)                     # Optimizer
+
+# FIXME
+filtered_data_list = [data for data in data_list if data.nsp == 20]
+model = GCNModel(in_features=20, hidden_features=60, num_predictions=5).to(device)
+
 
 #======================= Train GCN =======================
 data_train = DataLoader(data_list[:int(len(data_list)*.8)]) 
