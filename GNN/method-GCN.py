@@ -1,5 +1,7 @@
 import pandas as pd
+
 import os
+import subprocess
 
 import torch 
 from torch_geometric.data import Data
@@ -12,7 +14,7 @@ import torch.nn as nn
 import rpy2.robjects as ro
 import numpy as np
 from datetime import datetime
-import subprocess
+
 
 
 #=======================  Data loading =======================
@@ -20,15 +22,26 @@ import subprocess
 remote = "/mnt/data/sur/users/mrivera"
 mount_p = "/home/mriveraceron/fenix_mount"
 
-# Mount-personal-dir
+# Mount only if not already mounted
 if os.path.ismount(mount_p):
-    print(">> Cluster is already mounted") 
+    print(">> Cluster is already mounted")
 else:
-    subprocess.run(['sshfs', f'mrivera@fenix.lavis.unam.mx:{remote}', mount_p],  capture_output=True, text=True)
+    subprocess.run([
+        'sshfs',
+        '-o', 'ro',   # <-- read-only option
+        f'mrivera@fenix.lavis.unam.mx:{remote}',
+        mount_p
+    ], capture_output=True, text=True)
+    print(">> Cluster mounted")
 
-
+# Unmount command (if needed)
+# subprocess.run(["fusermount", "-u", mount_p], check=True)
 # Section: Generate-paths
 # Target-path
+id = "c748247a-8dc2"
+exp_dir = os.path.join(mount_p, "Experiments", id)
+data_dir = os.path.join(mount_p, "Data", f"{id}.tsv")
+
 A_dir = os.path.join(mount_p, "Experiments/c748247a-8dc2/A-mat")
 tgt_dir = os.path.join(mount_p, "Experiments/c748247a-8dc2/Replica2/GNN-targets")
 data_path = os.path.join(mount_p, "Data/c748247a-8dc2.tsv")
