@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
 *.Rproj
 0.0223771665006993
+=======
+*.log
+*.error
+
+>>>>>>> f5fcafe4b6c0c88fe2dc00879120cd736221d69e
