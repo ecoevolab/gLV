@@ -15,45 +15,41 @@
 #' generate_symlinks_OneTol("path/to/worker/directories", "path/to/target/directory")
 #'
 #' @export
-gen_syml <- function(source_dir, tgt_dir) {
+gen_syml <- function(source_dir) {
 
   cat(rep("-", 30), "\n")
-  cat("Starting symbolic link of ", source_dir, " ...\n") 
-  
-  # tictoc::tic("Starting symbolic links...\n")
+  cat("Starting symbolic link of ", source_dir, "\n") 
+  exp_dir = dirname(source_dir)
+
   # Define file patterns 
   to_link <- list(
-    list(pattern = "O_*.feather", target = file.path(tgt_dir, "raw-ODEs")),                 # Output files
-    list(pattern = "E_*-S*.feather", target = file.path(tgt_dir, "exts-outs")),             # extinctions-output
-    list(pattern =  "E_*-Info.feather", target = file.path(tgt_dir,  "exts-info"))          # extinctions-info
+    list(pattern = "O_*.feather", target = file.path(exp_dir, "raw-ODEs")),                   # Output files
+    list(pattern = "E_*-S*.feather", target = file.path(exp_dir, "Post-exts")),               # extinctions-output
+    list(pattern =  "tgt_*.feather", target = file.path(exp_dir,  "GNN-targets")),           # extinctions-info
+    list(pattern =  "A_*.feather", target = file.path(exp_dir,  "A-mat"))          
   )
-  dir = to_link[[2]]
+  
   for (dir in to_link) {
+
+    # Testing line
+    #dir = to_link[[1]]
+    # Look for files
+    mcmd <- sprintf('find "%s" -type f -name "%s" ', source_dir, dir$pattern)               # Command
+    src_files = system(mcmd, intern = TRUE)                                                 # Full-paths
+    if (length(src_files)==0) {
+      cat("No files found for pattern:", dir$pattern, "\n")
+      next
+    }
+
+    # Create dirctory if it doesnt exist
     if (!(dir.exists(dir$target))){
       dir.create(dir$target) 
       cat("Directory", dir$target,  "created: \n", sep = " ")
     }
     
-    #====================== Source-files ======================
-    mcmd <- sprintf('find "%s" -type f -name "%s" ', source_dir, dir$pattern)               # Command
-    src_files = system(mcmd, intern = TRUE)
-    src_files = list.files(source_dir, full.names = TRUE, recursive = TRUE, pattern = "^E_.*-S.*\\.feather$")
-    src_basenames <- basename(src_files)                                                    # source-file-names
-    
-    #====================== Already-existing-files ======================
-    #mcmd <- sprintf('ls "%s" ', dir$target)                    # Command
-    #tgt_files = system(mcmd, intern = TRUE)                       # files with symlink already
-    #tgt_basenames <- basename(tgt_files)                          # target-file-names
-
-    # Get files missing symlink
-    #missing_files <- src_files[!src_basenames %in% tgt_basenames]
-    target_paths = file.path(dir$target, src_basenames)
-    file.symlink(src_files, target_paths)
-    commands <- sprintf('ln -sf "%s" "%s"', src_files, target_paths)
-    command_string <- paste(commands, collapse = "\n")
-    system("bash", input = command_string)
-
-
+    # Generate-new-paths
+    target_paths = file.path(dir$target, basename(src_files))
+    file.rename(src_files, target_paths)
+    cat(">> Generated", length(target_paths), "for pattern:", dir$pattern, "\n", sep=" ")
   }
-  # tictoc::toc()
 }

@@ -44,8 +44,9 @@ sim_all_ext <- function(params, path_core) {
     bray_curtis <- 1 - (2 * sum(pmin(x, x_end))) / (sum(x) + sum(x_end))
 
     # Count secondary extinctions
-    # FIXME
-    new_ext <- sum(x_end == 0 & x != 0)
+    # All that was live before (x > 1e-06)
+    # But now is dead (x <= 1e-06)
+    new_ext <- sum(x_end <= 1e-6 & x > 1e-6)
 
     # Compute keystoneness
     props <- x_end / sum(x_end) # final population proportions
@@ -55,17 +56,17 @@ sim_all_ext <- function(params, path_core) {
     ext_ts <- find_ts(new_out)
 
     row <- data.frame(
-      id = params$id,
       spec = i,                     # specie-extinct
       new_ext = new_ext,            # new-extinctions
-      BC_diss = bray_curtis,        # 
+      BC_diss = bray_curtis,        # Bray-Curtis
       K_s = K_s,                    # Keystoness
-      ext_ts = ext_ts
+      ext_ts = ext_ts               # Time-to-stability
     )
     df = rbind(df, row)
     ext_path <- paste0(path_core, "/E_", params$id, "-S", i, ".feather")          # Extinctions-paths
     arrow::write_feather(new_out, ext_path)                                       # Save-extinctions
   }
+  cat(">> Extinctions completed for", params$id, ".\n")
   return(df)
 }
 

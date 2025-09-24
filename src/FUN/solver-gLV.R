@@ -14,7 +14,7 @@ solve_gLV <- function(times, params) {
   
   # Define the gLV model
   glv_model <- function(t, x0, params) {
-    x0[x0 < 1e-8] <- 0 # Ignore the effect of species with population below a threshold
+    x0[x0 < 1e-6] <- 0 # Ignore the effect of species with population below a threshold
     
     # dx/dt = X *(r + A * X) + D
     dx <- (x0 * (params$mu + params$M %*% x0)) + 1e-6

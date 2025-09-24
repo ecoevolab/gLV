@@ -13,13 +13,11 @@
 
 #============================================================================
 # SECTION: Generate-ID-and-paths
-
-
 tictoc::tic("Section 0: Total running time")
 
 #' Indicate directories paths
-pdir <- "/home/mrivera"                                     # Parent-dir
-exp_id <- substr(ids::uuid(1, use_time = TRUE), 1, 13)      # exp-id
+pdir <- "/mnt/data/sur/users/mrivera"                                     # Parent-dir
+exp_id <- substr(ids::uuid(1, use_time = TRUE), 1, 13)                    # exp-id
 
 
 # Verify-experiment-unique-id
@@ -34,7 +32,7 @@ exp_dir <- file.path(res_dir, exp_id)                                           
 params_path <- file.path(pdir, "Data", paste0(exp_id, ".tsv"))                          # Parameters-TSV
 mc_dir <- file.path(res_dir, exp_id, "mc-apply")                                        # Workers-dir
 info_path <- file.path(res_dir, exp_id, "raw-sims.feather")                             # Information-TSV
-
+cat(">> The experiment path is:", exp_dir,"\n", sep="")
 
 #============================================================================
 #' First we generate the parameters for simulation:
@@ -45,7 +43,7 @@ tictoc::tic("Section 1: Time for Parameter Generation")
 #' Generate grid of parameters:
 #+ eval=FALSE
 generate_params <- function (){
-  reps = 2                                              # Replicas-per-combination
+  reps = 30                                               # Replicas-per-combination
   p_noint = seq(0, 1, by = 0.05)                          # interaction=0
   n_species = rep(c(20, 100), times = reps)               
   dt <- data.table::CJ(n_species, p_neg = 1, p_noint )
@@ -72,6 +70,11 @@ while (nrow(params_df) != length(unique(params_df$id))) {
 
 data.table::fwrite(x = params_df, file = params_path, sep = "\t", quote = FALSE, row.names = FALSE) # Save parameters
 message("\nParameteres generated and saved at path:\n", params_path, "\n")
+cat(">> The number of simulations is:", nrow(params_df),"\n", sep=" ")
+unique_species <- unique(params_df$n_species)
+rows_per_species <- nrow(params_df) / length(unique_species)
+result <- sum(unique_species * rows_per_species)
+cat(">> The number of extinctions to do is:", result,"\n", sep=" ")
 tictoc::toc() # For section 1
 
 #============================================================================
@@ -123,7 +126,7 @@ tictoc::toc() # For section 3
 
 #+ eval=FALSE
 # Source functions to:
-codes = list.files("/home/mrivera/gLV/src/FUN", full.names=TRUE)
+codes = list.files(file.path(pdir, "gLV/src/FUN" ), full.names=TRUE)
 
 lapply(codes, function(file){
   cat(">> Sourcing function: ", file, "\n")
@@ -136,28 +139,28 @@ lapply(codes, function(file){
 #' We wrap the code for parallelizing the simulations.
 #+ eval=FALSE
 # ==== Wrapper for running all required steps ====
-out_wrapper <- function(index, path_core) {
+wrapper <- function(index, path_core) {
 
-  # FIX testing
-  path_core = workers_ODE[1]
-  index=params_df[1,]
+  # Review: testing
+  # path_core = workers_ODE[1]
+  # index=params_df[1,]
   #=================== Output ===================
   params <- regenerate(index)                                               # Generate-parameters
   output <- solve_gLV(times = 1000, params)                                 # Run-simulation
   out_path <- file.path(path_core, paste0("O_", params$id, ".feather"))     # Simulation-path
   A_path <- file.path(path_core, paste0("A_", params$id, ".feather"))       # Mat-path
   arrow::write_feather(x = output, sink = out_path)                         # Saving-ODE
-  arrow::write_feather(as.data.frame(params$M), A_path)                     # Save-interactions-matrix
+  arrow::write_feather(as.data.frame(params$M), A_path)                     # Save-MAT
   
   #=================== Information ===================
   NA_count <- sum(is.na(output))                            # simulation-NAs
   tts_out <- find_ts(output)                                # time-to-stability OUTPUT
-  cat("Simulation ", params$id, " completed...\n")
+  cat(">> Simulation ", params$id, " completed.\n")
 
   #=================== Extinctions ===================
   params$x0 = output[,1000]                                                  # Stable-population
   preds_df = sim_all_ext(params, path_core)                                  # Generate-extinctions
-  tts_ext = max(preds_df$ext_ts)                                                  # time-to-stability EXTINCTIONS
+  tts_ext = max(preds_df$ext_ts)                                             # time-to-stability EXTINCTIONS
   preds_path <- paste0(path_core, "/Preds_", params$id, ".feather")          # Extinctions-paths
   arrow::write_feather(preds_df, preds_path) 
   
@@ -171,8 +174,8 @@ out_wrapper <- function(index, path_core) {
 # ==== Parallelize it ====
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
 
-# FIXME testing
-chunks <- split_table(params_df[1:27,], num_cores)
+# review testing
+# chunks <- split_table(params_df[1:27,], num_cores)
 
 sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
   
@@ -180,8 +183,7 @@ sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
 
   core_chunk <- chunks[[core_id]]  # rows assigned to this core
   result <- lapply(1:nrow(core_chunk), function(i) {
-    sims_wrapper(index = core_chunk[i, ], path_core = workers_ODE[core_id])
-    
+    wrapper(index = core_chunk[i, ], path_core = workers_ODE[core_id])
   })
   result <- data.table::rbindlist(result, use.names = TRUE) # Convert list to df
 
@@ -192,6 +194,7 @@ sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
 # Generate TSV file
 sims_info_df <- data.table::rbindlist(sims_info) # Convert list (of df) to df
 arrow::write_feather(sims_info_df, info_path)
+arrow::read_feather( info_path)
 tictoc::toc() # For section 4
 
 #============================================================================
@@ -199,13 +202,17 @@ tictoc::toc() # For section 4
 #' We create symbolic links of the simulation...
 #+ eval=FALSE
 tictoc::tic("Section 5: Generate symbolic links")
-gen_syml(source_dir = mc_dir, tgt_dir = exp_dir )
+gen_syml(mc_dir)
+unlink(mc_dir, recursive = TRUE)
 tictoc::toc() # For section 5
 
 tictoc::toc() # For Total running time
 
 
 
-# SECTION fixing
-tgt_dir = "/home/mrivera/Experiments/9a534200-823d"
-source_dir = "/home/mrivera/Experiments/9a534200-823d/mc-apply"
+# REVIEW fixing
+# params_df
+# dat = readr::read_tsv("/mnt/data/sur/users/mrivera/Data/2263e52c-8384.tsv")
+# sum(unique(dat$n_species) * (nrow(dat)/length(unique(dat$n_species))))                                            # number-extinctions-files TOTAL
+# tgt_dir = "/mnt/data/sur/users/mrivera/Experiments/4018ff92-8377/"
+# source_dir = "/mnt/data/sur/users/mrivera/Experiments/4018ff92-8377/mc-apply"
