@@ -5,6 +5,7 @@ import torch
 import torch.optim as optim
 from pathlib import Path
 import numpy as np
+import random
 
 def optimized_training_loop(n_epochs, train_data, model, criterion, optimizer, device, exp, train_id, 
                           save_dir='/home/mriveraceron/glv-research/GNN-params', seed=42,
