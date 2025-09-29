@@ -93,8 +93,8 @@ def optimized_training_loop(n_epochs, train_data, model, criterion, optimizer, d
             if use_mixed_precision and scaler is not None:
                 # Mixed precision forward pass
                 with autocast():
-                    out = model(batch)                          #  Use FP16 for forward pass
-                    loss = criterion(out, batch.y)              #  Use FP16 for loss computation
+                    out = model(batch)                          #  Use 16-bytes for forward pass
+                    loss = criterion(out, batch.y)              #  Use 32-bytes for loss computation
                 # Mixed precision backward pass
                 scaler.scale(loss).backward()                   # Scale gradients UP (FP16 if  (< 6e-5) then becomes 0)
                 # Gradient clipping
