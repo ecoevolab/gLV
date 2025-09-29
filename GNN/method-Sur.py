@@ -1,28 +1,11 @@
-import pandas as pd
 
+
+from pathlib import Path
+
+#=======================  Data loading =======================
 import os
 import subprocess
 
-import torch 
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader  
-from torch_geometric.nn import GCNConv
-from torch_geometric.nn import GraphConv
-
-from sklearn.metrics import mean_squared_error, r2_score
-import torch.nn.functional as F
-import torch.optim as optim
-import torch.nn as nn
-import rpy2.robjects as ro
-
-import numpy as np
-from datetime import datetime
-
-import time
-from pathlib import Path
-from proquint import uint2quint, quint2uint
-
-#=======================  Data loading =======================
 # Section: Mount-cluster
 remote = "/mnt/data/sur/users/mrivera"
 mount_p = "/home/mriveraceron/fenix_mount"
@@ -53,6 +36,13 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False      
 
 #==============================================
+import pandas as pd
+import numpy as np
+import random
+import torch 
+from torch_geometric.data import Data
+from proquint import uint2quint, quint2uint
+
 # Section: Generate-paths
 # Target-path
 exp = "c748247a-8dc2"
@@ -105,6 +95,10 @@ def load_single_data(exp_id, A_dir, tgt_path):
 
 
 #----------------------------------------------------------
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import GraphConv
+
 # SECTION: Define-GNN
 class simple_gnn_gcn(nn.Module):
     def __init__(self, num_node_features=1, hidden_channels=16,  num_predictions=1):
@@ -118,7 +112,6 @@ class simple_gnn_gcn(nn.Module):
         x = self.conv2(x, edge_index, edge_weight)
         return x.view(-1)  # [num_nodes]
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #----------------------------------------------------------
 # SECTION: Divide-data
 from torch_geometric.loader import DataLoader
@@ -138,53 +131,27 @@ val_data = [load_single_data(data_ids[idx], A_dir, tgt_dir) for idx in val_indic
 
 #----------------------------------------------------------
 # SECTION: Training-loop
-from torch_geometric.loader import DataLoader as GeometricDataLoader
-from torch.amp import GradScaler, autocast
-import time
-import torch 
 import torch.optim as optim
-from pathlib import Path
-import numpy as np
-import random
 
-import sys
-sys.path.append("/home/mriveraceron/glv-research/gLV/GNN/Loops")
-import training_src  # <-- no .py, exact file name
-
-from training_src import optimized_training_loop
+src_file = "/home/mriveraceron/glv-research/gLV/GNN/src-TrVal/training_src.py"
+exec(open(src_file).read())
 
 nlayer = 3
 neurons = 16
-
 model = simple_gnn_gcn(num_node_features=1, hidden_channels=neurons, num_predictions=1)
 criterion = nn.MSELoss()                                                # Loss function for regression
 optimizer = optim.Adam(model.parameters(), lr=0.01) 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+batch_size=16
 
-train_lines, final_save_path, best_model_path = optimized_training_loop(100, train_data, model, criterion, optimizer, device, exp, train_id, 
-                                                                        save_dir='/home/mriveraceron/glv-research/GNN-params', 
-                                                                        seed=seednum,
-                                                                        batch_size=16, use_mixed_precision=True, patience=20, 
-                                                                        save_every=50, gradient_clip_val=1.0)
-
-now = time.time()
-
-train_duration = time.time() - now 
+final_save_path, best_model_path = optimized_training_loop(100, train_data, model, criterion, optimizer, device, exp, train_id, 
+                          params_dir='/home/mriveraceron/glv-research/GNN-params', 
+                          logs_dir = '/home/mriveraceron/glv-research/GNN-Logs',
+                          seed=seednum, batch_size=batch_size, use_mixed_precision=True, patience=20, 
+                          save_every=50, gradient_clip_val=1.0, nlayer= nlayer, neurons= neurons)
 
 
-ltrain, final_path, best_path = optimized_training_loop(
-    n_epochs=100,
-    train_data=train_data,
-    model=model,
-    criterion=criterion,
-    optimizer=optimizer,
-    device=device,
-    exp=exp,
-    train_id=train_id,
-    batch_size=16,            # Process 16 graphs at once
-    use_mixed_precision=True, # 2x speedup on modern GPUs
-    patience=20,              # Early stopping after 20 epochs no improvement
-    save_every=25             # Save checkpoint every 25 epochs
-)
+
 
 
 
@@ -241,7 +208,6 @@ with open(log_txt, 'w') as file:
     file.write(f"Experiment ID: {exp}\n")
     file.write(f"The number of layer used is: {nlayer}\n")
     file.write(f"The number of neurons used is: {neurons}\n")
-    file.write(f"The time elapsed for training was: {train_duration:.2f} seconds\n")
     file.write("-" * 40 + "\n")
     file.writelines(ltrain)
     file.write("-" * 40 + "\n")
