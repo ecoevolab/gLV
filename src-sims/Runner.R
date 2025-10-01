@@ -21,7 +21,7 @@ exp_id <- substr(ids::uuid(1, use_time = TRUE), 1, 13)                    # exp-
 
 
 # Verify-experiment-unique-id
-res_dir <- file.path(pdir, "Experiments")                                               
+res_dir <- file.path(pdir, "Train-sims")                                               
 direx = basename(list.dirs(res_dir, recursive = FALSE))
 
 while (exp_id %in% direx)  {
@@ -43,7 +43,7 @@ tictoc::tic("Section 1: Time for Parameter Generation")
 #' Generate grid of parameters:
 #+ eval=FALSE
 generate_params <- function (){
-  reps = 30                                               # Replicas-per-combination
+  reps = 300                                               # Replicas-per-combination
   p_noint = seq(0, 1, by = 0.05)                          # interaction=0
   n_species = rep(c(20, 100), times = reps)               
   dt <- data.table::CJ(n_species, p_neg = 1, p_noint )
@@ -92,7 +92,8 @@ split_table <- function(df, n_chunks) {
   split(df, cut(seq_len(nrow(df)), breaks = n_chunks, labels = FALSE))
 }
 
-chunks <- split_table(params_df, num_cores)
+# TEST
+chunks <- split_table(params_df[1:27,], num_cores)
 message("\nData split completed...\n")
 tictoc::toc() # For section 2
 
@@ -161,7 +162,7 @@ wrapper <- function(index, path_core) {
   params$x0 = output[,1000]                                                  # Stable-population
   preds_df = sim_all_ext(params, path_core)                                  # Generate-extinctions
   tts_ext = max(preds_df$ext_ts)                                             # time-to-stability EXTINCTIONS
-  preds_path <- paste0(path_core, "/Preds_", params$id, ".feather")          # Extinctions-paths
+  preds_path <- paste0(path_core, "/tgt_", params$id, ".feather")          # Extinctions-paths
   arrow::write_feather(preds_df, preds_path) 
   
   return(list(id = params$id, na_ct = NA_count, tts_out = tts_out, tts_ext = tts_ext))
@@ -194,7 +195,7 @@ sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
 # Generate TSV file
 sims_info_df <- data.table::rbindlist(sims_info) # Convert list (of df) to df
 arrow::write_feather(sims_info_df, info_path)
-arrow::read_feather( info_path)
+# arrow::read_feather( info_path)
 tictoc::toc() # For section 4
 
 #============================================================================
@@ -203,6 +204,8 @@ tictoc::toc() # For section 4
 #+ eval=FALSE
 tictoc::tic("Section 5: Generate symbolic links")
 gen_syml(mc_dir)
+files=list.files(mc_dir, recursive=TRUE)
+i
 unlink(mc_dir, recursive = TRUE)
 tictoc::toc() # For section 5
 

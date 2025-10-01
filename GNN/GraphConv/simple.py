@@ -96,7 +96,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GraphConv
 
 class simple_gnn_gcn(nn.Module):
-    def __init__(self, num_node_features=1, hidden_channels=16,  num_predictions=1):
+    def __init__(self, num_node_features=1, hidden_channels=64,  num_predictions=1):
         super().__init__()
         self.conv1 = GraphConv(num_node_features, hidden_channels)
         self.conv2 = GraphConv(hidden_channels, num_predictions)
@@ -105,6 +105,7 @@ class simple_gnn_gcn(nn.Module):
         x = self.conv1(x, edge_index, edge_weight)
         x = F.relu(x)
         x = self.conv2(x, edge_index, edge_weight)
+        x = torch.sigmoid(x)  # Outputs between 0-1
         return x  # [num_nodes]
 
 #----------------------------------------------------------
@@ -128,32 +129,48 @@ val_data = [load_single_data(data_ids[idx], A_dir, tgt_dir) for idx in val_indic
 # Section: Plotting
 import matplotlib.pyplot as plt
 
-def plotter(x_axis = None, y_axis = None, path = None ):
+def loss_plotter(loss_epochs = None, epochs = None, path = None ):
     # After collecting your data
-    x_axis = np.concatenate(x_axis)  # predictions
-    y_axis = np.concatenate(y_axis)  # targets
+    y = np.round(loss_epochs, 3)
+    x = list(range(0, epochs))
     # Create scatter plot
     plt.figure(figsize=(8, 8))
-    plt.scatter(x_axis, y_axis, alpha=0.5)
+    plt.plot(x, y, alpha=0.5)
     # Add perfect prediction line (y=x)
-    min_val = min(x_axis.min(), y_axis.min())
-    max_val = max(x_axis.max(), y_axis.max())
-    plt.plot([min_val, max_val], [min_val, max_val], 'r--', label='Perfect prediction')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title('Loss over epochs')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    ymin = min(y) 
+    plt.ylim(ymin, max(y))
+    plt.xlim(0, max(x))
+    plt.savefig(path, dpi=150, bbox_inches='tight')
+
+def preds_plotter(preds = None, tgts = None, path = None ):
+    # After collecting your data
+    preds = np.concatenate(preds)  # predictions
+    tgts = np.concatenate(tgts)  # targets
+    # Create scatter plot
+    plt.figure(figsize=(8, 8))
+    plt.scatter(preds, tgts, alpha=0.5)
+   # Add perfect prediction line (y=x)
+    plt.plot([0,  float(max(tgts))], [0,  float(max(tgts))], 'r--', label='Perfect prediction')
     plt.xlabel('Predictions')
     plt.ylabel('True Values')
     plt.title('Predictions vs True Values')
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.axis('equal')  # Equal aspect ratio
+    plt.ylim(0, max(tgts))
+    plt.xlim(0, max(tgts))
     plt.tight_layout()
     plt.savefig(path, dpi=150, bbox_inches='tight')
-
 #--------------------------------------------------------
 # Section: Example-run
 import torch.optim as optim
 import time
 
-model = simple_gnn_gcn(num_node_features=1, hidden_channels=16, num_predictions=1).to('cuda' if torch.cuda.is_available() else 'cpu')
+model = simple_gnn_gcn(num_node_features=1, hidden_channels=72, num_predictions=1).to('cuda' if torch.cuda.is_available() else 'cpu')
 loss_fn = nn.MSELoss()                                                # Loss function for regression
 optimizer = optim.Adam(model.parameters(), lr=0.01) 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -161,9 +178,10 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 start_time = time.time()
 TR_load = DataLoader(train_data, batch_size=round(len(train_data)/10), shuffle=True)
 model.train()
-x_train = []
-y_train = []
-for epoch in range(100):
+x_train, y_train, loss_epochs  = [], [], []
+
+epochs=500
+for epoch in range(epochs):
     total_loss = 0
     num_samples = 0
     for data in TR_load:
@@ -175,17 +193,24 @@ for epoch in range(100):
         optimizer.step()
         total_loss += loss.item()   # Accumulate loss
         num_samples += data.num_graphs 
-        if epoch==99:
+        if epoch==(epochs-1):
             x_train.append(out.cpu().detach().numpy()) 
             y_train.append(data.y.cpu().detach().numpy())
-    avg_loss = total_loss / num_samples
-    print(f"Epoch {epoch}: Loss = {avg_loss:.4f}")
+    # avg_loss = total_loss / num_samples
+    loss_epochs.append(total_loss)
+    if epoch % 50 == 0:
+        print(f"Epoch {epoch}: Loss = {total_loss:.4f}")
 
 elapsed_time = time.time() - start_time
 print(f"Training completed in {elapsed_time:.2f} seconds")
 
-path =  '/home/mriveraceron/glv-research/plots/train-pred_tgt.png'
-plotter(x_axis = x_train, y_axis = y_train, path = '/home/mriveraceron/glv-research/plots/GraphConv-V1-training.png')
+# Version 1 is without sigmoid function
+# Version 2 is with it
+# Version 3 is with 1000 epochs
+preds_plotter(preds = x_train, tgts = y_train, path = '/home/mriveraceron/glv-research/plots/GraphConv-V4_sigmoid-train.png')
+loss_plotter(loss_epochs, epochs = 500, path = '/home/mriveraceron/glv-research/plots/GraphConv-LossEpochs.png')
+
+
 #----------------------------------------------------------
 # SECTION: Validation-loop
 model.eval()  # Set to evaluation mode
