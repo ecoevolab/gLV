@@ -24,6 +24,7 @@ def optimized_training_loop(n_epochs, train_data, model, criterion, optimizer, d
         f"Starting training\n"
         f"Timestamp: {formatted_time}\n"
         f"Experiment ID: {exp}\n"
+        f"Version: {train_id}\n"
         f"The number of layer used is: {nlayer}\n"
         f"The number of neurons used is: {neurons}\n"
         f"The batch size is: {batch_size}\n"
@@ -223,7 +224,7 @@ def optimized_training_loop(n_epochs, train_data, model, criterion, optimizer, d
     # Section: Save training logs
     log_path = Path(logs_dir, exp) / f'{train_id}_training.log'
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(log_path, 'a') as log_file:
+    with open(log_path, 'w') as log_file:
         log_file.writelines(train_lines)
         
     return final_save_path, best_model_path
