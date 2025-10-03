@@ -41,52 +41,80 @@ import pandas as pd
 import numpy as np
 import random
 import torch 
-from torch_geometric.data import Data
-from proquint import uint2quint, quint2uint
+from datetime import datetime
 
 # Section: Generate-paths
 # Target-path
 exp = "c748247a-8dc2"
-A_dir = os.path.join(mount_p, f"Experiments/{exp}/A-mat")
-tgt_dir = os.path.join(mount_p, f"Experiments/{exp}/Replica2/GNN-targets")
-data_path = os.path.join(mount_p, f"Data/{exp}.tsv")
-odes_path = os.path.join(mount_p, f"Experiments/{exp}/raw-ODEs/raw-ODEs-{exp}.tsv")
+# A_dir = os.path.join(mount_p, f"Experiments/{exp}/A-mat")
+# tgt_dir = os.path.join(mount_p, f"Experiments/{exp}/Replica2/GNN-targets")
+# data_path = os.path.join(mount_p, f"Data/{exp}.tsv")
+
+exp_dir = "/home/mriveraceron/fenix_mount/Train-sims/4379fd40-9f0a"
+A_dir = os.path.join(exp_dir, "A-mat")
+tgt_dir = os.path.join(exp_dir, "GNN-targets")
+odes_path = os.path.join(exp_dir, "raw-ODEs")
+data_path = os.path.join(exp_dir, "parameters-sims.tsv")
 
 # Generate quint for train_id
 seednum=42
 set_seed(seednum)  # Ensure reproducibility
-num = np.random.randint(0, 2**32 - 1)               # Random seed for train_id      
-train_id = uint2quint(num).split('-')[0]            # Generate quint
+
+# Generate ID for training.
+timeID = datetime.now().strftime("Y%YM%mD%d")
 
 #  Load-data
 data = pd.read_csv(data_path, sep="\t")             # Load data
 data_ids = data['id']                               # Extract ids
 
- 
-# SECTION: Function
-def load_single_data(exp_id, A_dir, tgt_path):
-    # Get weights (x)
-    A_path = os.path.join(A_dir, f"A_{exp_id}.feather")
+#------------------------------------------
+# SECTION: Load-function
+from torch_geometric.data import Data
+import pyarrow.feather as feather
+
+def load_single_data(id, A_dir, tgt_path):
+    # Load adjacency matrix 
+    A_path = os.path.join(A_dir, f"A_{id}.feather")
     A = pd.read_feather(A_path).to_numpy(dtype=np.float32)
-    A_tensor = torch.from_numpy(A.round(4))
-    # Adjacency-matrix in COO format ([2, num_edges])
-    edge_index = torch.nonzero(A_tensor, as_tuple=False).t().contiguous()
-    edge_weights = edge_weights = A_tensor[A_tensor != 0]  # Shape: (|E|,) - only actual edges
-    # Target-features                                                
-    tgt_path = os.path.join(tgt_dir, f"tgt_{exp_id}.feather")
-    tgt_numpy = pd.read_feather(tgt_path).filter(regex='^K_s').to_numpy(dtype=np.float32)
-    tgt_tensor = torch.from_numpy(tgt_numpy)
-    # Node-features
-    n = A_tensor.shape[0]
-    x_tensor = torch.ones(n,1)  
+    # Vector of edge weights
+    row_idx, col_idx = np.nonzero(A)
+    edge_weights = A[row_idx, col_idx]
+    # Convert to torch tensors efficiently
+    edge_index = torch.from_numpy(np.vstack([row_idx, col_idx]).astype(np.int32))
+    edge_weights = torch.from_numpy(edge_weights)
+    # Load target features 
+    tgt_path = os.path.join(tgt_dir, f"tgt_{id}.feather")
+    tgt_table =  feather.read_table(tgt_path, columns=['K_s'])
+    y_tensor = torch.from_numpy(tgt_table.to_pandas().to_numpy(dtype=np.float32))   
+    # Node features - simple ones vector
+    n = A.shape[0]
+    x_tensor = torch.ones(n, 1, dtype=torch.float32)
+    # Clean up large intermediate
+    del A, tgt_table
     # Create Data object
     data = Data(
-        x= x_tensor,
-        edge_weights = edge_weights,
-        edge_index = edge_index,
-        y=tgt_tensor
+        x=x_tensor,
+        edge_weights=edge_weights,
+        edge_index=edge_index,
+        y=y_tensor
     )
     return data
+
+#----------------------------------------------------------
+# Section: Parallelizing-data-loading
+
+from concurrent.futures import ThreadPoolExecutor
+
+def generate_data_parallel(idx, A_dir, tgt_dir, num_workers=4):  # idx is a list
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        data_list = list(executor.map(
+            load_single_data,           
+            idx,                       # List of IDs to iterate over
+            [A_dir]*len(idx),          # Repeat A_dir for each ID
+            [tgt_dir]*len(idx)         # Repeat tgt_dir for each ID
+        ))
+    return data_list
+
 
 #----------------------------------------------------------
 # SECTION: Define-GNN
@@ -108,6 +136,59 @@ class simple_gnn_gcn(nn.Module):
         x = torch.sigmoid(x)  # Outputs between 0-1
         return x  # [num_nodes]
 
+
+#----------------------------------------------------------
+from tqdm import tqdm
+import time
+
+def train_batches(tidx, batch_size = 1000, epochs=500):
+    num_batches = (len(tidx) + batch_size - 1) // batch_size
+    start = time.time()
+    model.train()
+    # Empty lists for predictions, targets, loss at each epoch
+    x_train, y_train, loss_epochs  = [], [], []
+    for i in tqdm(range(0, len(tidx), batch_size), total=num_batches, desc="Loading batches"):
+        data = [load_single_data(data_ids[id], A_dir, tgt_dir) for id in tidx[i:i + batch_size]]             # First 80 after shuffling
+        Dloaded = DataLoader(data, batch_size=round(len(data)/10), shuffle=True)
+        for epoch in range(epochs):
+            total_loss = 0
+            for data in Dloaded:
+                optimizer.zero_grad()
+                data = data.to(device)
+                out = model(data)
+                loss = loss_fn(out, data.y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()   # Accumulate loss
+                if epoch==(epochs-1):
+                    x_train.append(out.cpu().detach().numpy()) 
+                    y_train.append(data.y.cpu().detach().numpy())
+            loss_epochs.append(total_loss)
+            if epoch % 200 == 0:
+                print(f"Epoch {epoch}: Loss = {total_loss:.4f}")
+    elapsed_time = time.time() - start
+    print(f"Elapsed time for batching and training with batch: {elapsed_time:.2f}")
+
+# Testing purpose 
+train_batches(train_indices[:1000], batch_size = 100, epochs=500)
+len(train_indices)
+tidx = train_indices[:1000]
+batch_size, epochs = 100, 500 
+
+#-----------------------------------------------------------
+num_batches = (len(x) + batch_size - 1) // batch_size
+
+for i in tqdm(range(0, len(x), batch_size), total=num_batches, desc="Loading batches"):
+    batch_ids = [data_ids[idx] for idx in x[i:i + batch_size]]
+   
+    data = generate_data_parallel(batch_ids, A_dir, tgt_dir, num_workers=8)            # First 80 after shuffling
+    par_time = time.time() - start
+    print(f">> The not parallelized time is of: {not_par_time:.2f}, while the parallel time is of: {par_time:.2f}")
+
+
+data = generate_data_parallel(data_ids[idx], A_dir, tgt_dir) for idx in train_indices[i:i + batch_size]
+
+
 #----------------------------------------------------------
 # SECTION: Divide-data
 from torch_geometric.loader import DataLoader
@@ -122,6 +203,22 @@ indx = round(len(indices) * .8)
 train_indices = indices[:indx]            # First 80 shuffled indices
 val_indices = indices[indx:]              # Last 20 shuffled indices
 
+# test
+batch_size = 1000
+num_batches = (len(indices) + batch_size - 1) // batch_size
+id = data_ids[1]
+train_data = generate_data_parallel(train_indices, data_ids, A_dir, tgt_dir, num_workers=4)
+
+
+
+# Estimate memory per sample
+mem_per_sample = sys.getsizeof(sample_data) / 100 / (1024**2)  # MB
+total_mem_estimate = mem_per_sample * 10000  # MB for full dataset
+
+print(f"Estimated memory for 10k samples: {total_mem_estimate:.2f} MB")
+
+
+test = data_ids[train_indices[1]]
 train_data = [load_single_data(data_ids[idx], A_dir, tgt_dir) for idx in train_indices]             # First 80 after shuffling
 val_data = [load_single_data(data_ids[idx], A_dir, tgt_dir) for idx in val_indices]                 # Remaining 20 for validation
 
