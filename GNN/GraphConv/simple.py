@@ -252,7 +252,7 @@ def preds_plotter(preds = None, tgts = None, path = None ):
     plt.figure(figsize=(8, 8))
     plt.scatter(preds, tgts, alpha=0.5)
    # Add perfect prediction line (y=x)
-    plt.plot([0,  float(max(tgts))], [0,  float(max(tgts))], 'r--', label='Perfect prediction')
+    plt.plot([0,  np.max(tgts)], [0,  np.max(tgts)], 'r--', label='Perfect prediction')
     plt.xlabel('Predictions')
     plt.ylabel('True Values')
     plt.title('Predictions vs True Values')
@@ -304,8 +304,8 @@ print(f"Training completed in {elapsed_time:.2f} seconds")
 # Version 1 is without sigmoid function
 # Version 2 is with it
 # Version 3 is with 1000 epochs
-preds_plotter(preds = x_train, tgts = y_train, path = '/home/mriveraceron/glv-research/plots/GraphConv-V4_sigmoid-train.png')
-loss_plotter(loss_epochs, epochs = 500, path = '/home/mriveraceron/glv-research/plots/GraphConv-LossEpochs.png')
+preds_plotter(preds = x_train, tgts = y_train, path = '/home/mriveraceron/glv-research/plots/GraphConv-pred_tgt-train.png')
+loss_plotter(loss_epochs, epochs = 500, path = '/home/mriveraceron/glv-research/plots/GraphConv-LossEpochs-train.png')
 
 
 #----------------------------------------------------------
@@ -316,8 +316,8 @@ num_samples = 0
 
 start_time = time.time()
 Val_load = DataLoader(val_data, batch_size=round(len(val_data)/10))
-x_val = []
-y_val = []
+x_val, y_val = [], []
+
 with torch.no_grad():  # Disable gradient computation
     for data in Val_load:
         data = data.to(device)
@@ -333,4 +333,4 @@ print(f"Validation Loss = {avg_loss:.4f}")
 elapsed_time = time.time() - start_time
 print(f"Validation completed in {elapsed_time:.2f} seconds")
 
-plotter(x_axis = x_val, y_axis = y_val, path = '/home/mriveraceron/glv-research/plots/GraphConv-V1-validation.png')
+preds_plotter(preds = x_train, tgts = y_train, path = '/home/mriveraceron/glv-research/plots/GraphConv-pred_tgt-val.png')
