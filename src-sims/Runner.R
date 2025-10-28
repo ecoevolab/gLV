@@ -205,7 +205,6 @@ tictoc::toc() # For section 4
 tictoc::tic("Section 5: Generate symbolic links")
 gen_syml(mc_dir)
 files=list.files(mc_dir, recursive=TRUE)
-i
 unlink(mc_dir, recursive = TRUE)
 tictoc::toc() # For section 5
 
