@@ -1,5 +1,7 @@
 # Ignore everything
 *
+*.qmd
+*.html
 
 # But not these files...
 !*.py
