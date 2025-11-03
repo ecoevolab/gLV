@@ -126,19 +126,13 @@ tictoc::toc() # For section 3
 
 #+ eval=FALSE
 # Source functions to:
-codes = list.files('/mnt/data/sur/users/mrivera/gLV/src-sims/FUN', full.names=TRUE)
+codes = list.files('/mnt/data/sur/users/mrivera/gLV/src-sims/CTRL_FUN', full.names=TRUE)
 
 lapply(codes, function(file){
   cat(">> Sourcing function: ", file, "\n")
   capture.output(source(file))
   return()
 })
-
-# Test: Lines for testing
-path = '/mnt/data/sur/users/mrivera/Controls/C0-exp_20251102/Simultation-parameters.tsv'
-x = data.table::fread(path)
-index = x[1,]
-params = regenerate(index)
 
 #============================================================================
 # SECTION: Wrap-functions
