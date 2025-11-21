@@ -35,35 +35,37 @@ ctrl_regenerate <- function(index) {
   keystone <- as.numeric(index[["keys"]])
 
   #--------------------Interactions-------------------------#
+  # Create matrix of TRUE for off-diagonal positions
+  mask <- matrix(TRUE, n_species, n_species)
+  diag(mask) <- FALSE             # remove diagonal
+  mask[keystone, ] <- FALSE       # remove row k
+  M <- matrix(0, n_species, n_species)            # matrix to fill
+
   # Define proportions for zero 
   p_noint <- as.numeric(index[["p_noint"]])
 
-  # Create matrix with NA values and fill the diagonal with -0.5
-  M <- matrix(NA, nrow = n_species, ncol = n_species)
+  # Total number of off-diagonal elements excluding row k
+  # (n**2 - n) is the number of off-diagonal elements
+  # (n-1) removes the elements in row k
+  # (n**2 - n) - (n-1) = n**2 - 2*n + 1
+  total = (n_species**2) - (2 * n_species) + 1 
 
   # Define the number of interactions
-  total <- n_species * (n_species - 1)     # Total off-diagonal elements
-  num_noint <- floor(p_noint * total)      # null-interactions
-
-  # Negative-non-zero interactions
-  num_negs <- total - num_noint       
+  num_noint <- floor(p_noint * total)     # null-interactions
+  num_negs <- total - num_noint           # negative-interactions  
 
   # Create the interaction vector
   set.seed(as.numeric(index[["A_seed"]]))
   interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1))
+  interaction_values <- sample(interaction_values)  # Shuffle the interaction vector
   
-  # Shuffle the interaction vector
-  interaction_values <- sample(interaction_values)
-  
-  # Assign to off-diagonal elements
-  M[upper.tri(M, diag = FALSE) | lower.tri(M, diag = FALSE)] <- interaction_values
-  
-  # Add keystone interactions  
-  M[keystone,] = runif(n_species, min = 0.8, max = 1)
-  diag(M) <- -0.5
+  # Assign values
+  M[mask] <- interaction_values                         # off-diagonal and no keystone interactions 
+  M[keystone,] = runif(n_species, min = 0.8, max = 1)   # Add keystone interactions 
+  diag(M) <- -0.5                                       # Diagonal
 
   # Optional: Round if needed
-  M <- round(M, digits = 5)
+  M <- round(M, digits = 4)
 
   # Extract ID
   id <- index[["id"]]
