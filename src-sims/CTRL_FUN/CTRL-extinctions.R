@@ -28,7 +28,7 @@
 #' result <- sim_all_ext(output, params)
 #'
 
-sim_all_ext <- function(params, path_core) {
+ctrl_all_ext <- function(params, path_core) {
   
   # Function to simulate extinction for a single species
   x = params$x0

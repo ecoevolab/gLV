@@ -18,7 +18,7 @@ tictoc::tic("Section 0: Total running time")
 #' Indicate directories paths
 pdir <- '/mnt/data/sur/users/mrivera/Controls'                              # Parent-dir
 # exp_id <- substr(ids::uuid(1, use_time = TRUE), 1, 13)                    # exp-id
-exp_id <- paste0('C0-', 'exp_', format(Sys.Date(), "%Y%m%d")) 
+exp_id <- paste0('exp_', format(Sys.Date(), "%Y%m%d")) 
 exp_dir = file.path(pdir, exp_id)
 
 # Verify-experiment-unique-id                                            
