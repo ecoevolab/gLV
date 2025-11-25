@@ -32,17 +32,14 @@ ctrl_regenerate <- function(index) {
   mu <- stats::runif(n_species, min = 0.001, max = 1)
   
   #------------------Keystone specie-------------------------#
-  keystone <- as.numeric(index[["keys"]])
+  k <- as.numeric(index[["keys"]])
 
   #--------------------Interactions-------------------------#
   # Create matrix of TRUE for off-diagonal positions
   mask <- matrix(TRUE, n_species, n_species)
-  diag(mask) <- FALSE             # remove diagonal
-  mask[keystone, ] <- FALSE       # remove row k
+  diag(mask) <- FALSE                             # remove diagonal
+  mask[k, ] <- FALSE                              # remove row k
   M <- matrix(0, n_species, n_species)            # matrix to fill
-
-  # Define proportions for zero 
-  p_noint <- as.numeric(index[["p_noint"]])
 
   # Total number of off-diagonal elements excluding row k
   # (n**2 - n) is the number of off-diagonal elements
@@ -51,32 +48,21 @@ ctrl_regenerate <- function(index) {
   total = (n_species**2) - (2 * n_species) + 1 
 
   # Define the number of interactions
+  p_noint <- as.numeric(index[["p_noint"]])
   num_noint <- floor(p_noint * total)     # null-interactions
   num_negs <- total - num_noint           # negative-interactions  
 
-  # Create the interaction vector
+  # Interaction values
   set.seed(as.numeric(index[["A_seed"]]))
-  interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1))
-  interaction_values <- sample(interaction_values)  # Shuffle the interaction vector
-  
-  # Assign values
-  M[mask] <- interaction_values                         # off-diagonal and no keystone interactions 
-  M[keystone,] = runif(n_species, min = 0.8, max = 1)   # Add keystone interactions 
-  diag(M) <- -0.5                                       # Diagonal
+  values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1))
+  values <- sample(values)  # Shuffle 
 
-  # Optional: Round if needed
+  # Assign values
+  M[mask] <- values                              # off-diagonal and no keystone interactions 
+  M[k,] = runif(n_species, min = 0.8, max = 1)   # Add keystone interactions 
+  diag(M) <- -0.5                                # Diagonal
   M <- round(M, digits = 4)
 
-  # Extract ID
-  id <- index[["id"]]
-  
-  # Return parameters as a list
-  params <- list(x0 = x0,
-                 M = M,
-                 mu = mu,
-                 id = id,
-                 n = n_species,
-                 key = keystone)
-  
-  return(params)
+  # Return parameters as a list  
+  return(list(x0 = x0, M = M, mu = mu, id = index[["id"]], n = n_species, keystone = k))
 }

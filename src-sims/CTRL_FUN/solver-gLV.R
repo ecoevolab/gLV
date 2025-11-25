@@ -52,7 +52,6 @@ solve_gLV <- function(times, params) {
       as.data.frame() |>     # convert to df
       # Populations that went extinct (no effect)
       dplyr::mutate(across(everything(), ~ replace(., . < 1e-8, 0))) 
-    
     return(tmp)
   }
   

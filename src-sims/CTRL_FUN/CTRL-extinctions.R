@@ -30,41 +30,45 @@
 
 ctrl_all_ext <- function(params, path_core) {
   
-  # Function to simulate extinction for a single species
-  x = params$x0
-  df = data.frame()
-  for(i in seq_along(x)){
-    x_new = x
-    x_new[i] = 0                # extinct-specie i
-    params$x0 = x_new           # update params
-    new_out = solve_gLV(times = 1000, params)
-    x_end = new_out[,1000]
+  n_species <- params$n
+  x_before <- params$x0                              # Non perturbated populations  
+  keystoness_props <- x_before / sum(x_before)       # Proportions for keystoneness
 
-    # Compute Bray-Curtis dissimilarity
-    bray_curtis <- 1 - (2 * sum(pmin(x, x_end))) / (sum(x) + sum(x_end))
-
-    # Count secondary extinctions
-    # All that was live before (x > 1e-06)
-    # But now is dead (x <= 1e-06)
-    new_ext <- sum(x_end <= 1e-6 & x > 1e-6)
-
-    # Compute keystoneness
-    props <- x_end / sum(x_end) # final population proportions
-    K_s <- bray_curtis * (1 - props[i])
-
-    # Time to Stability
-    ext_ts <- find_ts(new_out)
-
-    row <- data.frame(
-      spec = i,                     # specie-extinct
-      new_ext = new_ext,            # new-extinctions
-      BC_diss = bray_curtis,        # Bray-Curtis
-      K_s = K_s,                    # Keystoness
-      ext_ts = ext_ts               # Time-to-stability
+  # Pre-allocate data frame
+  df <- data.frame(
+    spec = integer(n_species),
+    new_ext = integer(n_species),
+    BC_diss = numeric(n_species),
+    K_s = numeric(n_species),
+    ext_ts = numeric(n_species)
+  )
+  for(i in seq_len(n_species)) {
+    # Remove species i 
+    tmp_params <- list(
+      x0 = params$x0[-i],
+      mu = params$mu[-i],
+      M = params$M[-i, -i, drop = FALSE]
     )
-    df = rbind(df, row)
-    ext_path <- paste0(path_core, "/E_", params$id, "-S", i, ".feather")          # Extinctions-paths
-    arrow::write_feather(new_out, ext_path)                                       # Save-extinctions
+    # Run simulation
+    new_out <- solve_gLV(times = 1000, tmp_params)
+    x_after <- new_out[, ncol(new_out)]                 # Last column 
+    # Section: Extinctions
+    extinct_after <- x_after <= 1e-6                    # extinct after perturbation DIED
+    extinct_before <- tmp_params$x0 > 1e-6              # extinct before perturbation WERE ALIVE
+    new_ext <- sum(extinct_after & extinct_before)      # new extinctions
+    # Section: Bray-Curtis dissimilarity 
+    sum_x_after <- sum(x_after)
+    sum_x_before <- sum(tmp_params$x0)
+    bray_curtis <- 1 - (2 * sum(pmin(tmp_params$x0, x_after))) / (sum_x_before + sum_x_after)
+    # Section: Keystoneness 
+    K_s <- bray_curtis * (1 - keystoness_props[i])
+    # Time to stability
+    ext_ts <- find_stability(new_out)
+    # Fill pre-allocated data frame
+    df[i, ] <- list(i, new_ext, bray_curtis, K_s, ext_ts)
+    # Save output
+    ext_path <- file.path(path_core, sprintf("E_%s-S%d.feather", params$id, i))
+    arrow::write_feather(as.data.frame(new_out), ext_path)
   }
   cat(">> Extinctions completed for", params$id, ".\n")
   return(df)

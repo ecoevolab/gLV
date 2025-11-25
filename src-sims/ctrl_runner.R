@@ -19,20 +19,12 @@ tictoc::tic("Section 0: Total running time")
 pdir <- '/mnt/data/sur/users/mrivera/Controls'                              # Parent-dir
 # exp_id <- substr(ids::uuid(1, use_time = TRUE), 1, 13)                    # exp-id
 exp_id <- paste0('exp_', format(Sys.Date(), "%Y%m%d")) 
-exp_dir = file.path(pdir, exp_id)
-
-# Verify-experiment-unique-id                                            
-i=1
-while (exp_dir %in% list.dirs(pdir, recursive=TRUE))  {
-  exp_id <- paste0('R', i, '-exp_', format(Sys.Date(), "%Y%m%d"))
-  exp_dir = file.path(pdir, exp_id) 
-  i = i+1
-}                                           
+exp_dir = file.path(pdir, exp_id)                                      
 
 # Create directory experiment directory
 dir.create(exp_dir)   
 mc_dir <- file.path(exp_dir, "mc-apply")                                        # Workers-dir
-info_path <- file.path(exp_dir, "Summary-simulations.feather")                             # Information-TSV
+info_path <- file.path(exp_dir, "Summary-simulations.feather")                  # Information-TSV
 cat(">> The experiment path is:", exp_dir,"\n", sep="")
 
 #============================================================================
@@ -46,7 +38,7 @@ tictoc::tic("Section 1: Time for Parameter Generation")
 library(data.table)
 
 generate_params <- function (){
-  reps = 1000         
+  reps = 3     #FIXME     
   dt <-data.frame(p_noint = rep(0.7, reps), n_species = rep(30, reps), keys = sample(1:30, reps, replace = TRUE))
   dt <- as.data.table(dt)  # Convert to data.table
   all_seeds <- sample.int(3e6L, 3L * reps, replace = FALSE)
@@ -60,21 +52,24 @@ generate_params <- function (){
   
   return(dt)
 }
-
-# Verify if ids are unique and in case they are, save the parameters.
+# Generate unique parameters 
 params_df <- generate_params()
-while (nrow(params_df) != length(unique(params_df$id))) {
-    params_df <- generate_params() # Repeat function
+n_unique <- uniqueN(params_df$id)  
+
+while (nrow(params_df) != n_unique) {
+  params_df <- generate_params()
+  n_unique <- uniqueN(params_df$id)
 }
 
 # Save parameters
-params_path = file.path(exp_dir, "Simultation-parameters.tsv")
-data.table::fwrite(x = params_df, file = params_path, sep = "\t", quote = FALSE, row.names = FALSE) # Save parameters
-message("\nParameteres generated and saved at path:\n", params_path, "\n")
-cat(">> The number of simulations is:", nrow(params_df),"\n", sep=" ")
+params_path <- file.path(exp_dir, "Simulation-parameters.tsv")  
+data.table::fwrite(params_df, params_path, sep = "\t")  
+message("\nParameters generated and saved at path:\n", params_path)
 
-# Calculate extinctions
-cat(">> The number of extinctions to do is:", 30*1000,"\n", sep=" ")
+# Print summary
+n_sims <- nrow(params_df)
+cat(">> The number of simulations is:", n_sims, "\n")
+cat(">> The number of extinctions to do is:", n_sims * 30, "\n")  
 tictoc::toc() # For section 1
 
 #============================================================================
@@ -86,6 +81,7 @@ tictoc::tic("Section 2: Divide data into chunks")
 
 library(parallel)
 num_cores <- parallel::detectCores() - 1  # Use one less than the total number of cores
+num_cores = 5 #FIXME
 cat("The number of cores that will be used are: ", num_cores, "\n")
 
 split_table <- function(df, n_chunks) {
@@ -138,33 +134,33 @@ lapply(codes, function(file){
 # SECTION: Wrap-functions
 #' We wrap the code for parallelizing the simulations.
 #+ eval=FALSE
-# ==== Wrapper for running all required steps ====
 wrapper <- function(index, path_core) {
-
-  # Review: testing
-  # path_core = workers_ODE[1]
-  # index=params_df[1,]
-  #=================== Output ===================
-  params <- ctrl_regenerate(index)                                               # Generate-parameters
-  output <- solve_gLV(times = 1000, params)                                 # Run-simulation
-  out_path <- file.path(path_core, paste0("O_", params$id, ".feather"))     # Simulation-path
-  A_path <- file.path(path_core, paste0("A_", params$id, ".feather"))       # Mat-path
-  arrow::write_feather(x = output, sink = out_path)                         # Saving-ODE
-  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)          # Saving-Matrix
-  
-  #=================== Information ===================
-  NA_count <- sum(is.na(output))                            # simulation-NAs
-  tts_out <- find_ts(output)                                # time-to-stability OUTPUT
-  cat(">> Simulation ", params$id, " completed.\n")
-
-  #=================== Extinctions ===================
-  params$x0 = output[,1000]                                                  # Stable-population
-  preds_df = sim_all_ext(params, path_core)                                  # Generate-extinctions
-  tts_ext = max(preds_df$ext_ts)                                             # time-to-stability EXTINCTIONS
-  preds_path <- paste0(path_core, "/tgt_", params$id, ".feather")            # Extinctions-paths
-  arrow::write_feather(preds_df, preds_path) 
-  
-  return(list(id = params$id, na_ct = NA_count, tts_out = tts_out, tts_ext = tts_ext))
+  #============== Generate parameters ===============
+  params <- ctrl_regenerate(index)
+  id_str <- params$id
+  #============== Build paths ===============
+  out_path <- file.path(path_core, paste0("O_", id_str, ".feather"))
+  A_path <- file.path(path_core, paste0("A_", id_str, ".feather"))
+  preds_path <- file.path(path_core, paste0("tgt_", id_str, ".feather"))
+  #============== Run simulation ===============
+  output <- solve_gLV(times = 1000, params)
+  #============== Write files ===============
+  arrow::write_feather(output, out_path)
+  arrow::write_feather(as.data.frame(params$M), A_path)
+  #============== Information ===============
+  NA_count <- sum(is.na(output))  # Keep for counting
+  tts_out <- find_stability(output)
+  cat(">> Simulation", id_str, "completed.\n")
+  #============== Extinctions ==============
+  params$x0 <- output[, 1000]                         # Stable-population 
+  preds_df <- sim_all_ext(params, path_core)          # Generate-extinctions
+  arrow::write_feather(preds_df, preds_path)          # Save predictions
+  list(
+    id = id_str,
+    na_ct = NA_count,
+    tts_out = tts_out,
+    tts_ext = max(preds_df$ext_ts)
+  )
 }
 
 #============================================================================

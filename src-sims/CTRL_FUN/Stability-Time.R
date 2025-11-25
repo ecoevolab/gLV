@@ -14,27 +14,19 @@
 #' @return A numeric value representing the **stability time** of the community. This is the time at which the species' frequencies 
 #'         stabilize, based on the condition of having 10 successive time points with absolute changes less than or equal to 0.05.
 #'
-find_ts <- function(output) {
+find_stability <- function(output, threshold = 0.05, min_length = 10) {
   
   # Apply the logic across each row of output
-  x <- vapply(1:nrow(output), function(i) {
-    row <- as.numeric(output[i, ])
-    
-    # Identify differences less than or equal to 0.05
-    test <- abs(diff(row)) <= 0.05
-    rle_res <- rle(test)  # Run-length encoding
-    
-    # Find the positions where TRUE values have length >= 10
-    valid_runs <- which(rle_res$values == TRUE & rle_res$lengths >= 10)
-    
-    # Identify the starting positions (adjusted for diff)
-    if (length(valid_runs) > 0) {
-      t <- sum(rle_res$length[-valid_runs]) + 1
-    } else {
-      t <- NA  # In case no valid runs are found
-    }
-    return(t)
-  }, FUN.VALUE = numeric(1))  # Pre-allocate to numeric vector
+  x <-  apply(output, 1, function(row) {
+    test <- abs(diff(row)) <= threshold
+      rle_res <- rle(test)
+      valid_idx <- which(rle_res$values & rle_res$lengths >= min_length)[1]
+      
+      if (is.na(valid_idx)) return(NA_real_)
+      if (valid_idx == 1) return(1)  # Edge case: stable from start
+      
+      sum(rle_res$lengths[seq_len(valid_idx - 1)]) + 1
+  })
   
   # Return the maximum time
   max(x, na.rm = TRUE)  # Ensure that NA values are ignored
