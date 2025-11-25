@@ -28,7 +28,7 @@
 #' result <- sim_all_ext(output, params)
 #'
 
-ctrl_all_ext <- function(params, path_core) {
+generate_extinctions <- function(params, path_core) {
   
   n_species <- params$n
   x_before <- params$x0                              # Non perturbated populations  

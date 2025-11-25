@@ -38,7 +38,7 @@ tictoc::tic("Section 1: Time for Parameter Generation")
 library(data.table)
 
 generate_params <- function (){
-  reps = 3     #FIXME     
+  reps = 1000
   dt <-data.frame(p_noint = rep(0.7, reps), n_species = rep(30, reps), keys = sample(1:30, reps, replace = TRUE))
   dt <- as.data.table(dt)  # Convert to data.table
   all_seeds <- sample.int(3e6L, 3L * reps, replace = FALSE)
@@ -81,7 +81,9 @@ tictoc::tic("Section 2: Divide data into chunks")
 
 library(parallel)
 num_cores <- parallel::detectCores() - 1  # Use one less than the total number of cores
-num_cores = 5 #FIXME
+if (num_cores > nrow(params_df)) {
+  num_cores <- nrow(params_df)
+}
 cat("The number of cores that will be used are: ", num_cores, "\n")
 
 split_table <- function(df, n_chunks) {
@@ -153,7 +155,7 @@ wrapper <- function(index, path_core) {
   cat(">> Simulation", id_str, "completed.\n")
   #============== Extinctions ==============
   params$x0 <- output[, 1000]                         # Stable-population 
-  preds_df <- sim_all_ext(params, path_core)          # Generate-extinctions
+  preds_df <- generate_extinctions(params, path_core)          # Generate-extinctions
   arrow::write_feather(preds_df, preds_path)          # Save predictions
   list(
     id = id_str,
@@ -170,18 +172,22 @@ wrapper <- function(index, path_core) {
 # ==== Parallelize it ====
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
 
-sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
-  
+sims_info <- parallel::mclapply(seq_len(num_cores), function(core_id) {
+
   message("Starting worker ", core_id, "....\n")
+  # Get chunk for this core
+  core_chunk <- chunks[[core_id]]
+  n_rows <- nrow(core_chunk)
 
-  core_chunk <- chunks[[core_id]]  # rows assigned to this core
-  result <- lapply(1:nrow(core_chunk), function(i) {
-    wrapper(index = core_chunk[i, ], path_core = workers_ODE[core_id])
-  })
-  result <- data.table::rbindlist(result, use.names = TRUE) # Convert list to df
+  # Pre-allocate list for results
+  result <- vector("list", n_rows)
+  path_core <- workers_ODE[core_id]  
 
+  for (i in seq_len(n_rows)) {
+    result[[i]] <- wrapper(index = core_chunk[i, ], path_core = path_core)
+  }
   message("Ending worker ", core_id, "....\n")
-  return(result)
+  data.table::rbindlist(result, use.names = TRUE) # Return list as df
 }, mc.cores = num_cores)
 
 # Generate TSV file
