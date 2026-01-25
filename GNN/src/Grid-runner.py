@@ -30,7 +30,7 @@ for m in mods_files:
 # Architecture list
 # --------------------------
 arch_config = {
-    1: ('GATConv', ModelGATConv, {'h': 5}),
+    1: ('GATConv', ModelGATConv, {'h': 5, 'concat': False}),
     2: ('GCNConv', ModelGCNConv, {}),
     3: ('GraphConv', ModelGraphConv, {})
 }
@@ -40,7 +40,7 @@ arch_config = {
 import pandas as pd
 
 rows = []
-COLUMNS = ['channels', 'layers', 'arch', 'tr_acc', 'tr_time', 'train_NaN', 'val_acc', 'val_time']
+COLUMNS = ['channels', 'layers', 'arch', 'tr_acc', 'tr_time', 'tr_NaN', 'val_acc', 'val_time']
 model_list = []               # List to hold models
 for params in grid:
     ch = params['hidden_channels']      # channels
@@ -49,7 +49,7 @@ for params in grid:
         arch_name, ModelClass, extra_kwargs = arch_config[n]                # architecture, model class, extra arguments
         m = ModelClass(hidden_channels=ch, num_layers=l, **extra_kwargs)    # Assign model
         model_list.append(m)                                                # Append to model list             
-        rows.append({'channels': ch, 'layers': l, 'arch': arch_name, 'tr_acc': None, 'tr_time': None, 'train_NaN': None, 'val_acc': None, 'val_time': None})
+        rows.append({'channels': ch, 'layers': l, 'arch': arch_name, 'tr_acc': None, 'tr_time': None, 'tr_NaN': None, 'val_acc': None, 'val_time': None})
 
 df = pd.DataFrame(rows)  # Convert to DataFrame
 df
@@ -58,8 +58,49 @@ df
 # TRAINING AND VALIDATION
 # =============================================================================
 
-src_dir = Path('/home/mriveraceron/glv-research/gLV/GNN/architectures')
-mods_files = src_dir.glob('training_fun.py')
+import torch
+import time
+
+def training_fn(model, device, batched_paths, loss_fn, optimizer, epochs=100):
+    model.train()
+    loss_history  =  []         # Loss at epoch
+    total_elapsed = 0           # Running time
+    best_epoch = 0              # Best epoch
+    best_loss = float('inf')    # Best loss
+    for iter in range(1, epochs+1):
+        start = time.time()
+        epoch_loss = 0
+        for path in batched_paths:
+            data_list = torch.load(path, weights_only=False)          
+            for data in data_list:
+                data = data.to(device)
+                optimizer.zero_grad()
+                out = model(data)
+                loss = loss_fn(out, data.y)
+                loss.backward()
+                #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
+                epoch_loss += loss.item()   # Accumulate loss
+        # Break loop if NaN encountered
+        if torch.isnan(torch.tensor(epoch_loss)):
+            print(f'>> NaN encountered at epoch {iter}. Stopping training.')
+            flag = False    # Flag indicating NaN encountered
+            return None, None, None, None, flag
+        # Section: Best loss
+        best_loss = float('inf') if iter == 1 else best_loss
+        best_loss = min(best_loss, epoch_loss)
+        best_epoch = iter if best_loss == epoch_loss else best_epoch
+        # Append epoch loss to history
+        loss_history.append(epoch_loss)
+        elapsed = time.time() - start
+        total_elapsed += elapsed
+        # Print every 25 epochs
+        if iter % 25 == 0:
+            print(f"Epoch {iter}: Loss = {loss},  Elapsed time: {elapsed:.2f}")
+    # Summary
+    print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')    
+    flag = True     # Flag indicating successful completion  
+    return  loss_history, best_loss, best_epoch, total_elapsed, flag
 
 # Declare validation function
 # ---------------------------
@@ -109,6 +150,16 @@ def seed_fn(seed=42):
     torch.backends.cudnn.deterministic = True   # Ensure deterministic behavior
     torch.backends.cudnn.benchmark = False 
 
+# Accuracy testing
+# ---------------------------
+def accuracy(true_idx, pred_idx):
+    """Calculate accuracy between true and predicted indices."""
+    correct = np.sum(true_idx == pred_idx)
+    total = len(true_idx)
+    acc_pct = (correct / total) * 100
+    print(f'>> Validation Accuracy: {acc_pct:.2f}% ({correct}/{total})')
+    return f'{correct}/{total}'
+
 # =============================================================================
 # LOAD BATCHES PATHS
 # =============================================================================
@@ -118,99 +169,70 @@ dat_dir = Path('/home/mriveraceron/data/exp_20251125')
 train_files = glob.glob(f'{dat_dir}/TrainBatch_*.pt')
 valid_files = glob.glob(f'{dat_dir}/ValBatch_*.pt')
 
-# =============================================================================
-# PLOTTERS AND METRICS
-# =============================================================================
-# Loss plotter
-# ---------------------------
-import matplotlib.pt as plt
-import numpy as np 
-
-def loss_plotter(loss_epochs = None, epochs = None):
-    # After collecting your data
-    y = np.round(loss_epochs, 10)
-    x = list(range(0, epochs))
-    # Create scatter plot
-    fig = plt.figure(figsize=(8, 8))
-    # y = np.log1p(y)  # Log scale for better visualization
-    plt.plot(x, y, alpha=0.5)
-    # Add labels and title
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Loss over epochs')
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout() 
-    plt.ylim(0, max(y))
-    plt.xlim(0, max(x))
-    return fig
-
-# Seeding function
-#--------------------------
-import random 
-
-def seed_fn(seed=42):
-    # Set ALL seeds for full reproducibility
-    torch.manual_seed(seed)                 # Seed CPU 
-    torch.cuda.manual_seed(seed)            # Seed GPU
-    np.random.seed(seed)                    # Seed numpy
-    random.seed(seed)                       # Seed python random
-    torch.backends.cudnn.deterministic = True   # Ensure deterministic behavior
-    torch.backends.cudnn.benchmark = False 
-
-# Accuracy testing
-# ---------------------------
-import numpy as np
-
-def accuracy(true_idx, pred_idx):
-    """Calculate accuracy between true and predicted indices."""
-    correct = np.sum(true_idx == pred_idx)
-    total = len(true_idx)
-    acc_pct = (correct / total) * 100
-    print(f'>> Validation Accuracy: {acc_pct:.2f}% ({correct}/{total})')
-    return f'{correct}/{total}'
-
-# Load batches paths
-# --------------------------
-directory = '/home/mriveraceron/data/exp_20251125'
-train_files = glob.glob(f'{directory}/TrainBatch_*.pt')
-valid_files = glob.glob(f'{directory}/ValBatch_*.pt')
 
 # Declare loss function and device
 # --------------------------
 import torch.nn as nn
+import torch.optim as optim
+import numpy as np
 
 loss_fn = nn.MSELoss()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+loss_fn = nn.MSELoss()
+loss_dir = '/home/mriveraceron/glv-research/GNN-Logs/24Jan26'
 
-# Run model
-import torch.optim as optim
-
-for i,model in enumerate(model_list):
+for i, model in enumerate(model_list):
+    print('-----------------------------\n')
+    print(f'>> Training model {i} {model}')
     seed_fn(38)         # Set seed
-    test_model = model.to(device)
-    optimizer = optim.Adam(test_model.parameters(), lr=0.00001)
-    epochs = 200
-    loss_history, _, _, total_elapsed = training_fn(test_model, device, train_files, loss_fn, optimizer, epochs)
-    df.loc[i, 'train_time'] = total_elapsed
+    model = model.to(device)    # Copy model to device
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    epochs = 10
     # Calculate TRAINING dataset performance
     # --------------------------
-    true_idx, pred_idx, val_loss, total_graphs = validation_fn(test_model, train_files, loss_fn, device)
+    # returns: loss_history, best_loss, best_epoch, total_elapsed
+    loss_history, _, _, total_elapsed, flag = training_fn(model, device, train_files, loss_fn, optimizer, epochs)
+    # Skip if NaN encountered
+    if flag == False:
+        print (f'>> Model {i} encountered NaN during training. Skipping validation.')
+        df.loc[i, 'tr_time'] = None
+        df.loc[i, 'tr_acc'] = None
+        df.loc[i, 'val_time'] = None
+        df.loc[i, 'val_acc'] = None
+        df.loc[i, 'tr_NaN'] = True
+        continue    # Skip to next model
+    # Testing 
+    print(loss_history)
+    # Continue if simulation completed successfully
+    df.loc[i, 'tr_time'] = total_elapsed
+    # returns: true_idx, pred_idx, val_loss, total_graphs, total_elapsed
+    true_idx, pred_idx, val_loss, _, total_elapsed = validation_fn(model, train_files, loss_fn, device)
     acc_num = accuracy(true_idx, pred_idx)
-    df.loc[i, 'train_acc'] = acc_num
+    df.loc[i, 'tr_acc'] = acc_num
     # Calculate VALIDATION dataset performance
     # --------------------------
-    true_idx, pred_idx, _, _, total_elapsed = validation_fn(test_model, valid_files, loss_fn, device)
+    true_idx, pred_idx, _, _, total_elapsed = validation_fn(model, valid_files, loss_fn, device)
     acc_num = accuracy(true_idx, pred_idx)
     df.loc[i, 'val_time'] = total_elapsed
     df.loc[i, 'val_acc'] = acc_num
     # Verify if NaNs are present
     # --------------------------
     if bool(pd.isna(loss_history).any()):
-        df.loc[i, 'train_NaN'] =  True
+        df.loc[i, 'tr_NaN'] =  True
     else:
-        df.loc[i, 'train_NaN'] =  False
-    # Plot the loss over epochs
-    # --------------------------
-    fig = loss_plotter(loss_history, epochs)
-    name = f'/home/mriveraceron/glv-research/plots/Mod{i}-training_loss.png'
-    fig.savefig(name, dpi=150, bbox_inches='tight')
+        df.loc[i, 'tr_NaN'] =  False
+    # Save loss history
+    file = f'{loss_dir}/loss_model-{i}.npy'  # Just create the path directly
+    np.save(file, np.array(loss_history))
+    print(f'>> Saved loss history to {file} \n')
+
+# To load later
+#loss_history = np.load('loss_history.npy').tolist()
+
+# Save results dataframe
+# --------------------------
+file = f'{loss_dir}/results_dataframe.feather'
+df.to_feather(file)
+print(f'>> Saved results dataframe to {file}')
+# To load later
+# pd.read_feather(file)
