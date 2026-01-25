@@ -8,7 +8,6 @@ import numpy as np
 param_grid = {
     'hidden_channels': [64],
     'num_layers': [2,5,10],
-    'dropout':[0, 0.5],
     'learning_rate': [.0001]
 }
 
@@ -17,13 +16,14 @@ grid = ParameterGrid(param_grid)
 
 # Import models to namespace
 # --------------------------
-import glob
-from os.path import basename 
+from pathlib import Path
 
 # List files
-mods_files = glob.glob(f'/home/mriveraceron/glv-research/gLV/GNN/architectures/Model-*.py')
+src_dir = Path('/home/mriveraceron/glv-research/gLV/GNN/architectures')
+mods_files = src_dir.glob('Model-*.py')
+
 for m in mods_files:
-    print(f'>> Opening model: {basename(m)}')
+    print(f'>> Opening model: {m.name}')
     with open(m) as f:
         exec(f.read())
 
@@ -40,68 +40,32 @@ arch_config = {
 import pandas as pd
 
 rows = []
-COLUMNS = ['channels', 'layers', 'dropout', 'architecture', 'train_acc', 'train_time', 'val_acc', 'val_time', 'train_NaN']
-model_list = []
+COLUMNS = ['channels', 'layers', 'arch', 'tr_acc', 'tr_time', 'train_NaN', 'val_acc', 'val_time']
+model_list = []               # List to hold models
 for params in grid:
-    ch = params['hidden_channels']
-    l = params['num_layers']
-    drop = params['dropout']
-    for arch in range(1, 4):
-        arch_name, ModelClass, extra_kwargs = arch_config[arch]
-        m = ModelClass(hidden_channels=ch, num_layers=l, dropout=drop, **extra_kwargs)
-        model_list.append(m)
-        rows.append({'channels': ch, 'layers': l, 'dropout': drop, 'architecture': arch_name})
+    ch = params['hidden_channels']      # channels
+    l = params['num_layers']            # layers
+    for n in arch_config:
+        arch_name, ModelClass, extra_kwargs = arch_config[n]                # architecture, model class, extra arguments
+        m = ModelClass(hidden_channels=ch, num_layers=l, **extra_kwargs)    # Assign model
+        model_list.append(m)                                                # Append to model list             
+        rows.append({'channels': ch, 'layers': l, 'arch': arch_name, 'tr_acc': None, 'tr_time': None, 'train_NaN': None, 'val_acc': None, 'val_time': None})
 
-df = pd.DataFrame(rows, columns=COLUMNS)
-        
+df = pd.DataFrame(rows)  # Convert to DataFrame
+df
+
 # =============================================================================
 # TRAINING AND VALIDATION
 # =============================================================================
 
-# Declare training function
-# --------------------------
-import torch
-import time
-
-def training_fn(model, device, batched_paths, loss_fn, optimizer, epochs=100):
-    model.train()
-    loss_history  =  []         # Loss at epoch
-    total_elapsed = 0           # Running time
-    best_epoch = 0              # Best epoch
-    best_loss = float('inf')    # Best loss
-    for iter in range(1, epochs+1):
-        start = time.time()
-        epoch_loss = 0
-        for path in batched_paths:
-            data_list = torch.load(path, weights_only=False)          
-            for data in data_list:
-                data = data.to(device)
-                optimizer.zero_grad()
-                out = model(data)
-                loss = loss_fn(out, data.y)
-                loss.backward()
-                #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
-                epoch_loss += loss.item()   # Accumulate loss
-        # Section: Best loss
-        best_loss = float('inf') if iter == 1 else best_loss
-        best_loss = min(best_loss, epoch_loss)
-        best_epoch = iter if best_loss == epoch_loss else best_epoch
-        # Append epoch loss to history
-        loss_history.append(epoch_loss)
-        elapsed = time.time() - start
-        total_elapsed += elapsed
-        # Print every 25 epochs
-        if iter % 25 == 0:
-            print(f"Epoch {iter}: Loss = {loss},  Elapsed time: {elapsed:.2f}")
-    # Summary
-    print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')      
-    return  loss_history, best_loss, best_epoch, total_elapsed
-
+src_dir = Path('/home/mriveraceron/glv-research/gLV/GNN/architectures')
+mods_files = src_dir.glob('training_fun.py')
 
 # Declare validation function
 # ---------------------------
 from torch_geometric.data import Batch
+import torch 
+import time
 
 def validation_fn(model, files, loss_fn, device):
     model.eval()
@@ -131,6 +95,32 @@ def validation_fn(model, files, loss_fn, device):
     total_elapsed += elapsed
     return true_idx, pred_idx, val_loss, total_graphs, total_elapsed
 
+
+# Seeding function
+#--------------------------
+import random 
+
+def seed_fn(seed=42):
+    # Set ALL seeds for full reproducibility
+    torch.manual_seed(seed)                 # Seed CPU 
+    torch.cuda.manual_seed(seed)            # Seed GPU
+    np.random.seed(seed)                    # Seed numpy
+    random.seed(seed)                       # Seed python random
+    torch.backends.cudnn.deterministic = True   # Ensure deterministic behavior
+    torch.backends.cudnn.benchmark = False 
+
+# =============================================================================
+# LOAD BATCHES PATHS
+# =============================================================================
+import glob
+
+dat_dir = Path('/home/mriveraceron/data/exp_20251125')
+train_files = glob.glob(f'{dat_dir}/TrainBatch_*.pt')
+valid_files = glob.glob(f'{dat_dir}/ValBatch_*.pt')
+
+# =============================================================================
+# PLOTTERS AND METRICS
+# =============================================================================
 # Loss plotter
 # ---------------------------
 import matplotlib.pt as plt
