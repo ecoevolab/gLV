@@ -57,7 +57,8 @@ regenerate <- function(index) {
   interaction_values <- sample(interaction_values)
   
   # Assign to off-diagonal elements
-  M[upper.tri(M, diag = FALSE) | lower.tri(M, diag = FALSE)] <- interaction_values
+  #M[upper.tri(M, diag = FALSE) | lower.tri(M, diag = FALSE)] <- interaction_values
+  M[row(M) != col(M)] <- interaction_values
   
   # Optional: Round if needed
   M <- round(M, digits = 5)
