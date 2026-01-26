@@ -19,7 +19,7 @@ grid = ParameterGrid(param_grid)
 from pathlib import Path
 
 # List files
-src_dir = Path('/home/mriveraceron/glv-research/gLV/GNN/architectures')
+src_dir = Path('/home/mriveraceron/glv-research/gLV/GNN/src')
 mods_files = src_dir.glob('Model-*.py')
 
 for m in mods_files:
@@ -187,7 +187,8 @@ for i, model in enumerate(model_list):
     seed_fn(38)         # Set seed
     model = model.to(device)    # Copy model to device
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
-    epochs = 10
+    epochs = 200
+    print(f'>> The number of epochs is set to {epochs}')
     # Calculate TRAINING dataset performance
     # --------------------------
     # returns: loss_history, best_loss, best_epoch, total_elapsed
@@ -195,14 +196,16 @@ for i, model in enumerate(model_list):
     # Skip if NaN encountered
     if flag == False:
         print (f'>> Model {i} encountered NaN during training. Skipping validation.')
-        df.loc[i, 'tr_time'] = None
-        df.loc[i, 'tr_acc'] = None
-        df.loc[i, 'val_time'] = None
-        df.loc[i, 'val_acc'] = None
-        df.loc[i, 'tr_NaN'] = True
+        df.loc[i] = {
+            'tr_time': None,
+            'tr_acc': None,
+            'val_time': None,
+            'val_acc': None,
+            'tr_NaN': True
+        }
         continue    # Skip to next model
     # Testing 
-    print(loss_history)
+    # print(loss_history)
     # Continue if simulation completed successfully
     df.loc[i, 'tr_time'] = total_elapsed
     # returns: true_idx, pred_idx, val_loss, total_graphs, total_elapsed
