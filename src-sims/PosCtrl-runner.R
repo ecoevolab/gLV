@@ -1,5 +1,7 @@
 # This script is for running the simulations of the gLV model in parallel using multiple cores.
 # It generates a unique experiment ID, creates necessary directories, generates parameters,
+#
+# It is purpose is to generate positive controls simulations.
 
 #============================================================================
 # SECTION: Generate-ID-and-paths
@@ -25,7 +27,7 @@ tictoc::tic("Section 1: Time for Parameter Generation")
 #' Generate grid of parameters:
 #+ eval=FALSE
 generate_params <- function (){
-  dt <- data.table::CJ(n_species = 30, p_neg = 1, p_noint = seq(0, 1, by = 0.1))
+  dt <- data.table::CJ(n_species = 30, p_neg = 1, p_noint = seq(0, 0.9, by = 0.1))
   dt <- dt[rep(1:.N, each = 100)]     # Replicate each row 'reps' times
   n_total <- nrow(dt)
   all_seeds <- sample.int(3e6L, 3L *n_total, replace = FALSE)
@@ -111,68 +113,75 @@ lapply(codes, function(file){
   capture.output(source(file))
   return()
 })
+# Function to generate positive controls: build_posctrl
+# testing lines
+index = df[900,]
+params = build_posctrl(index)
 
 #============================================================================
-# SECTION: Wrap-functions
-#' We wrap the code for parallelizing the simulations.
-#+ eval=FALSE
-# ==== Wrapper for running all required steps ====
-library(igraph)
-# install.packages("igraph", lib = "/mnt/data/sur/modules/pkgs/R_libs")
+# SECTION: Topolgy function
+# Next line is for testing
+# A = params$M
 
-topology <- function(A) {
+library(igraph)
+build_topology <- function(A) {
   # Create graph from adjacency matrix
   g <- graph_from_adjacency_matrix(abs(A), mode="directed", weighted=TRUE)
   # Generate topology
-  df <- cbind(
-    in_degree = degree(g, mode="in"),
-    out_degree = degree(g, mode="out"),
+  top_df <- cbind(
+    # In-degree
+    in_pos = apply(A, 1, function(x) sum(x>0)),  # 1 means rows
+    in_neg = apply(A, 1, function(x) sum(x<0)),
+    # Out-degree
+    out_pos = apply(A, 2, function(x) sum(x>0)),  # 2 means columns
+    out_neg = apply(A, 2, function(x) sum(x<0)),
+    # Total degree
     total_degree = degree(g, mode="all"),
-    strength_in = strength(g, mode="in"),         # Weighted IN degree
+    strength_in = strength(g, mode="in"),    # Weighted IN degree
     strength_out = strength(g, mode="out"),  # Weighted OUT degree
     betweenness = betweenness(g, directed=TRUE),
-    closeness = closeness(g, mode="out")
+    closeness = closeness(g, mode="out"),
+    pagerank = page_rank(g)$vector
   )
+  # Next line is for testing if total_degree is correct
+  # rowSums(top_df[,1:4]) == top_df[,"total_degree"]
+  #
   # Convert NaN to 0
-  df[is.nan(df)] <- 0
-  df = round(df,3)
+  top_df[is.nan(top_df)] <- 0
+  top_df = round(top_df,3)
   # Add species
   # result = cbind(species = paste0("Sp", 1:nrow(A)), df)
-  return(df)
+  return(top_df)
 }
-A = params$M
-wrapper <- function(index, path_core) {
 
-  # Review: testing
-  # path_core = workers_ODE[1]
-  # index=df[1,]
+#============================================================================
+# SECTION: Wrapper function
+# Review: testing
+# path_core = workers_ODE[1]
+# index=df[1,]
+wrapper <- function(index, path_core) {
   #=================== Output ===================
-  params <- posctrl_regenerate(index)                                       # Generate-parameters
-  output <- solve_gLV(times = 1000, params)                                 # Run-simulation
-  
+  params <- build_posctrl(index)              # Generate-parameters
+  output <- solve_gLV(times = 1000, params)   # Run-simulation
   # Generate filenames
   sim_id <- params$id
   out_path <- file.path(path_core, paste0("O_", sim_id, ".feather"))     # Simulation-path
   A_path <- file.path(path_core, paste0("A_", sim_id, ".feather"))       # Mat-path
   preds_path <- file.path(path_core, paste0("tgt_", sim_id, ".feather")) # Extinctions-paths
-
-  arrow::write_feather(x = output, sink = out_path)                         # Saving-ODE
-  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)          # Save-MAT
-  
+  # Save files
+  arrow::write_feather(x = output, sink = out_path)                      # Saving-ODE
+  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)       # Save-MAT
   #=================== Information ===================
   NA_count <- sum(is.na(output))                            # simulation-NAs
   tts_out <- find_ts(output)                                # time-to-stability OUTPUT
   cat(">> Simulation ", params$id, " completed.\n")
-
   # Generate topology
-  topo_df <- topology(params$M)
- 
-
+  topo_df <- build_topology(params$M)
   #=================== Extinctions ===================
   params$x0 = output[[ncol(output)]]                    # Stable-population
   summary_exts = sim_all_ext(params, path_core)         # Generate-extinctions
   tts_ext = max(summary_exts$ext_ts)                    # time-to-stability EXTINCTIONS
-
+  # Save files
   arrow::write_feather(x = summary_exts, sink = preds_path) 
   arrow::read_feather(preds_path)
   return(list(id = params$id, na_ct = NA_count, tts_out = tts_out, tts_ext = tts_ext))
@@ -217,14 +226,4 @@ gen_syml(mc_dir)
 files=list.files(mc_dir, recursive=TRUE)
 unlink(mc_dir, recursive = TRUE)
 tictoc::toc() # For section 5
-
 tictoc::toc() # For Total running time
-
-
-
-# REVIEW fixing
-# params_df
-# dat = readr::read_tsv("/mnt/data/sur/users/mrivera/Data/2263e52c-8384.tsv")
-# sum(unique(dat$n_species) * (nrow(dat)/length(unique(dat$n_species))))                                            # number-extinctions-files TOTAL
-# tgt_dir = "/mnt/data/sur/users/mrivera/Experiments/4018ff92-8377/"
-# source_dir = "/mnt/data/sur/users/mrivera/Experiments/4018ff92-8377/mc-apply"
