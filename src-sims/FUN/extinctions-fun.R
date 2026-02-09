@@ -40,27 +40,24 @@ sim_all_ext <- function(params, path_core) {
     params$x0 = x_new           # update params
     new_out = solve_gLV(times = 1000, params)
     x_end = new_out[,1000]
-
-    # Compute Bray-Curtis dissimilarity
+    #--------------------Bray-Curtis-------------------------#
     bray_curtis <- 1 - (2 * sum(pmin(x, x_end))) / (sum(x) + sum(x_end))
-
-    # Count secondary extinctions
+    #--------------------Extinctions-------------------------#
     # All that was live before (x > 1e-06)
     # But now is dead (x <= 1e-06)
-    new_ext <- sum(x_end <= 1e-6 & x > 1e-6)
-    props_ext = new_ext/n 
-
-    # Compute keystoneness
-    props <- x_end / sum(x_end) # final population proportions
+    new_ext <- sum(x_end <= 1e-6 & x > 1e-6)  # raw number of extinctions
+    props_ext = new_ext/n                     # proportion of extinctions
+    #--------------------Keystoneness-------------------------#
+    props <- x_end / sum(x_end) # relative abundance
     K_s <- bray_curtis * (1 - props[i])
-
-    # Time to Stability
+    #--------------------Time to stability-------------------------#
     ext_ts <- find_ts(new_out)
-
+    # 
+    # Generate data frame
     row <- data.frame(
       spec = i,                     # specie-extinct
       new_ext = new_ext,            # new-extinctions
-      props_ext = round(props_ext, 2),        # proportion-extinctions
+      props_ext = round(props_ext, 2), # proportion-extinctions
       BC_diss = bray_curtis,        # Bray-Curtis
       K_s = K_s,                    # Keystoness
       ext_ts = ext_ts               # Time-to-stability
