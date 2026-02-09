@@ -19,7 +19,7 @@
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
 #'  positive interactions or negatives. 
 
-posctrl_regenerate <- function(index) {
+build_posctrl <- function(index) {
   
   n_species <- as.numeric(index[["n_species"]])
   
@@ -58,12 +58,12 @@ posctrl_regenerate <- function(index) {
   # Create matrix of TRUE masking
   mask <- matrix(TRUE, n_species, n_species)    # mask matrix
   diag(mask) <- FALSE                           # remove diagonal
-  mask[k, ] <- FALSE                            # remove keystone row
+  mask[,k] <- FALSE                            # remove keystone COLUMN
   
   # Generate matrix to fill
   M <- matrix(NA, n_species, n_species)         # values matrix
   M[mask] <- interaction_values  # off-diagonal and off keystone row values
-  M[k, ] <- 1.5                  # keystone row values  
+  M[,k] <- 1.5                  # keystone column values  
   diag(M) <- -0.5                # diagonal values
 
   # Optional: Round if needed
