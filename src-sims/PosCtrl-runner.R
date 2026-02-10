@@ -130,11 +130,11 @@ build_topology <- function(A) {
   # Generate topology
   top_df <- cbind(
     # In-degree
-    in_pos = apply(A, 1, function(x) sum(x>0)),  # 1 means rows
-    in_neg = apply(A, 1, function(x) sum(x<0)),
+    in_pos = apply(A, 2, function(x) sum(x>0)),  # 2 means columns
+    in_neg = apply(A, 2, function(x) sum(x<0)),
     # Out-degree
-    out_pos = apply(A, 2, function(x) sum(x>0)),  # 2 means columns
-    out_neg = apply(A, 2, function(x) sum(x<0)),
+    out_pos = apply(A, 1, function(x) sum(x>0)),  
+    out_neg = apply(A, 1, function(x) sum(x<0)),  # 1 means rows
     # Total degree
     total_degree = degree(g, mode="all"),
     strength_in = strength(g, mode="in"),    # Weighted IN degree
@@ -157,34 +157,38 @@ build_topology <- function(A) {
 #============================================================================
 # SECTION: Wrapper function
 # Review: testing
-# path_core = workers_ODE[1]
-# index=df[1,]
+path_core = workers_ODE[1]
 wrapper <- function(index, path_core) {
-  #=================== Output ===================
+  #-----------------------------
+  # Section: Generate parameters and run simulation
   params <- build_posctrl(index)              # Generate-parameters
   output <- solve_gLV(times = 1000, params)   # Run-simulation
-  # Generate filenames
+  #-----------------------------
+  # Section: Generate filenames and save files
   sim_id <- params$id
-  out_path <- file.path(path_core, paste0("O_", sim_id, ".feather"))     # Simulation-path
-  A_path <- file.path(path_core, paste0("A_", sim_id, ".feather"))       # Mat-path
-  preds_path <- file.path(path_core, paste0("tgt_", sim_id, ".feather")) # Extinctions-paths
+  out_path <- file.path(path_core, paste0("RawOutput_", sim_id, ".feather"))        # simulation output
+  A_path <- file.path(path_core, paste0("A_", sim_id, ".feather"))                  # interactions matrix
+  topology_path <- file.path(path_core, paste0("Topology_", sim_id, ".feather"))    # network topology
+  preds_path <- file.path(path_core, paste0("ExtSummary_", sim_id, ".feather"))     # extinctions summary
   # Save files
-  arrow::write_feather(x = output, sink = out_path)                      # Saving-ODE
-  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)       # Save-MAT
-  #=================== Information ===================
-  NA_count <- sum(is.na(output))                            # simulation-NAs
-  tts_out <- find_ts(output)                                # time-to-stability OUTPUT
-  cat(">> Simulation ", params$id, " completed.\n")
-  # Generate topology
-  topo_df <- build_topology(params$M)
-  #=================== Extinctions ===================
-  params$x0 = output[[ncol(output)]]                    # Stable-population
-  summary_exts = sim_all_ext(params, path_core)         # Generate-extinctions
-  tts_ext = max(summary_exts$ext_ts)                    # time-to-stability EXTINCTIONS
+  arrow::write_feather(x = output, sink = out_path)                      # Save output
+  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)       # Save interactions matrix
+  #-----------------------------
+  # Section: Generate topology and summary of the simulation
+  na_count <- sum(is.na(output))                              # simulation-NAs
+  out_stability_time <- find_ts(output)                       # time-to-stability OUTPUT
+  topology_df <- build_topology(params$M)                     # network topology
+  arrow::write_feather(x = as.data.frame(topology_df), sink = topology_path) # Save topology
+  cat(">> Simulation ", params$id, " completed.\n")   
+  #-----------------------------
+  # Section: Simulate extinctions and summary of extinctions
+  params$x0 = output[[ncol(output)]]                            # Stable-population
+  summary_exts = sim_all_ext(params, path_core)                 # Generate-extinctions
+  extinction_stability_time = max(summary_exts$time_stability)  # time-to-stability 
   # Save files
-  arrow::write_feather(x = summary_exts, sink = preds_path) 
-  arrow::read_feather(preds_path)
-  return(list(id = params$id, na_ct = NA_count, tts_out = tts_out, tts_ext = tts_ext))
+  arrow::write_feather(x = summary_exts, sink = preds_path)   
+  #-----------------------------
+  return(list(id = params$id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
 }
 
 #============================================================================
@@ -195,9 +199,11 @@ wrapper <- function(index, path_core) {
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
 
 # review testing
-# chunks <- split_table(params_df[1:27,], num_cores)
-
-sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
+chunks <- split_table(df[1:20,], 10)
+core_chunk = chunks[[1]]
+core_id = 1
+i =1 
+simulation_summary = parallel::mclapply(1:num_cores, function(core_id) {
   
   message("Starting worker ", core_id, "....\n")
 
@@ -212,9 +218,8 @@ sims_info <- parallel::mclapply(1:num_cores, function(core_id) {
 }, mc.cores = num_cores)
 
 # Generate TSV file
-sims_info_df <- data.table::rbindlist(sims_info) # Convert list (of df) to df
-arrow::write_feather(sims_info_df, info_path)
-# arrow::read_feather( info_path)
+simulation_summary_df <- data.table::rbindlist(simulation_summary) # Convert list (of df) to df
+arrow::write_feather(simulation_summary_df, info_path)
 tictoc::toc() # For section 4
 
 #============================================================================

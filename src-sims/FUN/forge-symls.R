@@ -23,16 +23,14 @@ gen_syml <- function(source_dir) {
 
   # Define file patterns 
   to_link <- list(
-    list(pattern = "O_*.feather", target = file.path(exp_dir, "raw-ODEs")),                   # Output files
-    list(pattern = "E_*-S*.feather", target = file.path(exp_dir, "Post-exts")),               # extinctions-output
-    list(pattern =  "tgt_*.feather", target = file.path(exp_dir,  "GNN-targets")),           # extinctions-info
-    list(pattern =  "A_*.feather", target = file.path(exp_dir,  "A-mat"))          
+    list(pattern = "RawOutput_*.feather", target = file.path(exp_dir, "Outputs")),            # Output files
+    list(pattern = "E_*-S*.feather", target = file.path(exp_dir, "ExtOutputs")),               # extinctions-output
+    list(pattern =  "ExtSummary_*.feather", target = file.path(exp_dir,  "ExtSummaries")),    # extinctions-summary
+    list(pattern =  "A_*.feather", target = file.path(exp_dir,  "Interactions")),             # interactions matrix      
+    list(pattern =  "Topology_*.feather", target = file.path(exp_dir,  "Topologies"))         # Network-topology
   )
   
   for (dir in to_link) {
-
-    # Testing line
-    #dir = to_link[[1]]
     # Look for files
     mcmd <- sprintf('find "%s" -type f -name "%s" ', source_dir, dir$pattern)               # Command
     src_files = system(mcmd, intern = TRUE)                                                 # Full-paths
@@ -40,13 +38,11 @@ gen_syml <- function(source_dir) {
       cat("No files found for pattern:", dir$pattern, "\n")
       next
     }
-
     # Create dirctory if it doesnt exist
     if (!(dir.exists(dir$target))){
       dir.create(dir$target) 
       cat("Directory", dir$target,  "created: \n", sep = " ")
     }
-    
     # Generate-new-paths
     target_paths = file.path(dir$target, basename(src_files))
     file.rename(src_files, target_paths)
