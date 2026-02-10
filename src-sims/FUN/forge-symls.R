@@ -23,7 +23,7 @@ gen_syml <- function(source_dir) {
 
   # Define file patterns 
   to_link <- list(
-    list(pattern = "RawOutput_*.feather", target = file.path(exp_dir, "Outputs")),            # Output files
+    list(pattern = "RawOutput_*.feather", target = file.path(exp_dir, "RawOutputs")),            # Output files
     list(pattern = "E_*-S*.feather", target = file.path(exp_dir, "ExtOutputs")),               # extinctions-output
     list(pattern =  "ExtSummary_*.feather", target = file.path(exp_dir,  "ExtSummaries")),    # extinctions-summary
     list(pattern =  "A_*.feather", target = file.path(exp_dir,  "Interactions")),             # interactions matrix      
