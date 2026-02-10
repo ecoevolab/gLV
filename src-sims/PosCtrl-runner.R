@@ -199,10 +199,8 @@ wrapper <- function(index, path_core) {
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
 
 # review testing
-chunks <- split_table(df[1:20,], 10)
-core_chunk = chunks[[1]]
-core_id = 1
-i =1 
+chunks <- split_table(df[1:5,], 5)
+num_cores = 5
 simulation_summary = parallel::mclapply(1:num_cores, function(core_id) {
   
   message("Starting worker ", core_id, "....\n")
