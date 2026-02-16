@@ -19,7 +19,7 @@
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
 #'  positive interactions or negatives. 
 
-build_params <- function(index) {
+build_params_ctrls <- function(index) {
   
   n_species <- as.numeric(index[["n_species"]])
   
