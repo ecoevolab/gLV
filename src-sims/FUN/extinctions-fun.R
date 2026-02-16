@@ -84,7 +84,8 @@ sim_all_ext <- function(params, path_core) {
     # arrow::write_feather(x = new_out, sink = ext_path)                                       
   }
   # Add relative abundance of the extinct species before extinction
-  exts_df$rel_pop_initial <- rel_pop_initial   
+  exts_df$pop_initial = x_before
+  exts_df$rel_pop_initial = rel_pop_initial   
   cat(">> Extinctions completed for", params$id, ".\n")
   return(exts_df)
 }
