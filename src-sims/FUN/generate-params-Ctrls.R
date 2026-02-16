@@ -19,7 +19,7 @@
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
 #'  positive interactions or negatives. 
 
-build_posctrl <- function(index) {
+build_params <- function(index) {
   
   n_species <- as.numeric(index[["n_species"]])
   
@@ -49,7 +49,7 @@ build_posctrl <- function(index) {
   
   # Create the interaction vector
   set.seed(as.numeric(index[["A_seed"]]))
-  interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1),runif(num_pos, min = 0, max = 1))
+  interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 1, max = 2),runif(num_pos, min = 0, max = 1))
   
   # Shuffle the interaction vector
   set.seed(as.numeric(index[["A_seed"]]))
@@ -63,7 +63,8 @@ build_posctrl <- function(index) {
   # Generate matrix to fill
   M <- matrix(NA, n_species, n_species)         # values matrix
   M[mask] <- interaction_values  # off-diagonal and off keystone row values
-  M[,k] <- 1.5                  # keystone column values  
+  set.seed(as.numeric(index[["A_seed"]]))
+  M[,k] <- -runif(n_species, min = 0, max = 1)                  # keystone column values  
   diag(M) <- -0.5                # diagonal values
 
   # Optional: Round if needed

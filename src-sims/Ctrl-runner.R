@@ -9,7 +9,7 @@ tictoc::tic("Section 0: Total running time")
 
 #' Indicate directories paths
 pdir <- "/mnt/data/sur/users/mrivera/Controls"      # Parent-dir                                                
-exp_id = "PosCtrl-V1"                               # Experiment-ID      
+exp_id = "NegCtrl-V1"                               # Experiment-ID      
 exp_dir <- file.path(pdir, exp_id)                  # Experiment-dir
 
 params_path <- file.path(exp_dir,"simulation-params.tsv")    # Parameters-TSV
@@ -113,10 +113,17 @@ lapply(codes, function(file){
   capture.output(source(file))
   return()
 })
+
+#------------------------------------------------------
 # Function to generate positive controls: build_posctrl
 # testing lines
-index = df[900,]
-params = build_posctrl(index)
+# index = df[900,]
+# params = build_params(index)
+# path_core = workers_ODE[1]
+# num_cores = 5
+# chunks = split_table(df[1:5,], num_cores)
+# workers_ODE <- create_dirs(mc_dir, num_cores)
+#------------------------------------------------------
 
 #============================================================================
 # SECTION: Topolgy function
@@ -141,7 +148,10 @@ build_topology <- function(A) {
     strength_out = strength(g, mode="out"),  # Weighted OUT degree
     betweenness = betweenness(g, directed=TRUE),
     closeness = closeness(g, mode="out"),
-    pagerank = page_rank(g)$vector
+    pagerank = page_rank(g)$vector,               # Google page-rank
+    transitivity = transitivity(g, type="local"), # Transitivity
+    in_coreness = coreness(g, mode = 'in'),  # In coreness
+    out_coreness = coreness(g, mode = 'out')  # out coreness
   )
   # Next line is for testing if total_degree is correct
   # rowSums(top_df[,1:4]) == top_df[,"total_degree"]
@@ -154,14 +164,13 @@ build_topology <- function(A) {
   return(top_df)
 }
 
-#============================================================================
-# SECTION: Wrapper function
-# Review: testing
-path_core = workers_ODE[1]
+#----------------------------------------------
+# Section: Wrapper function
+
 wrapper <- function(index, path_core) {
   #-----------------------------
   # Section: Generate parameters and run simulation
-  params <- build_posctrl(index)              # Generate-parameters
+  params <- build_params(index)              # Generate-parameters
   output <- solve_gLV(times = 1000, params)   # Run-simulation
   #-----------------------------
   # Section: Generate filenames and save files
@@ -171,6 +180,7 @@ wrapper <- function(index, path_core) {
   topology_path <- file.path(path_core, paste0("Topology_", sim_id, ".feather"))    # network topology
   preds_path <- file.path(path_core, paste0("ExtSummary_", sim_id, ".feather"))     # extinctions summary
   # Save files
+  # df_subset <- df[, c(1, seq(10, ncol(df), by = 10))]       # Create df with every 10 cols
   arrow::write_feather(x = output, sink = out_path)                      # Save output
   arrow::write_feather(x = as.data.frame(params$M), sink = A_path)       # Save interactions matrix
   #-----------------------------
@@ -191,26 +201,19 @@ wrapper <- function(index, path_core) {
   return(list(id = params$id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
 }
 
-#============================================================================
-# SECTION: Parallelize-code
-#' We Parallelize the code and get the summary of simulations
-#+ eval=FALSE
-# ==== Parallelize it ====
+#----------------------------------------------
+# Section: Parallelize-code and get the summary of simulations
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
 
-# review testing
-chunks <- split_table(df[1:5,], 5)
-num_cores = 5
 simulation_summary = parallel::mclapply(1:num_cores, function(core_id) {
-  
   message("Starting worker ", core_id, "....\n")
-
   core_chunk <- chunks[[core_id]]  # rows assigned to this core
+  #----------------------------
   result <- lapply(1:nrow(core_chunk), function(i) {
     wrapper(index = core_chunk[i, ], path_core = workers_ODE[core_id])
   })
-  result <- data.table::rbindlist(result, use.names = TRUE) # Convert list to df
-
+  # Convert list to df
+  result <- data.table::rbindlist(result, use.names = TRUE) 
   message("Ending worker ", core_id, "....\n")
   return(result)
 }, mc.cores = num_cores)
