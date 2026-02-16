@@ -170,7 +170,7 @@ build_topology <- function(A) {
 wrapper <- function(index, path_core) {
   #-----------------------------
   # Section: Generate parameters and run simulation
-  params <- build_params(index)              # Generate-parameters
+  params <- build_params_ctrls(index)              # Generate-parameters
   output <- solve_gLV(times = 1000, params)   # Run-simulation
   #-----------------------------
   # Section: Generate filenames and save files
