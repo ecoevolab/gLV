@@ -1,0 +1,244 @@
+---
+title: "Negative controls analysis"
+author: "Manuel Rivera"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Description
+This experiment was designed to generate control communities that explicitly include a keystone member.
+- `diag(M) = -0.5`
+- Column **k** is drawn from **−U(0,1)**.
+- All other off-diagonal elements are also sampled from **−U(1,2)**.
+
+Data: `/mnt/data/sur/users/mrivera/Controls/NegCtrl-V1`
+Plots: `/mnt/data/sur/users/mrivera/Plots/NegCtrls`
+Rmd:  `/mnt/data/sur/users/mrivera/gLV/Markdowns`
+
+# Load data
+```{r, eval=FALSE}
+# WD
+dir = "/mnt/data/sur/users/mrivera/Controls/NegCtrl-V1"
+simulation_parameters = data.table::fread(file.path(dir, "simulation-params.tsv"), select = c("id", "key", "p_noint"))
+total_rows = nrow(simulation_parameters) * 30
+
+# Read file
+full_summary <- data.frame(
+  keystoneness = numeric(total_rows),
+  dissimilarity = numeric(total_rows),
+  prop_extinctions = numeric(total_rows),
+  rel_pop_initial = numeric(total_rows),
+  is_keystone = logical(total_rows),
+  p_noint = numeric(total_rows)
+)
+idx = 1  
+for (i in 1:nrow(simulation_parameters)) {
+  row = simulation_parameters[i, ]
+  #------------------------
+  # Generate path
+  id = row$id
+  key = as.numeric(row$key) 
+  p_noint = as.numeric(row$p_noint)
+  file = file.path(dir, "ExtSummaries", paste0("ExtSummary_", id, ".feather"))
+  #------------------------
+  # Read file
+  cols = c("keystoneness", "dissimilarity_bc", "prop_extinctions", "rel_pop_initial")
+  table = arrow::read_feather(file, col_select = all_of(cols))
+  table$is_keystone = FALSE
+  if (key <= nrow(table)) {
+    table$is_keystone[key] = TRUE
+  }
+  #------------------------
+  # Insert into the preallocated vectors
+  end = idx + nrow(table) - 1
+  full_summary$keystoneness[idx:end] = table$keystoneness
+  full_summary$dissimilarity[idx:end] = table$dissimilarity_bc
+  full_summary$prop_extinctions[idx:end] = table$prop_extinctions
+  full_summary$is_keystone[idx:end] = table$is_keystone
+  full_summary$rel_pop_initial[idx:end] = table$rel_pop_initial
+  full_summary$p_noint[idx:end] = p_noint
+  idx = end + 1  # Move index forward
+}
+#------------------------
+library(tidyr)
+
+full_summary_long <- full_summary %>%
+    pivot_longer(
+        cols = c(keystoneness, dissimilarity, prop_extinctions, rel_pop_initial),
+        names_to = "variable",
+        values_to = "value"
+    ) %>%
+    dplyr::mutate(value = replace_na(value, 0))
+
+
+```
+
+# Run correlations
+```{r, eval=FALSE}
+# Correlation analysis
+full_summary[is.na(full_summary)] <- 0
+
+library(GGally)
+cols = c("keystoneness", "dissimilarity", "prop_extinctions", "rel_pop_initial")
+plt = GGally::ggpairs(full_summary, columns = cols, title = "Correlation Analysis", upper = list(continuous = "cor"), lower = list(continuous = "points")) 
+dir = "/mnt/data/sur/users/mrivera/Plots/NegCtrls"
+path = file.path(dir, "Correlation_Analysis.png")
+if (!dir.exists(dirname(dir))) {
+    dir.create(dirname(dir), recursive=TRUE)
+}
+ggsave(path, plot = plt, width = 8, height = 6)
+```
+
+![[/mnt/data/sur/users/mrivera/Plots/NegCtrls/Correlation_Analysis.png]]
+
+# Meetric distribution by keystone status and p_noint
+```{r, eval=FALSE}
+library(ggplot2)
+library(ggforce)
+library(ggsignif)
+library(dplyr)
+
+# Compute p-values per p_noint group
+signif_df <- full_summary_long %>%
+  group_by(variable, p_noint) %>%
+  summarise(
+    p = t.test(value ~ is_keystone, var.equal = FALSE)$p.value,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    stars = case_when(
+      p < 0.001 ~ "***",
+      p < 0.01  ~ "**",
+      p < 0.05  ~ "*",
+      TRUE      ~ "ns"
+    ) 
+  )
+
+plt = full_summary_long %>%
+  ggplot(aes(x = is_keystone, y = value, fill = factor(p_noint))) +
+  # Add data points
+  # geom_sina(aes(color = factor(p_noint)), alpha = 0.3, size = 0.25) +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+  # geom_violin(alpha = 0.5, adjust = 2, trim = TRUE) +
+  facet_grid(variable ~ ., scales = "free_y") +
+  labs(x = "Is Keystone", y = "Values", fill = "p_noint", color = "p_noint") +
+  theme_bw()
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "Metrics_nullint.png")
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 2: Predictor metrics separated by keystone status and interaction network structure](/mnt/data/sur/users/mrivera/Plots/NegCtrls/Metrics_nullint.png)
+
+# Metrics distribution by keystone status
+
+```{r, eval=FALSE}
+library(ggplot2)
+library(patchwork)  # Better than cowplot for this
+
+# Define common theme and colors
+theme_custom <- theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", size = 11),
+        axis.title = element_text(size = 10)
+    )
+
+colors <- c("FALSE" = "#4575b4", "TRUE" = "#d73027")  # Better color contrast
+
+# Optimization plot
+library(patchwork)
+
+# Only plot these variables
+variables_to_plot <- c("keystoneness", "dissimilarity", "prop_extinctions")
+
+plots <- lapply(variables_to_plot, function(var) {
+  data_subset <- full_summary_long[full_summary_long$variable == var, ]
+  ggplot(data_subset, aes(x = is_keystone, y = value, fill = is_keystone)) +
+    # geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+    geom_violin(alpha = 0.6, trim = TRUE) +
+    # geom_jitter(width = 0.1, alpha = 0.3, size = 0.5) +
+    scale_y_continuous(breaks = seq(0, 1, by = 0.1)) +
+    # coord_flip() + 
+    stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "red", color = "darkred") +
+    scale_fill_manual(
+      name = "", 
+      values = colors, 
+      labels = c("Non-keystone", "Keystone")
+    ) +
+    coord_cartesian(ylim = c(0, 1)) +
+    theme_custom +
+    labs(title = var, x = "", y = var) +
+    theme(legend.position = "none", axis.text.x = element_blank())
+})
+
+plt = wrap_plots(plots, ncol = 3) & theme(legend.position = "top")
+path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "Metric_distributions.png")
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+
+# Plot Time to stability
+
+```{r, eval=FALSE}
+
+# Load information table
+summary_path = '/mnt/data/sur/users/mrivera/Controls/NegCtrl-V1/summary.feather'
+summary_table = arrow::read_feather(summary_path)
+
+# Long format conversion
+library(tidyr)
+library(ggplot2)
+library(ggbeeswarm)
+
+summary_long <- summary_table %>%
+  pivot_longer(cols = c(tts_out, tts_ext), names_to = "variable", values_to = "value")
+
+# Ploting
+plt <- ggplot(summary_long, aes(x = variable, y = value, fill = variable)) +
+  geom_beeswarm() + 
+  # geom_violin(alpha = 0.6, trim = FALSE) +
+  # geom_jitter(width = 0.1, alpha = 0.3, size = 0.5) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "red", color = "darkred") +
+  scale_fill_manual(values = c("tts_out" = "#E69F00", "tts_ext" = "#56B4E9"), labels = c("TTS Out", "TTS Ext")) +
+  labs(x = "Time to Stability", y = "Density", title = "Time to Stability Distribution Comparison", fill = "Variable") +
+  theme_minimal() +
+  scale_y_continuous(breaks = seq(0, 1000, by = 100)) +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    legend.position = "top",
+    panel.grid.minor = element_blank()
+  )
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "TTS_simulations2.png")
+if (!(dir.exists(dirname(path)))) dir.create(dirname(path))
+ggsave(path, plot = plt, width = 12, height = 5)
+
+```
+
+
+# Plot keystone metrics vs keystone status
+```{r, eval=FALSE}
+library(ggplot2)
+library(tidyr)
+
+plt = full_summary %>%  filter('rel_pop_initial' > .05) %>% as.data.frame() %>%
+  pivot_longer(cols = c(keystoneness, dissimilarity, prop_extinctions), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = rel_pop_initial, y = value, color = is_keystone)) +
+  geom_point(alpha = 0.5, size = 0.5) +
+  #geom_hex(bins = 50) +
+  facet_grid(variable ~ is_keystone, scales = "free_y") +
+  labs(x = "Relative Population", y = "Value", color = "Keystone specie") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkred") + # linear fit with confidence interval
+  theme_bw()
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "Correlations-relabu.png")
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+# La keystoness se debe a que la frecuencia de la keystone es muy baja.
+# Organizar mejor mis datos.
