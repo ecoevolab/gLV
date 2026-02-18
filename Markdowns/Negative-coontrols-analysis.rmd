@@ -242,7 +242,9 @@ path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "Correlations-rel
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
+$H_0$: Keystoneness is related to relative abundance.
+
 ![Figure 5: Correlation plots between relative abundance and metrics.](/mnt/data/sur/users/mrivera/Plots/NegCtrls/Correlations-relabu.png)
 
-# La keystoness se debe a que la frecuencia de la keystone es muy baja.
+
 # Organizar mejor mis datos.
