@@ -15,9 +15,9 @@ This experiment was designed to generate control communities that explicitly inc
 - Column **k** is drawn from **−U(0,1)**.
 - All other off-diagonal elements are also sampled from **−U(1,2)**.
 
-Data: `/mnt/data/sur/users/mrivera/Controls/NegCtrl-V1`
-Plots: `/mnt/data/sur/users/mrivera/Plots/NegCtrls`
-Rmd:  `/mnt/data/sur/users/mrivera/gLV/Markdowns`
++ Data: `/mnt/data/sur/users/mrivera/Controls/NegCtrl-V1`
++ Plots: `/mnt/data/sur/users/mrivera/Plots/NegCtrls`
++ Rmd:  `/mnt/data/sur/users/mrivera/gLV/Markdowns`
 
 # Load data
 ```{r, eval=FALSE}
@@ -93,7 +93,8 @@ if (!dir.exists(dirname(dir))) {
 ggsave(path, plot = plt, width = 8, height = 6)
 ```
 
-![[/mnt/data/sur/users/mrivera/Plots/NegCtrls/Correlation_Analysis.png]]
+![Figure 1: Pearsons correlation analysis between all variables. All variables show some degree of correlation, with keystoneness and dissimilarity displaying the strongest association, as expected given their conceptual overlap.](/mnt/data/sur/users/mrivera/Plots/NegCtrls/Correlation_Analysis.png)
+
 
 # Meetric distribution by keystone status and p_noint
 ```{r, eval=FALSE}
@@ -181,6 +182,7 @@ path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "Metric_distribut
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
+![Figure 3: Distribution of predictor metrics separated by keystone status. The violin plots suggest that keystones and non-keystones differ in their metric values across all variables examined. ](/mnt/data/sur/users/mrivera/Plots/NegCtrls/Metric_distributions.png)
 
 # Plot Time to stability
 
@@ -194,25 +196,24 @@ summary_table = arrow::read_feather(summary_path)
 library(tidyr)
 library(ggplot2)
 library(ggbeeswarm)
+library(ggridges)
+library(dplyr)
 
-summary_long <- summary_table %>%
-  pivot_longer(cols = c(tts_out, tts_ext), names_to = "variable", values_to = "value")
+# Compute means
+means <- summary_table %>%
+  pivot_longer(cols = c(tts_out, tts_ext), names_to = "variable", values_to = "value") %>%
+  group_by(variable) %>%
+  summarise(mean_val = mean(value, na.rm = TRUE))
 
-# Ploting
-plt <- ggplot(summary_long, aes(x = variable, y = value, fill = variable)) +
-  geom_beeswarm() + 
-  # geom_violin(alpha = 0.6, trim = FALSE) +
-  # geom_jitter(width = 0.1, alpha = 0.3, size = 0.5) +
-  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "red", color = "darkred") +
-  scale_fill_manual(values = c("tts_out" = "#E69F00", "tts_ext" = "#56B4E9"), labels = c("TTS Out", "TTS Ext")) +
-  labs(x = "Time to Stability", y = "Density", title = "Time to Stability Distribution Comparison", fill = "Variable") +
-  theme_minimal() +
-  scale_y_continuous(breaks = seq(0, 1000, by = 100)) +
-  theme(
-    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
-    legend.position = "top",
-    panel.grid.minor = element_blank()
-  )
+# Plot
+plt = summary_table %>%
+  pivot_longer(cols = c(tts_out, tts_ext), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, y = factor(variable), fill = factor(variable))) +
+  geom_density_ridges(alpha = 0.7) +
+  geom_vline(data = means, aes(xintercept = mean_val, color = variable), linetype = "dashed", linewidth = 1) +
+  labs(x = "Value", y = "Variable", fill = "Variable", color = 'Variable') +
+  scale_x_continuous(breaks = seq(0, 1000, by = 100), limits = c(0, 1000)) +
+  theme_minimal()
 
 path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "TTS_simulations2.png")
 if (!(dir.exists(dirname(path)))) dir.create(dirname(path))
@@ -220,6 +221,7 @@ ggsave(path, plot = plt, width = 12, height = 5)
 
 ```
 
+![Figure 4: Density plots of time to stability before and after perturbation. Dashed vertical lines indicate the mean for each condition.](/mnt/data/sur/users/mrivera/Plots/NegCtrls/TTS_simulations2.png)
 
 # Plot keystone metrics vs keystone status
 ```{r, eval=FALSE}
@@ -239,6 +241,8 @@ plt = full_summary %>%  filter('rel_pop_initial' > .05) %>% as.data.frame() %>%
 path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "Correlations-relabu.png")
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
+
+![Figure 5: Correlation plots between relative abundance and metrics.](/mnt/data/sur/users/mrivera/Plots/NegCtrls/Correlations-relabu.png)
 
 # La keystoness se debe a que la frecuencia de la keystone es muy baja.
 # Organizar mejor mis datos.
