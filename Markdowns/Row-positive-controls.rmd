@@ -96,6 +96,8 @@ path = paste0(plt_dir, "/Correlation_Analysis.png")
 ggsave(path, plot = plt, width = 8, height = 6)
 ```
 
+![Figure 1: Pearsons correlation analysis between all variables. All variables show some degree of correlation, with keystoneness and dissimilarity displaying the strongest association, as expected given their conceptual overlap.](/mnt/data/sur/users/mrivera/Plots/NegCtrls/Correlation_Analysis.png)
+
 # Metrics distribution by keystone status
 
 ```{r, eval=FALSE}
@@ -136,10 +138,11 @@ plots <- lapply(variables_to_plot, function(var) {
 })
 
 plt = wrap_plots(plots, ncol = 3) & theme(legend.position = "top")
-plt_dir = '/mnt/data/sur/users/mrivera/Plots/exp_20251125'
-path = paste0(plt_dir, "/Metric_distributions.png")
+path = '/mnt/data/sur/users/mrivera/Plots/exp_20251125/Metric_distributions.png'
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
+
+![Figure 2: Predictor metrics separated by keystone status and interaction network structure.](/mnt/data/sur/users/mrivera/Plots/exp_20251125/Metric_distributions.png)
 
 
 # Plot Time to stability
@@ -177,6 +180,8 @@ path = '/mnt/data/sur/users/mrivera/Plots/exp_20251125/TTS_simulation.png'
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
+![Figure 3: Distribution of predictor metrics separated by keystone status. The violin plots suggest that keystones and non-keystones differ in their metric values across all variables examined. ](/mnt/data/sur/users/mrivera/Plots/exp_20251125/TTS_simulation.png)
+
 # Plot keystone metrics vs keystone status
 ```{r, eval=FALSE}
 library(ggplot2)
@@ -196,6 +201,7 @@ plt = full_summary %>%  filter('rel_pop_initial' > .05) %>% as.data.frame() %>%
 path = '/mnt/data/sur/users/mrivera/Plots/exp_20251125/Correlations-Relabu.png'
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
+![Figure 4: Predictor metrics against relative abundance separated by keystone status. The violin plots suggest that keystones and non-keystones differ in their metric values across all variables examined. ](/mnt/data/sur/users/mrivera/Plots/exp_20251125/TTS_simulation.png)
 
 # Count the number of keystones that died 
 ```{r, eval=FALSE}
