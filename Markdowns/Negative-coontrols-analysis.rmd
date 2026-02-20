@@ -247,4 +247,28 @@ $H_0$: Keystoneness is related to relative abundance.
 ![Figure 5: Correlation plots between relative abundance and metrics.](/mnt/data/sur/users/mrivera/Plots/NegCtrls/Correlations-relabu.png)
 
 
-# Organizar mejor mis datos.
+# Defining threshold for keystones.
+
+```{r, eval=FALSE}
+threshold = c(0.10, 0.05, 0.01)
+
+plt = full_summary_long %>%
+  filter(is_keystone == TRUE & variable == "rel_pop_initial") %>%
+  summarise(
+    above_10 = sum(value > threshold[1])/n(),
+    above_05 = sum(value > threshold[2])/n(),
+    above_01 = sum(value > threshold[3])/n(),
+  ) %>%
+  pivot_longer(cols = everything(), names_to = "threshold", values_to = "proportion") %>%
+  mutate(threshold = factor(threshold, levels = c("above_10", "above_05", "above_01"), labels = c("10%", "5%", "1%"))) %>%
+
+  ggplot(aes(x = threshold, y = proportion, fill = threshold)) +
+  geom_bar(stat = "identity", color = "black", alpha = 0.7) +
+  labs(x = "Relative Abundance Threshold", y = "Proportion of simulations to keep", fill = "Threshold") +
+  theme_bw() +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1), limits = c(0, 1)) +
+  theme(legend.position = "none")
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/NegCtrls", "Keystone_thresholds.png")
+ggsave(path, plot = plt, width = 8, height = 5)
+```
