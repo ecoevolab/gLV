@@ -1,3 +1,7 @@
-# Purpose
+This repository is dedicated to generalized Lotka-Volterra simulations.
 
-This directory has been created on February 04, 2024 for saving the cluster codes and scripts.
+GNN/ — contains code for Graph Neural Network architectures.
+
+src/FUN/ — includes functions needed for running simulations.
+
+test-data/ — contains R scripts to reproduce extinctions from a failed experiment (c748247a-8dc2).

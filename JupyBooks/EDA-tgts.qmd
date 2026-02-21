@@ -1,0 +1,397 @@
+---
+title: Exploratory data analysis
+jupyter: python3
+---
+
+
+This code performs an exploratory data analysis of the metrics calculated from the extinction events. The analyzed metrics include:
+
+* Number of new extinctions (new_ext)
+
+* Bray–Curtis dissimilarity (BC_diss)
+
+* Keystoneness (K_s)
+
+* Time to stability after extinctions (ext_ts)
+
+
+```{python}
+#| eval: false
+
+# Load data
+import pandas as pd
+import os
+
+# Section: Generate-paths
+exp_dir = "/mnt/data/sur/users/mrivera/Train-sims/4379fd40-9f0a"
+tgt_dir = os.path.join(exp_dir, "GNN-targets")
+data_path = os.path.join(exp_dir, "parameters-sims.tsv")
+
+#  Load-data
+data = pd.read_csv(data_path, sep="\t")
+ids20 = data.loc[data['n_species'] == 20]['id']
+ids100 = data.loc[data['n_species'] == 100]['id']
+```
+
+```{python}
+
+# | eval: false
+
+import pyarrow.feather as ft
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
+from multiprocessing import Pool
+
+TGT_DIR = '/mnt/data/sur/users/mrivera/Train-sims/4379fd40-9f0a/GNN-targets'  # Replace with actual path
+RAW_ODES_DIR = '/mnt/data/sur/users/mrivera/Train-sims/4379fd40-9f0a/raw-ODEs'
+
+def read_data(id):
+    # Load targets - read only needed columns
+    x = ft.read_table(
+        os.path.join(TGT_DIR, f'tgt_{id}.feather'),
+        columns=['new_ext', 'BC_diss', 'K_s']
+    )
+    # Convert to numpy - PyArrow arrays are read-only, so copy for rounding
+    ext = x['new_ext'].to_numpy()
+    Bc = np.round(x['BC_diss'].to_numpy(), 5)
+    Ks = np.round(x['K_s'].to_numpy(), 5)
+    # Load relative frequency - read only last column
+    y = ft.read_table(os.path.join(RAW_ODES_DIR, f'O_{id}.feather'))
+    freq = y.column(-1).to_numpy()
+    # Vectorized relative frequency calculation
+    freq_sum = freq.sum()
+    rel = freq / freq_sum if freq_sum != 0 else freq * 0  # Faster than zeros_like
+    return ext, Bc, Ks, rel
+
+def par_dat_preallocate(ids, max_workers=None):
+    # Detect number of cores
+    if max_workers is None:
+        max_workers = len(os.sched_getaffinity(0))
+    # 4 batches per worker
+    chunksize = max(1, len(ids) // (max_workers * 4))
+    # Parallelize function
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(read_data, ids, chunksize=chunksize))
+    # Calculate total sizes
+    size_ext = sum(len(r[0]) for r in results)
+    size_Bc = sum(len(r[1]) for r in results)
+    size_Ks = sum(len(r[2]) for r in results)
+    size_rel = sum(len(r[3]) for r in results)
+    # Pre-allocate output arrays
+    ext_all = np.empty(size_ext, dtype=results[0][0].dtype)
+    Bc_all = np.empty(size_Bc, dtype=results[0][1].dtype)
+    Ks_all = np.empty(size_Ks, dtype=results[0][2].dtype)
+    rel_all = np.empty(size_rel, dtype=results[0][3].dtype)
+    # Fill arrays efficiently
+    pos_ext = pos_Bc = pos_Ks = pos_rel = 0
+    for ext, Bc, Ks, rel in results:
+        n_ext, n_Bc, n_Ks, n_rel = len(ext), len(Bc), len(Ks), len(rel)
+        ext_all[pos_ext:pos_ext+n_ext] = ext
+        Bc_all[pos_Bc:pos_Bc+n_Bc] = Bc
+        Ks_all[pos_Ks:pos_Ks+n_Ks] = Ks
+        rel_all[pos_rel:pos_rel+n_rel] = rel
+        pos_ext += n_ext
+        pos_Bc += n_Bc
+        pos_Ks += n_Ks
+        pos_rel += n_rel
+    return {
+        'extinctions': ext_all,
+        'bray_curtis': Bc_all,
+        'keystone': Ks_all,
+        'relative': rel_all
+    }
+
+        
+# 20 (specs)* Number of simulations with 20 species
+data20 = par_dat_preallocate(ids=ids20)
+data100 = par_dat_preallocate(ids=ids100)
+```
+
+# Relative frequencies distribution
+
+Generate a plot for relative frequencies distributions.
+
+```{python}
+#| eval: false
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+# srun --partition=interactive --time=00:40:00 --cpus-per-task=8 --mem=20G --pty bash
+b1 = np.linspace(0, 1, 100)
+ct1, _ = np.histogram(data20['relative'], bins=100)
+ct2, _ = np.histogram(data100['relative'], bins=100)
+
+# Apply log
+ct20_log = np.log1p(ct1) 
+ct100_log = np.log1p(ct2) 
+
+# Plot distribution
+plt.clf()  # Clear the entire figure
+plt.figure(figsize=(12, 5))
+plt.plot(b1, ct20_log, marker='o', linestyle='-', color='blue', label='20 species')
+plt.plot(b1, ct100_log, marker='o', linestyle='-', color='red', label='100 species')
+plt.xlabel('Relative frequencies')
+plt.ylabel('log(Frequency + 1)')
+plt.title('Distribution of relative frequencies')
+plt.tight_layout()
+plt.legend(loc='upper right')
+plt.savefig('/mnt/data/sur/users/mrivera/Plots/RelFreq-distr.png', dpi=300)
+plt.close()
+```
+
+```{python}
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+img = mpimg.imread('/mnt/data/sur/users/mrivera/Plots/RelFreq-distr.png')
+plt.figure(figsize=(10, 6))
+plt.imshow(img)
+plt.axis('off')
+plt.show()
+```
+
+## Extinctions distribution
+We generate a function to compare the distribution of the number of extinctions.
+
+```{python}
+#| eval: false
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Generate counting 
+labels20, counts20 = np.unique(data20['extinctions'], return_counts=True)
+labels100, counts100 = np.unique(data100['extinctions'], return_counts=True)
+
+def pie_dat(labels, counts):
+    # Filter by >5% of data
+    rel = counts/sum(counts)
+    labels_final, counts_final, fail_counts = labels[rel > 0.05],  counts[rel > 0.05], counts[rel <= 0.05].sum()
+    # Pie chart final labels and counts
+    pie_labels= np.append(labels_final, 'other')
+    pie_counts= np.append(counts_final, fail_counts)
+    return pie_counts, pie_labels
+
+# Generate pie chart data
+pie_20, pie_labels20 = pie_dat(labels = labels20, counts = counts20)
+pie_100, pie_labels100 = pie_dat(labels = labels100, counts = counts100)
+
+# Generate the pie chart
+plt.clf()  # Clear the entire figure
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+colors = sns.color_palette('pastel')
+
+# First pie chart 20 species
+ax1.pie(pie_20, labels=pie_labels20, autopct='%1.1f%%', colors=colors,
+        wedgeprops={'edgecolor': 'white', 'linewidth': 2},
+        startangle=90,
+        textprops={'fontsize': 11, 'weight': 'bold'},
+        pctdistance=0.85,
+        explode=[0.05] * len(pie_20)  # Slightly separate all slices
+        )
+ax1.set_title('Number of extinctions in 20 species data', fontweight='bold')
+
+# Second pie chart 100 species
+ax2.pie(pie_100, labels=pie_labels100, autopct='%1.1f%%', colors=colors,
+        wedgeprops={'edgecolor': 'white', 'linewidth': 2},
+        startangle=90,
+        textprops={'fontsize': 11, 'weight': 'bold'},
+        pctdistance=0.85,
+        explode=[0.05] * len(pie_100)  # Slightly separate all slices
+        )
+ax2.set_title('Number of extinctions in 100 species data', fontweight='bold')
+
+plt.tight_layout()
+plt.savefig('/mnt/data/sur/users/mrivera/Plots/ext-pie.png', dpi = 300)  # Saves as PNG
+```
+
+```{python}
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+img = mpimg.imread('/mnt/data/sur/users/mrivera/Plots/ext-pie.png')
+plt.figure(figsize=(10, 6))
+plt.imshow(img)
+plt.axis('off')
+plt.show()
+```
+
+## HeatMap of relative frequency vs number of extinctions
+
+```{python}
+#| eval: false
+
+# Distribution of extinctions histogram
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Create figure with two subplots
+plt.clf()  # Clear the entire figure
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Compute 2D histogram
+H, xedges, yedges = np.histogram2d(
+    data20['relative'], 
+    data20['extinctions'], 
+    bins=[10, 10]
+)
+
+# Apply log transformation to counts (add 1 to avoid log(0))
+H_log = np.log1p(H.T)  
+H_log_masked = np.ma.masked_where(H_log == 0, H_log)
+
+# Create the heatmap on ax1
+im1 = ax1.imshow(
+    H_log, # Transpose to match plot orientation
+    origin='lower',
+    aspect='auto',
+    extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+    cmap='coolwarm',
+    interpolation='nearest'
+)
+
+fig.colorbar(im1, ax=ax1, label='Log(Frequency)')
+ax1.set_xlabel('Relative Frequency')
+ax1.set_ylabel('Number of Extinctions')
+ax1.set_title('20 Species')
+
+# For 100 species (ax2)
+H100, xedges100, yedges100 = np.histogram2d(
+    data100['relative'], 
+    data100['extinctions'], 
+    bins=[10, 10]
+)
+H100_log = np.log1p(H100.T)
+
+im2 = ax2.imshow(
+    H100_log, 
+    origin='lower',
+    aspect='auto',
+    extent=[xedges100[0], xedges100[-1], yedges100[0], yedges100[-1]],
+    cmap='coolwarm',
+    interpolation='nearest'
+)
+
+fig.colorbar(im2, ax=ax2, label='Log(Frequency)')
+ax2.set_xlabel('Relative Frequency')
+ax2.set_ylabel('Number of Extinctions')
+ax2.set_title('100 Species')
+
+plt.tight_layout()
+plt.savefig('/mnt/data/sur/users/mrivera/Plots/exts-distr.png', dpi=300)
+plt.close()
+```
+
+```{python}
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+img = mpimg.imread('/mnt/data/sur/users/mrivera/Plots/exts-distr.png')
+plt.figure(figsize=(10, 6))
+plt.imshow(img)
+plt.axis('off')
+plt.show()
+```
+
+# Correlation between variables
+
+### Pearson correlation
+
+```{python}
+
+# | eval: false
+
+import numpy as np 
+from scipy.stats import pearsonr
+from scipy.stats import spearmanr
+import itertools
+
+def pearson_cor(var1, var2, name1, name2, specs):
+    corr, pvalue = pearsonr(var1, var2)
+    return f'>> Pearson correlation of {name1} with {name2}, is correlated with r={corr:.6f} for {specs} species. Statistical significance: pval={pvalue:.2e}\n'
+    
+
+def spearman_cor(var1, var2, name1, name2, specs):
+    corr, pvalue = spearmanr(var1, var2)
+    return f'>> Spearman correlation of {name1} with {name2}, is correlated with r={corr:.6f} for {specs} species. Statistical significance: pval={pvalue:.2e}\n'
+
+
+def run_correlation(data, n_species):
+    # Create list for lines
+    lines_pearson = []
+    lines_spearman = []
+    # Generate combinations
+    keys = ['extinctions', 'bray_curtis', 'keystone', 'relative']
+    pairs = list(itertools.combinations(keys, 2))           
+    for p in pairs:
+        name1, name2 = p[0], p[1]                           # Variable names
+        var1, var2 = data[p[0]], data[p[1]]             # Data
+        lines_pearson.append( pearson_cor(var1, var2, name1, name2, n_species) )
+        lines_spearman.append( spearman_cor(var1, var2, name1, name2, n_species) )
+    # Write files
+    with open(f'/mnt/data/sur/users/mrivera/Logs/pearson{n_species}_correlation.txt', 'w') as f:
+        f.writelines(lines_pearson)
+    with open(f'/mnt/data/sur/users/mrivera/Logs/spearman{n_species}_correlation.txt', 'w') as f:
+        f.writelines(lines_spearman)
+
+
+# Run it
+run_correlation(data20, 20)
+run_correlation(data100, 100)
+```
+
+## Run with 20 species
+
+```{python}
+with open('/mnt/data/sur/users/mrivera/Logs/pearson20_correlation.txt', 'r') as f:
+    content = f.read()
+    print(content)
+
+with open('/mnt/data/sur/users/mrivera/Logs/spearman20_correlation.txt', 'r') as f:
+    content = f.read()
+    print(content)
+```
+
+## Run with 100 species
+
+```{python}
+with open('/mnt/data/sur/users/mrivera/Logs/pearson100_correlation.txt', 'r') as f:
+    content = f.read()
+    print(content)
+
+with open('/mnt/data/sur/users/mrivera/Logs/spearman100_correlation.txt', 'r') as f:
+    content = f.read()
+    print(content)
+```
+
+## Plot correlations
+
+```{python}
+#| eval: false
+
+import seaborn as sns
+import pandas as pd
+
+# Convert to pandas DataFrame if it's not already
+data20_df = pd.DataFrame(data20)
+
+# Then create pairplot
+pairplot = sns.pairplot(data20_df[['extinctions', 'bray_curtis', 'keystone', 'relative']])
+pairplot.savefig('/mnt/data/sur/users/mrivera/Plots/pairplot.png', dpi=300)
+plt.close()
+```
+
+```{python}
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+img = mpimg.imread('/mnt/data/sur/users/mrivera/Plots/pairplot.png')
+plt.figure(figsize=(10, 6))
+plt.imshow(img)
+plt.axis('off')
+plt.show()
+```
+

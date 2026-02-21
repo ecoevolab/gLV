@@ -1,0 +1,229 @@
+---
+title: "Positive Controls Analysis"
+output: html_document
+---
+
+# Generate data
+```{r, eval=FALSE}
+# WD
+dir = "/mnt/data/sur/users/mrivera/Controls/PosCtrl-V1"
+ext_summaries = list.files(file.path(dir, "ExtSummaries"), full.names = TRUE)
+simulation_parameters = data.table::fread(file.path(dir, "simulation-params.tsv"), select = c("id", "key"))
+total_rows = nrow(simulation_parameters) * 30
+
+# Read file
+full_summary <- data.frame(
+    keystoneness = numeric(total_rows),
+    dissimilarity = numeric(total_rows),
+    prop_extinctions = numeric(total_rows),
+    n_extinctions = numeric(total_rows),
+    rel_pop_initial = numeric(total_rows),
+    is_keystone = logical(total_rows)
+)
+idx = 1  # Track current position
+
+file = ext_summaries[1]
+for (i in seq_along(simulation_parameters$id)) {
+    # Generate path
+    id = simulation_parameters$id[i]
+    file = file.path("/mnt/data/sur/users/mrivera/Controls/PosCtrl-V1/ExtSummaries", paste0("ExtSummary_", id, ".feather"))
+    #------------------------
+    # Read file
+    cols = c("keystoneness", "dissimilarity_bc", "n_extinctions", "prop_extinctions", "rel_pop_initial")
+    table = arrow::read_feather(file, col_select = cols)
+    table$is_keystone = FALSE
+    table$is_keystone[simulation_parameters$key[i]] <- TRUE
+    #------------------------
+    # Insert into the preallocated vectors
+    end = idx + nrow(table) - 1
+    full_summary$keystoneness[idx:(end)] = table$keystoneness
+    full_summary$dissimilarity[idx:(end)] = table$dissimilarity_bc
+    full_summary$prop_extinctions[idx:(end)] = table$prop_extinctions
+    full_summary$is_keystone[idx:(end)] = table$is_keystone
+    full_summary$n_extinctions[idx:(end)] = table$n_extinctions
+    full_summary$rel_pop_initial[idx:(end)] = table$rel_pop_initial
+    idx = end + 1  # Move index forward
+}
+
+library(tidyr)
+
+full_summary_long <- full_summary %>%
+    pivot_longer(
+        cols = c(keystoneness, dissimilarity, prop_extinctions, n_extinctions, rel_pop_initial),
+        names_to = "variable",
+        values_to = "value"
+    ) %>%
+    dplyr::mutate(value = replace_na(value, 0))
+```
+
+# Correlation analysis
+
+```{r, eval=FALSE}
+# Correlation analysis
+full_summary[is.na(full_summary)] <- 0
+
+library(GGally)
+plt = GGally::ggpairs(full_summary, columns = 1:3, title = "Correlation Analysis", upper = list(continuous = "cor"), lower = list(continuous = "points")) 
+dir = "/mnt/data/sur/users/mrivera/Plots/PosCtrls"
+path = file.path(dir, "Correlation_Analysis.png")
+if (!dir.exists(dirname(dir))) {
+    dir.create(dirname(dir), recursive=TRUE)
+}
+ggsave(path, plot = plt, width = 8, height = 6)
+
+```
+
+```{r}
+knitr::include_graphics("/mnt/data/sur/users/mrivera/Plots/PosCtrls/Correlation_Analysis.png")
+```
+
+# Keystone species distribution
+```{r, eval=FALSE}
+# We will plot the ditribution of keystone species
+filtered_keystones = full_summary[full_summary$is_keystone == TRUE, ]
+
+plt = ggplot(filtered_keystones, aes(x = rel_pop_initial)) +
+    geom_histogram(binwidth = 0.05, fill = "#d73027", color = "black", alpha = 0.7) +
+    theme_minimal() +
+    # geom_vline(xintercept = 1e-6, color = "red", linetype = "dashed", linewidth = 1) + 
+    labs(title = "Distribution of Keystone Species by Relative Population Initial", 
+    x = "Relative Population Initial", y = "Count") +
+    xlim(0, 0.5) +
+    ylim(0,100) 
+    #scale_y_continuous(trans = "log1p")
+
+dir = "/mnt/data/sur/users/mrivera/Plots/PosCtrls"
+path = file.path(dir, "KeyRel_Distribution.png")
+ggsave(path, plot = plt, width = 8, height = 6)
+
+sum(filtered_keystones$rel_pop_initial < 0.2)
+```
+
+```{r}
+knitr::include_graphics("/mnt/data/sur/users/mrivera/Plots/PosCtrls/KeyRel_Distribution.png")
+```
+
+# Metrics distribution by keystone status
+
+```{r, eval=FALSE}
+library(ggplot2)
+library(patchwork)  # Better than cowplot for this
+
+# Define common theme and colors
+theme_custom <- theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", size = 11),
+        axis.title = element_text(size = 10)
+    )
+
+colors <- c("FALSE" = "#4575b4", "TRUE" = "#d73027")  # Better color contrast
+
+# Optimization plot
+plotter = function(variable, dataset) {
+    ggplot(dataset, aes(x = is_keystone, y = .data[[variable]], fill = is_keystone)) +
+        geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+        # geom_violin() +
+        scale_fill_manual(
+            name = "",
+            values = colors,
+            labels = c("Non-keystone", "Keystone")
+        ) +
+        coord_cartesian(ylim = c(0, 0.4)) +
+        theme_custom +
+        labs(title = variable, 
+             x = "", 
+             y = variable) +
+        theme(legend.position = "none", axis.text.x = element_blank())  # Remove legends
+}
+p1 = plotter(variable = "keystoneness", dataset = full_summary)
+p2 = plotter(variable = "dissimilarity", dataset = full_summary)
+p3 = plotter(variable = "prop_extinctions", dataset = full_summary)
+
+# Combine plots with shared legend
+plot_save <- (p1 | p2 | p3) +  plot_layout(guides = "collect") & theme(legend.position = "bottom")
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/PosCtrls", "Metric_distributions.png")
+ggsave(path, plot = plot_save, width = 12, height = 5)
+```
+
+```{r}
+knitr::include_graphics("/mnt/data/sur/users/mrivera/Plots/PosCtrls/Metric_distributions.png")
+```
+
+# How many keystone species end at dead threshold?
+```{r, eval=FALSE}
+
+# Load ids and keystones
+dir = "/mnt/data/sur/users/mrivera/Controls/PosCtrl-V1"
+raw_dir = file.path(dir, "RawOutputs")
+simulation_parameters = data.table::fread(file.path(dir, "simulation-params.tsv"), select = c("id", "key"))
+
+# Load each output, only the last column and append data
+library(parallel)
+n_cores = detectCores() - 1
+keys_vector = unlist(mclapply(1:nrow(simulation_parameters), function(i) {
+    row = simulation_parameters[i, ]
+    id = row$id
+    key = row$key
+    path = file.path(raw_dir, paste0("RawOutput_", id, ".feather"))
+    output = arrow::read_feather(path, col_select = 1000)[[1]]
+    key_final = output[key]
+    return(key_final)
+}, mc.cores = n_cores))
+
+#--------------------------------
+# Section: Plot the histograms 
+library(ggplot2)
+
+plt = ggplot(data.frame(x = keys_vector), aes(x = x)) +
+  geom_histogram(bins = 100, fill = "steelblue", color = "black") +
+  geom_vline(xintercept = 1e-06, color = "red", linetype = "dashed", linewidth = 1) +
+  xlim(0, 1) +
+  scale_y_continuous(trans = "log1p") +
+  labs(title = "Distribution with Threshold",
+       x = "Value",
+       y = "Count (log1p scale)") +
+  theme_minimal()
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/PosCtrls", "AbsKey_distribution.png")
+ggsave(path, plot = plt, width = 12, height = 5)
+
+died = sum(keys_vector < 1e-6)
+print(paste("Number of keystone species that died:", died))
+```
+
+
+## Wilcoxon rank-sum TESTING
+
+H_0: The distribution of keystoneness is the same for keystone and non-keystone species.
+H_A: The distribution of keystoneness is different for keystone and non-keystone species.
+
+```{r, eval = FALSE}
+x = full_summary$keystoneness[full_summary$is_keystone == FALSE]
+y = full_summary$keystoneness[full_summary$is_keystone == TRUE]
+wilcox.test(x, y)
+
+```
+
+## Weilch's t-test
+
+H_0: There is no significant difference between the group means.
+H_A: There is a significant difference between the group means.
+
+```{r, eval = FALSE}
+keystone_data = full_summary[full_summary$is_keystone == TRUE,]
+non_keystone_data = full_summary[full_summary$is_keystone == FALSE,]
+
+interest = c("keystoneness", "dissimilarity", "prop_extinctions", "n_extinctions")
+variable = "keystoneness"
+lapply(interest, function(variable) {
+    cat("\n-------------------------\n")
+    x = non_keystone_data[[variable]]
+    y = keystone_data[[variable]]
+    test_result = t.test(x, y, var.equal = FALSE)
+    cat("Variable:", variable, "\n")
+    print(test_result)
+})
+
+```

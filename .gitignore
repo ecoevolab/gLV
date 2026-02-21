@@ -4,3 +4,18 @@
 .Ruserdata
 *.Rproj
 .vscode
+
+# Ignore everything
+*
+*.qmd
+*.html
+
+# But not these files...
+!*.py
+!*.R
+!*.r
+!*.ipynb
+!*.rmd
+
+# And not directories (so we can recurse into them)
+!*/

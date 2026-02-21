@@ -1,0 +1,241 @@
+---
+title: "Vignette Title"
+author: "Vignette Author"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+# Purpose
+This script purpose is to deemostrate if using column or row positive interactions will affect the results of the simulations.
+
+# Eample generation
+```{r example-generation, echo=FALSE}
+# First we generate some example data 
+data_example = data.table::CJ(n_species = 30, p_neg = 1, p_noint = seq(0, 0.9, by = 0.1))
+n_total <- nrow(data_example)
+all_seeds <- sample.int(3e6L, 3L *n_total, replace = FALSE)
+  
+data_example[, `:=`(
+  key = sample(x = 1:30, size = n_total, replace = TRUE),  # key species to not go extinct
+  id = ids::random_id(n = n_total, bytes = 3),
+  x0_seed = all_seeds[1:n_total],
+  mu_seed = all_seeds[(n_total+1):(n_total*2)],
+  A_seed = all_seeds[(2 * n_total + 1):(3 * n_total)]
+)]
+  
+print(head(data_example))
+```
+
+## Generate parameters
+```{r}
+build_parameters <- function(index, row = TRUE) {
+    n_species <- as.numeric(index[["n_species"]])
+    #------------------Populations-----------------------------#
+    set.seed(as.numeric(index[["x0_seed"]]))
+    x0 <- stats::runif(n_species, min = 0.1, max = 1)
+    #------------------------Growth Rates---------------------#
+    set.seed(as.numeric(index[["mu_seed"]]))
+    mu <- stats::runif(n_species, min = 0.001, max = 1)
+    #--------------------Interactions-------------------------#
+    #' Define proportions for zero and negative values
+    p_noint <- as.numeric(index[["p_noint"]])
+    p_neg <- as.numeric(index[["p_neg"]])
+    k = as.numeric(index[["key"]])  # Keystone specie
+    # Define the number of interactions
+    # Removed diagonal elements n
+    # Removed one species interaction from the pool (n_species - 1)
+    total = (n_species**2) - n_species - (n_species - 1)
+    num_noint = floor(p_noint * total)      # null-interactions
+    remaining = total - num_noint           # Non-zero-interactions
+    num_negs = floor(p_neg * remaining)     # Negative interactions
+    num_pos = remaining - num_negs
+    # Create the interaction vector
+    set.seed(as.numeric(index[["A_seed"]]))
+    interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1),runif(num_pos, min = 0, max = 1))
+    # Shuffle the interaction vector
+    set.seed(as.numeric(index[["A_seed"]]))
+    interaction_values <- sample(interaction_values)
+    #-----------------
+    # Create matrix of TRUE masking
+    mask <- matrix(TRUE, n_species, n_species)    # mask matrix
+    diag(mask) <- FALSE                           # remove diagonal
+    # Generate matrix to fill
+    M <- matrix(NA, n_species, n_species)         # values matrix
+    # Section: Row or Column keystone
+    if (row) { # row keystone
+        mask[k,] <- FALSE              # remove keystone ROW
+        M[mask] <- interaction_values  # off-diagonal and off keystone row values
+        M[k,] <- 1.5                   # keystone ROW values  
+    } else { # column keystone
+        mask[,k] <- FALSE              # remove keystone COLUMN
+        M[mask] <- interaction_values  # off-diagonal and off keystone row values
+        M[,k] <- 1.5                   # keystone COLUMN values 
+    }
+    diag(M) <- -0.5                # diagonal values
+    # Optional: Round if needed
+    M <- round(M, digits = 5)
+    # Extract ID
+    id <- index[["id"]]
+    # Return parameters as a list
+    params <- list(x0 = x0, M = M, mu = mu, id = id, n = n_species)
+    return(params)
+}
+
+# First row of the example data
+index = data_example[1, ]
+params_row = build_parameters(index, row = TRUE)
+params_col = build_parameters(index, row = FALSE)
+```
+
+## Solve the system
+Once we have the functions defined, we can generate the parameters for the example data.
+```{r}
+#--------------------
+# Solver function
+solve_gLV <- function(times, params) {
+  # Define the gLV model
+  glv_model <- function(t, x0, params) {
+    x0[x0 < 1e-6] <- 0 # Ignore the effect of species with population below a threshold
+    # dx/dt = X *(r + A * X) + D
+    dx <- (x0 * (params$mu + params$M %*% x0)) + 1e-6
+    list(dx)
+  }
+  time_seq <- seq_len(times)  # Times to simulate
+  # Try solving the system with a timeout
+  results <- tryCatch(
+    R.utils::withTimeout(
+      deSolve::ode(
+        y = params$x0,
+        times = time_seq,
+        func = glv_model,
+        parms = params,
+        method = "ode45",
+        rtol = 1e-6,
+        atol = 1e-6
+      ),
+      timeout = 600
+    ),
+    error = function(e) {
+    message(">> Error details: ", e$message)
+    message(">> Error class: ", class(e))
+    print(str(params))  # Check params structure
+    return(NULL)
+  }
+  )
+  # Process results if valid
+  if (!is.null(results) && ncol(results) > 1) {
+    tmp <- results[, -1] |>  # remove time column
+      t() |>                 # transpose
+      as.data.frame() |>     # convert to df
+      # Populations that went extinct (no effect)
+      dplyr::mutate(across(everything(), ~ replace(., . < 1e-6, 0))) 
+    return(tmp)
+  }
+  # If results not valid: return NA matrix 
+  matrix(NA, nrow = nrow(params$M), ncol = times)
+}
+
+# Generate outputs 
+row_output = solve_gLV(times = 100, params = params_row)
+col_output = solve_gLV(times = 100, params = params_col)
+
+```
+
+## Verify stability
+```{r}
+find_stability <- function(output) {
+  # Apply the logic across each row of output
+  x <- vapply(1:nrow(output), function(i) {
+    row <- as.numeric(output[i, ])
+    # Identify differences less than or equal to 0.05
+    test <- abs(diff(row)) <= 0.05
+    rle_res <- rle(test)  # Run-length encoding
+    # Find the positions where TRUE values have length >= 10
+    valid_runs <- which(rle_res$values == TRUE & rle_res$lengths >= 10)
+    # Identify the starting positions (adjusted for diff)
+    if (length(valid_runs) > 0) {
+      t <- sum(rle_res$length[-valid_runs]) + 1
+    } else {
+      t <- NA  # In case no valid runs are found
+    }
+    return(t)
+  }, FUN.VALUE = numeric(1))  # Pre-allocate to numeric vector
+  # Return the maximum time
+  max(x, na.rm = TRUE)  # Ensure that NA values are ignored
+}
+
+stability_row <- find_stability(row_output)
+stability_col <- find_stability(col_output)
+```
+
+
+## Simulate extinctions
+```{r}
+simulate_extinctions <- function(params, path_core) {
+  # Extract parameters
+  n = params$n
+  x_before = params$x0                              # Non perturbated populations  
+  rel_pop_initial <- x_before / sum(x_before)       # Proportions
+  # Pre-allocate data frame
+  exts_df <- data.frame(
+    specie = integer(n),
+    n_extinctions = integer(n),
+    prop_extinctions = numeric(n),
+    dissimilarity_bc = numeric(n),
+    keystoneness = numeric(n),
+    time_stability = numeric(n)
+  )
+  for(i in 1:n){
+    # Remove species i from the community
+    tmp_params <- list(
+      x0 = params$x0[-i],
+      mu = params$mu[-i],
+      M = params$M[-i, -i, drop = FALSE]
+    )
+    #------------------------------------
+    # Run simulation
+    new_out = solve_gLV(times = 1000, tmp_params)
+    x_after = new_out[, ncol(new_out)]                 # Last column 
+    #------------------------------------
+    # Section: Extinctions
+    extinct_after = x_after <= 1e-6                   # NOW DIED
+    extinct_before = tmp_params$x0 > 1e-6                  # WERE ALIVE
+    n_extinctions <- sum(extinct_after & extinct_before)    # new extinctions
+    props_extinctions = n_extinctions/n                     # proportion of extinctions
+    #------------------------------------
+    # Section: Bray-Curtis dissimilarity 
+    # Remove species i from the original community.
+    # Calculate
+    x_removed = x_before[-i]
+    bray_curtis <- 1 - (2 * sum(pmin(x_removed, x_after))) / (sum(x_removed) + sum(x_after))
+    #------------------------------------
+    # Section: Keystoneness 
+    props <- x_after / sum(x_after) # relative abundance
+    keystoneness <- bray_curtis * (1 - props[i])
+    #--------------------Time to stability-------------------------#
+    time_stability <- find_stability(new_out)
+    #-------------------------------------
+    # Generate data frame
+    exts_df[i, "specie"] <- i                                     # specie-extinct
+    exts_df[i, "n_extinctions"] <- n_extinctions                  # new-extinctions
+    exts_df[i, "prop_extinctions"] <- round(props_extinctions, 2) # proportion-extinctions
+    exts_df[i, "dissimilarity_bc"] <- bray_curtis                 # Bray-Curtis
+    exts_df[i, "keystoneness"] <- keystoneness                    # Keystoneness             
+    exts_df[i, "time_stability"] <- time_stability                # Time-to-stability          
+    # Lines to save the output of each extinction 
+    # ext_path <- paste0(path_core, "/E_", params$id, "-S", i, ".feather")         
+    # arrow::write_feather(x = new_out, sink = ext_path)                                       
+  }
+  # Add relative abundance of the extinct species before extinction
+  exts_df$rel_pop_initial <- rel_pop_initial   
+  cat(">> Extinctions completed for", params$id, ".\n")
+  return(exts_df)
+}
+
+# Simulate extinctions
+exts_row = simulate_extinctions(params = params_row, path_core = NULL)
+exts_col = simulate_extinctions(params = params_col, path_core = NULL)
+```
