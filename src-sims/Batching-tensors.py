@@ -74,6 +74,7 @@ def load_single_data(id, interactions_dir, targets_dir, topologies_dir):
     return data
 
 # Sanity check: load one data sample
+id = data_ids.iloc[0]
 load_single_data(data_ids.iloc[0], interactions_dir, targets_dir, topologies_dir)
 
 #-------------------------------------------------------------
