@@ -8,9 +8,9 @@
 tictoc::tic("Section 0: Total running time")
 
 #' Indicate directories paths
-pdir <- "/mnt/data/sur/users/mrivera/Controls"      # Parent-dir                                                
-exp_id = "NegCtrl-V1"                               # Experiment-ID      
-exp_dir <- file.path(pdir, exp_id)                  # Experiment-dir
+pdir <- "/mnt/data/sur/users/mrivera/Controls"     # Parent-dir                                                
+experiment_id = "Boosted_keystone"                 # Experiment-ID      
+exp_dir <- file.path(pdir, experiment_id)          # Experiment-dir
 
 params_path <- file.path(exp_dir,"simulation-params.tsv")    # Parameters-TSV
 mc_dir <- file.path(exp_dir, "mc-apply")                     # Workers-dir
@@ -43,21 +43,21 @@ generate_params <- function (){
   return(dt)
 }
 
-df <- generate_params()
+df_params <- generate_params()
 # Verify if ids are unique and in case they are, save the parameters.
-while (nrow(df) != length(unique(df$id))) {
-    df <- generate_params() # Repeat function
+while (nrow(df_params) != length(unique(df_params$id))) {
+    df_params <- generate_params() # Repeat function
 }
       
 # Save parameters
 dir.create(exp_dir, recursive = TRUE, showWarnings = FALSE)
-data.table::fwrite(x = df, file = params_path, sep = "\t", quote = FALSE, row.names = FALSE) 
+data.table::fwrite(x = df_params, file = params_path, sep = "\t", quote = FALSE, row.names = FALSE) 
 message("\nParameteres generated and saved at path:\n", params_path, "\n")
-cat(">> The number of extinctions to do is:", 30 * nrow(df),"\n", sep=" ")
+cat(">> The number of extinctions to do is:", 30 * nrow(df_params),"\n", sep=" ")
 tictoc::toc() # For section 1
 
-#============================================================================
-# SECTION: Divide-data-into-chunks
+#---------------------------------------------------------------------------
+# Section: Divide-data-into-chunks
 
 #' We split the data into chunks of `n_cores`:
 #+ eval=FALSE
@@ -67,20 +67,18 @@ library(parallel)
 num_cores <- parallel::detectCores() - 1  # Use one less than the total number of cores
 cat("The number of cores that will be used are: ", num_cores, "\n")
 
-split_table <- function(df, n_chunks) {
-  split(df, cut(seq_len(nrow(df)), breaks = n_chunks, labels = FALSE))
+split_table <- function(df_params, n_chunks) {
+  split(df_params, cut(seq_len(nrow(df_params)), breaks = n_chunks, labels = FALSE))
 }
 
-# TEST
-chunks <- split_table(df, num_cores)
+# Divide data
+chunks <- split_table(df_params, num_cores)
 message("\nData split completed...\n")
 tictoc::toc() # For section 2
 
-#============================================================================
-# SECTION: Create-worker-directories
-#' We create a separate directory for each core to prevent race conditions (when two cores access the same directory simultaneously).
-#+ eval=FALSE
-# ==== Generate directories for each core ====
+#---------------------------------------------------------------------------
+# Section: Create-worker-directories
+# We create a separate directory for each core to prevent race conditions (when two cores access the same directory simultaneously).
 tictoc::tic("Section 3: Generate directories for each core")
 
 # Generate workers directories
@@ -100,7 +98,7 @@ workers_ODE <- create_dirs(mc_dir, num_cores)
 message("\nWorking directories created at path:\n", mc_dir,"\n")
 tictoc::toc() # For section 3
 
-#============================================================================
+#---------------------------------------------------------------------------
 # SECTION: Source-codes
 #' We source the function to generate the gLV parameters using the initial parameters and for solve it:
 
@@ -118,7 +116,7 @@ lapply(codes, function(file){
 # Function to generate positive controls: build_posctrl
 # testing lines
 # index = df[900,]
-# params = build_params(index)
+# params = gen_Kboost_params(index)
 # path_core = workers_ODE[1]
 # num_cores = 5
 # chunks = split_table(df[1:5,], num_cores)
@@ -153,14 +151,9 @@ build_topology <- function(A) {
     in_coreness = coreness(g, mode = 'in'),  # In coreness
     out_coreness = coreness(g, mode = 'out')  # out coreness
   )
-  # Next line is for testing if total_degree is correct
-  # rowSums(top_df[,1:4]) == top_df[,"total_degree"]
-  #
   # Convert NaN to 0
   top_df[is.nan(top_df)] <- 0
   top_df = round(top_df,3)
-  # Add species
-  # result = cbind(species = paste0("Sp", 1:nrow(A)), df)
   return(top_df)
 }
 
@@ -170,7 +163,7 @@ build_topology <- function(A) {
 wrapper <- function(index, path_core) {
   #-----------------------------
   # Section: Generate parameters and run simulation
-  params <- build_params_ctrls(index)              # Generate-parameters
+  params <- gen_Kboost_params(index)          # Generate-parameters
   output <- solve_gLV(times = 1000, params)   # Run-simulation
   #-----------------------------
   # Section: Generate filenames and save files
@@ -180,9 +173,9 @@ wrapper <- function(index, path_core) {
   topology_path <- file.path(path_core, paste0("Topology_", sim_id, ".feather"))    # network topology
   preds_path <- file.path(path_core, paste0("ExtSummary_", sim_id, ".feather"))     # extinctions summary
   # Save files
-  # df_subset <- df[, c(1, seq(10, ncol(df), by = 10))]       # Create df with every 10 cols
-  arrow::write_feather(x = output, sink = out_path)                      # Save output
-  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)       # Save interactions matrix
+  output_subset <- output[, c(1, seq(0, ncol(output), by = 50))]       # Save output every 50 cols
+  arrow::write_feather(x = output_subset, sink = out_path)             # Save output
+  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)     # Save interactions matrix
   #-----------------------------
   # Section: Generate topology and summary of the simulation
   na_count <- sum(is.na(output))                              # simulation-NAs
