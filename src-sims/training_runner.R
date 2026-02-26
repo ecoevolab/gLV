@@ -53,7 +53,7 @@ generate_params <- function (){
 df_parameters <- generate_params()
 # Verify if ids are unique and in case they are, save the parameters.
 while (nrow(df_parameters) != length(unique(df_parameters$id))) {
-    df_parameters <- generate_params() # Repeat function
+  df_parameters <- generate_params() # Repeat function
 }
       
 # Save parameters
