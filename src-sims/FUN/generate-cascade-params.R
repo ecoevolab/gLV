@@ -18,6 +18,9 @@
 #' 
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
 #'  positive interactions or negatives. 
+#' @examples
+#' index = list(n_species = 5, p_noint = 0.5, p_neg = 1, key = 1, id = "example_id", x0_seed = 123, mu_seed = 456, A_seed = 789)
+#' gen_cascade_params(index)
 
 gen_cascade_params <- function(index) {
   #-------------------Parameters-------------------------#
@@ -44,10 +47,11 @@ gen_cascade_params <- function(index) {
   num_pos = remaining - num_negs
   #------------------------
   # Create the interaction vector
-  set.seed(as.numeric(index[["A_seed"]]))
+  a_seed = as.numeric(index[["A_seed"]])
+  set.seed(a_seed)
   interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1),runif(num_pos, min = 0, max = 1))
   # Shuffle the interaction vector
-  set.seed(as.numeric(index[["A_seed"]]))
+  set.seed(a_seed)
   interaction_values <- sample(interaction_values)
   #------------------------
   # Create matrix of TRUE masking
@@ -61,6 +65,8 @@ gen_cascade_params <- function(index) {
   # Section: Generate cascading effects
   # Cascade is the vector containing the sequence.
   whom_rows = seq_along(1:n_species)[-k]
+  set.seed(a_seed)
+  whom_rows = sample(whom_rows)  # shuffle the order of the affected species
   who_cols = c(k, whom_rows)       # who
   for (i in seq_along(whom_rows)) {
     # print(paste0(">> Applying cascade effect: ", who_cols[i], " affects ", whom_rows[i]))
