@@ -123,13 +123,13 @@ def seed_fn(seed=42):
 # Set seed and run model
 loss_fn = nn.MSELoss()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-seed_fn(38)
+seed_fn(42)
 model_declared = model(hidden_channels=64, num_layers=5).to(device)
 optimizer = optim.Adam(model_declared.parameters(), lr=0.00001)
-epochs = 100
+epochs = 300
 
 # Load file paths
-data_dir = '/home/mriveraceron/data/NegCtrl-V1'
+data_dir = '/home/mriveraceron/data/Boosted_keystone'
 batched_paths = glob.glob(f"{data_dir}/*.pt")
 loss_history, df_true, df_pred, idx_max_true, idx_max_pred= training_loop(model_declared, device, batched_paths, loss_fn, optimizer, epochs)
 
@@ -142,15 +142,15 @@ result_path = f'{results_dir}/{os.path.basename(data_dir)}/Raw-AllFeatures'
 os.makedirs(result_path, exist_ok=True)
 #-------------------------------
 # Save max indexes
-idx_max_true.to_feather(f'{result_path}/max_idx_true_raw.feather')
-idx_max_pred.to_feather(f'{result_path}/max_idx_pred_raw.feather')
+idx_max_true.to_feather(f'{result_path}/max_idx_true.feather')
+idx_max_pred.to_feather(f'{result_path}/max_idx_pred.feather')
 #-------------------------------
 # Save metrics
-df_true.to_feather(f'{result_path}/Metrics_true_raw.feather')
-df_pred.to_feather(f'{result_path}/Metrics_pred_raw.feather')
+df_true.to_feather(f'{result_path}/Metrics_true.feather')
+df_pred.to_feather(f'{result_path}/Metrics_pred.feather')
 #-------------------------------
 # Save loss history
-np.save(f'{result_path}/RawData_loss.npy', np.array(loss_history))
+np.save(f'{result_path}/loss_history.npy', np.array(loss_history))
 # np.load(f'{result_path}/Dummy_loss.npy')
 # x= np.load(f'{result_path}/Dummy_max_true.npy')
 
@@ -165,7 +165,7 @@ plt.title("Loss over time")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.grid(True)
-plt.savefig(f'{result_path}/RawData_loss_plot.png')
+plt.savefig(f'{result_path}/Data_loss_plot.png')
 
 #-------------------------------
 # Section: Plot values predicted vs true
@@ -186,7 +186,7 @@ for ax in axes:
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)  
     
-fig.savefig(f'{result_path}/Values_TP_raw.png')
+fig.savefig(f'{result_path}/Values_TP.png')
 
 #-------------------------------
 # Section: Plot indexes of max values predicted vs true
@@ -217,4 +217,4 @@ for ax in axes:
     ax.set_ylim(0, 30)  
 
 
-fig.savefig(f'{result_path}/Values_MaxIndex_TP_raw.png')
+fig.savefig(f'{result_path}/Values_MaxIndex_TP.png')

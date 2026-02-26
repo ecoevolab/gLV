@@ -132,7 +132,7 @@ optimizer = optim.Adam(model_declared.parameters(), lr=0.00001)
 epochs = 100
 
 # Load file paths
-data_dir = '/home/mriveraceron/data/NegCtrl-V1'
+data_dir = '/home/mriveraceron/data/Boosted_keystone'
 batched_paths = glob.glob(f"{data_dir}/*.pt")
 loss_history, df_true, df_pred, idx_max_true, idx_max_pred= training_loop(model_declared, device, batched_paths, loss_fn, optimizer, epochs)
 
@@ -220,8 +220,6 @@ for ax in axes:
 fig.savefig(f'{result_path}/Values_MaxIndex_TP.png')
 
 #-------------------------------
-
-a =  torch.rand(3, 3) 
-torch.argmax(a, dim=0).detach().cpu().numpy()
-
-a.numpy()[2,3]
+# a =  torch.rand(3, 3) 
+# torch.argmax(a, dim=0).detach().cpu().numpy()
+# a.numpy()[2,3]
