@@ -1,0 +1,160 @@
+---
+title: "Boosted experiment"
+author: "Manuel Rivera"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Description
+This analysis focuses on the boosted approach to generate keystone datasets controls. 
+In this method, we set off-diagonal interaction mantaining a proportion of zeros and non zeros result from a **-U(0,1)** creating a 
+boosted effect on the interactions at column k. 
+Boosted value is fixed to 10.
+
+# Generate data
+```{r, eval=FALSE}
+
+dir = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone'
+ext_dir = paste0(dir, "/ExtSummaries")
+raw_outs_dir = paste0(dir, "/RawOutputs")
+simulation_parameters = data.table::fread(paste0(dir, "/simulation-params.tsv"), select = c("id", "key", "p_noint"))
+
+
+library(dplyr)
+library(parallel)
+
+process_row <- function(i) {
+  #------------------------
+  # Generate path
+  row <- simulation_parameters[i, ]
+  id <- row$id
+  key <- as.numeric(row$key)
+  p_noint <- as.numeric(row$p_noint)
+  ext_file_path <- paste0(ext_dir, paste0("/ExtSummary_", id, ".feather"))
+  ode_file_path <- paste0(raw_outs_dir, paste0("/RawOutput_", id, ".feather"))
+  #------------------------
+  # Generate relative abundance
+  population <- arrow::read_feather(ode_file_path)
+  relative_pop <- population[[ncol(population)]] / sum(population)
+  #------------------------
+  # Read extinctions file
+  cols <- c("prop_extinctions", "dissimilarity_bc", "keystoneness")
+  table <- arrow::read_feather(ext_file_path, col_select = all_of(cols)) %>%
+    rename(n_extinctions = prop_extinctions) %>%
+    rename(dissimilarity = dissimilarity_bc) %>%
+    rename(keystoneness = keystoneness) %>%
+    mutate(pop_initial = population[[1]]) %>%
+    mutate(rel_pop_initial = relative_pop[[1]]) %>%
+    mutate(prop_extinctions = n_extinctions / n()) %>%
+    mutate(is_keystone = FALSE, p_noint = p_noint)
+  # Add keystone
+  table$is_keystone[key] <- TRUE
+  table
+}
+
+results <- mclapply(1:nrow(simulation_parameters), process_row, mc.cores = detectCores() - 1)
+full_summary <- do.call(rbind, results)
+```
+
+# Metrics distributions
+```{r, eval=FALSE}
+library(ggplot2)
+library(ggridges)
+
+# Define common theme and colors
+theme_custom <- theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", size = 11),
+        axis.title = element_text(size = 10)
+    )
+
+colors <- c("FALSE" = "#4575b4", "TRUE" = "#d73027")  # Better color contrast
+
+# Only plot these variables
+variables_to_plot <- c("keystoneness", "dissimilarity", "prop_extinctions")
+
+# Generate plot
+library(tidyr)
+plt = full_summary %>% select(is_keystone, all_of(variables_to_plot)) %>%
+    pivot_longer(cols = all_of(variables_to_plot), names_to = "variable", values_to = "value") %>%
+    mutate(value = ifelse(value < 0, 0, value)) %>%
+    ggplot(aes(x = variable, y = value, fill = is_keystone)) +
+    geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+    scale_y_continuous(trans = "log1p") +
+    stat_summary(fun = mean, geom = "point", color = "red", size = 3, position = position_dodge(width = 0.75), show.legend = FALSE) +
+    scale_fill_manual(values = colors, labels = c("Non-keystone", "Keystone")) +
+    labs(x = "Metric", y = "Value", fill = "Species Type") +
+    theme_custom
+
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/Boosted_keys", "Metric_distributions.png")
+if (!(dir.exists(dirname(path)))) { 
+  dir.create(dirname(path), recursive = TRUE)
+  print('>> Directory created\n')}
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 1: Metrics distributions](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Metric_distributions.png)
+
+# Relative abundance vs metrics distribution for keystone species
+```{r, eval=FALSE}
+plt = full_summary %>% filter(is_keystone) %>% select(rel_pop_initial, keystoneness, dissimilarity, prop_extinctions) %>%
+    pivot_longer(cols = c(keystoneness, dissimilarity, prop_extinctions), names_to = "variable", values_to = "value") %>%
+    mutate(value = ifelse(value < 0, 0, value)) %>%
+    ggplot(aes(x = rel_pop_initial, y = value, color = variable)) +
+    geom_point(alpha = 0.6) +
+    scale_y_continuous(trans = "log1p") +
+    scale_x_continuous(trans = "log1p") +
+    facet_wrap(~ variable, scales = "free_y") +
+    labs(x = "Relative Abundance", y = "Metric Value", title = "Keystone Species: Relative Abundance vs Metrics") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics.png'
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 2: Relative abundance vs metrics](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics.png)
+
+# Threshold analysis
+```{r, eval=FALSE}
+
+thresholds = c(1e-10, 1e-5, 1e-3, 1e-1)
+tmp = full_summary %>% filter(is_keystone) %>% select(rel_pop_initial)
+
+counts = numeric(length(thresholds))
+for(i in seq_along(thresholds)) {
+  counts[i] = sum(tmp$rel_pop_initial >= thresholds[i])/nrow(tmp)
+}
+
+plt = data.frame(threshold = factor(as.character(thresholds)), proportion = counts) %>%
+    ggplot(aes(x = threshold, y = proportion, fill = threshold)) +
+    geom_bar(stat = "identity") +
+    scale_y_continuous(labels = scales::percent) +
+    labs(x = "Relative Abundance >= Threshold", y = "Proportion of valid simulations") +
+    theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+
+path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png'
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 3: Relative abundance thresholds](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png)
+
+# Run correlation analysis
+```{r, eval=FALSE}
+# Correlation analysis
+full_summary[is.na(full_summary)] <- 0
+
+library(GGally)
+cols = c("keystoneness", "dissimilarity", "prop_extinctions", "rel_pop_initial")
+plt = GGally::ggpairs(full_summary, columns = cols, title = "Correlation Analysis", upper = list(continuous = "cor"), lower = list(continuous = "points")) 
+
+path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png'
+ggsave(path, plot = plt, width = 8, height = 6)
+```
+
+![Figure 4: Correlation Analysis](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png)
