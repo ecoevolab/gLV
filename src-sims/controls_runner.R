@@ -9,7 +9,7 @@ tictoc::tic("Section 0: Total running time")
 
 #' Indicate directories paths
 pdir <- "/mnt/data/sur/users/mrivera/Controls"     # Parent-dir                                                
-experiment_id = "Boosted_keystone"                 # Experiment-ID      
+experiment_id = "Cascade_keystone"                 # Experiment-ID      
 exp_dir <- file.path(pdir, experiment_id)          # Experiment-dir
 
 params_path <- file.path(exp_dir,"simulation-params.tsv")    # Parameters-TSV
@@ -46,7 +46,7 @@ generate_params <- function (){
 df_params <- generate_params()
 # Verify if ids are unique and in case they are, save the parameters.
 while (nrow(df_params) != length(unique(df_params$id))) {
-    df_params <- generate_params() # Repeat function
+  df_params <- generate_params() # Repeat function
 }
       
 # Save parameters
@@ -115,7 +115,7 @@ lapply(codes, function(file){
 #------------------------------------------------------
 # Function to generate positive controls: build_posctrl
 # testing lines
-# index = df[900,]
+# index = df_params[900,]
 # params = gen_Kboost_params(index)
 # path_core = workers_ODE[1]
 # num_cores = 5
@@ -163,7 +163,7 @@ build_topology <- function(A) {
 wrapper <- function(index, path_core) {
   #-----------------------------
   # Section: Generate parameters and run simulation
-  params <- gen_Kboost_params(index)          # Generate-parameters
+  params <- gen_cascade_params(index)          # Generate-parameters
   output <- solve_gLV(times = 1000, params)   # Run-simulation
   #-----------------------------
   # Section: Generate filenames and save files
