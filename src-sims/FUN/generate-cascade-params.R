@@ -25,56 +25,55 @@
 gen_cascade_params <- function(index) {
   #-------------------Parameters-------------------------#
   n_species <- as.numeric(index[["n_species"]])
-  id <- index[["id"]]
+  p_noint   <- as.numeric(index[["p_noint"]])
+  p_neg     <- as.numeric(index[["p_neg"]])
+  k         <- as.numeric(index[["key"]])       # Keystone specie
+  a_seed    <- as.numeric(index[["A_seed"]])
+  x0_seed   <- as.numeric(index[["x0_seed"]])
+  mu_seed   <- as.numeric(index[["mu_seed"]])
+  id        <- index[["id"]]
   #------------------Populations-----------------------------#
-  set.seed(as.numeric(index[["x0_seed"]]))
+  set.seed(x0_seed)
   x0 <- stats::runif(n_species, min = 0.1, max = 1)
   #------------------------Growth Rates---------------------#
-  set.seed(as.numeric(index[["mu_seed"]]))
+  set.seed(mu_seed)
   mu <- stats::runif(n_species, min = 0.001, max = 1)
   #--------------------Interactions-------------------------#
-  # Section: Define proportions for zero and negative values
-  p_noint <- as.numeric(index[["p_noint"]])
-  p_neg <- as.numeric(index[["p_neg"]])
-  k = as.numeric(index[["key"]])  # Keystone specie
-  #------------------------
   # Define the number of interactions
   # Removed diagonal elements n
-  total = (n_species**2) - n_species 
+  # Remove keystone effects (n-1)
+  effects = n_species - 1
+  total = (n_species**2) - n_species - effects
   num_noint = floor(p_noint * total)      # null-interactions
   remaining = total - num_noint           # Non-zero-interactions
   num_negs = floor(p_neg * remaining)     # Negative interactions
   num_pos = remaining - num_negs
   #------------------------
-  # Create the interaction vector
-  a_seed = as.numeric(index[["A_seed"]])
+  # Section: Generate interactions
   set.seed(a_seed)
   interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1),runif(num_pos, min = 0, max = 1))
   # Shuffle the interaction vector
-  set.seed(a_seed)
   interaction_values <- sample(interaction_values)
-  #------------------------
-  # Create matrix of TRUE masking
-  mask <- matrix(TRUE, n_species, n_species)    # mask matrix
-  diag(mask) <- FALSE                           # remove diagonal
-  # Generate matrix to fill
-  M <- matrix(NA, n_species, n_species)     # values matrix
-  M[mask] <- interaction_values             # add values
-  diag(M) <- -0.5                           # fill diagonal
   #------------------------
   # Section: Generate cascading effects
   # Create matrix of TRUE masking
   mask <- matrix(TRUE, n_species, n_species)    # mask matrix
+  M = matrix(NA, n_species, n_species)          # initialize interaction matrix
   diag(mask) <- FALSE                           # remove diagonal
   # Cascade is the vector containing the sequence.
-  whom_rows = seq_along(1:n_species)[-k]
-  set.seed(a_seed)
-  whom_rows = sample(whom_rows)  # shuffle the order of the affected species
-  who_cols = c(k, whom_rows)       # who
+  whom_rows = seq_len(n_species)[-k] # species affected by the cascade effect
+  whom_rows = sample(whom_rows)  # shuffle 
+  who_cols = c(k, whom_rows)     # who
+  # Mark positions affected by the cascade effect
   for (i in seq_along(whom_rows)) {
-    # print(paste0(">> Applying cascade effect: ", who_cols[i], " affects ", whom_rows[i]))
-    M[whom_rows[i], who_cols[i]] = M[whom_rows[i], who_cols[i]] * 10
+    # Update the mask 
+    mask[whom_rows[i], who_cols[i]] = FALSE
+    # Fill M matrix
+    M[whom_rows[i], who_cols[i]] = -runif(1, min = 0, max = 1)  * 10 
   }
+  # Fill the interaction matrix M
+  diag(M) <- -0.5
+  M[mask] <- interaction_values
   # Optional: Round if needed
   M <- round(M, digits = 5)
   # Return parameters as a list
