@@ -63,6 +63,9 @@ gen_cascade_params <- function(index) {
   diag(M) <- -0.5                           # fill diagonal
   #------------------------
   # Section: Generate cascading effects
+  # Create matrix of TRUE masking
+  mask <- matrix(TRUE, n_species, n_species)    # mask matrix
+  diag(mask) <- FALSE                           # remove diagonal
   # Cascade is the vector containing the sequence.
   whom_rows = seq_along(1:n_species)[-k]
   set.seed(a_seed)
