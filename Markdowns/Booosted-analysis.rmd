@@ -101,6 +101,61 @@ ggsave(path, plot = plt, width = 12, height = 5)
 
 ![Figure 1: Metrics distributions](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Metric_distributions.png)
 
+# Metrics distributions separated by p_noint
+
+```{r, eval=FALSE}
+library(ggplot2)
+library(ggridges)
+library(ggsignif)
+
+# Define common theme and colors
+theme_custom <- theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", size = 11),
+        axis.title = element_text(size = 10)
+    ) +
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        # Top labels (p_noint)
+        strip.text.x = element_text(size = 12, face = "bold", color = "white"),
+        strip.background.x = element_rect(fill = "steelblue", color = NA),
+        # Right labels (variable)
+        strip.text.y = element_text(size = 11, face = "italic", color = "black", angle = 0),
+        # strip.background.y = element_rect_round(fill = "#2c7fb8", color = NA)
+    )
+
+colors <- c("FALSE" = "#4575b4", "TRUE" = "#d73027")  # Better color contrast
+
+# Only plot these variables
+variables_to_plot <- c("keystoneness", "dissimilarity", "prop_extinctions")
+
+# Generate plot
+library(tidyr)
+plt = full_summary %>% select(is_keystone, all_of(variables_to_plot), p_noint) %>%
+    pivot_longer(cols = all_of(variables_to_plot), names_to = "variable", values_to = "value") %>%
+    mutate(value = ifelse(value < 0, 0, value)) %>%
+    ggplot(aes(x = is_keystone, y = value, fill = is_keystone)) +
+    facet_grid(variable ~ p_noint, scales = "free_y") +
+    geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+    scale_y_continuous(trans = "log1p") +
+    # geom_signif(comparisons = list(c("TRUE", "FALSE")), map_signif_level = TRUE) + 
+    stat_summary(fun = mean, geom = "point", color = "red", size = 3, position = position_dodge(width = 0.75), show.legend = FALSE) +
+    scale_fill_manual(values = colors, labels = c("Non-keystone", "Keystone")) +
+    labs(x = "Metric", y = "Value", fill = "Species Type") +
+    theme_custom
+
+
+path = file.path("/mnt/data/sur/users/mrivera/Plots/Boosted_keys", "Metric_grid.png")
+if (!(dir.exists(dirname(path)))) { 
+  dir.create(dirname(path), recursive = TRUE)
+  print('>> Directory created\n')}
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 1: Metrics distribution grid](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Metric_grid.png)
+
 # Relative abundance vs metrics distribution for keystone species
 ```{r, eval=FALSE}
 plt = full_summary %>% filter(is_keystone) %>% select(rel_pop_initial, keystoneness, dissimilarity, prop_extinctions) %>%
@@ -119,6 +174,27 @@ ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
 ![Figure 2: Relative abundance vs metrics](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics.png)
+
+```{r, eval=FALSE}
+library(tidyr)
+library(ggplot2)
+
+plt = full_summary %>% filter(is_keystone) %>% select(rel_pop_initial, keystoneness, dissimilarity, prop_extinctions, p_noint) %>%
+    pivot_longer(cols = c(keystoneness, dissimilarity, prop_extinctions), names_to = "variable", values_to = "value") %>%
+    mutate(value = ifelse(value < 0, 0, value)) %>%
+    ggplot(aes(x = rel_pop_initial, y = value, color = variable)) +
+    geom_point(alpha = 0.6) +
+    scale_y_continuous(trans = "log1p") +
+    scale_x_continuous(trans = "log1p") +
+    facet_grid(variable ~ p_noint, scales = "free_y") +
+    labs(x = "Relative Abundance", y = "Metric Value", title = "Keystone Species: Relative Abundance vs Metrics by p_noint") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics-facet.png'
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 3: Relative abundance vs metrics separated by p_noint](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics-facet.png)
 
 # Threshold analysis
 ```{r, eval=FALSE}
@@ -142,7 +218,7 @@ path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png'
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
-![Figure 3: Relative abundance thresholds](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png)
+![Figure 4: Relative abundance thresholds](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png)
 
 # Run correlation analysis
 ```{r, eval=FALSE}
@@ -157,4 +233,95 @@ path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png'
 ggsave(path, plot = plt, width = 8, height = 6)
 ```
 
-![Figure 4: Correlation Analysis](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png)
+![Figure 5: Correlation Analysis](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png)
+
+# Keystone column distribution
+```{r, eval=FALSE}
+interactions_dir = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone/Interactions'
+experiment_dir = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone'
+
+simulation_parameters = data.table::fread(paste0(dir, "/simulation-params.tsv"), select = c("id", "key"))
+i =1
+process_interactions <- function(i) {
+  #------------------------
+  # Generate path
+  row <- simulation_parameters[i, ]
+  id <- row$id
+  key <- as.numeric(row$key)
+  interactions_file_path <- paste0(interactions_dir, paste0("/A_", id, ".feather"))
+  #------------------------
+  # Load table
+  interactions <- arrow::read_feather(interactions_file_path, col_select = key) 
+  table = data.frame(
+    'positive' = sum(interactions > 0),
+    'negative' = sum(interactions < 0),
+    'zero' = sum(interactions == 0)
+  )
+  table
+}
+# process_interactions(i)
+results <- mclapply(1:nrow(simulation_parameters), process_interactions, mc.cores = detectCores() - 1)
+inters_summary <- do.call(rbind, results) %>% mutate(total = positive + negative ) 
+```
+
+```{r, eval=FALSE}
+# Plotting code
+plt <- inters_summary %>% count(zero) %>% mutate(pct = n / sum(n)) %>%
+  ggplot(aes(x = zero, y = pct)) +
+  geom_bar(stat = "identity", alpha = 0.6, fill = "steelblue") +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+  labs(x = "Zero Interactions", y = "Proportion", title = "Distribution of Zero Interactions")
+
+path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Interactions_distribution.png'
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 6: Distribution of Zero Interactions](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Interactions_distribution.png)
+
+# Disconnection analysis
+```{r, eval=FALSE}
+
+dir = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone'
+interactions_dir = paste0(dir, "/Interactions")
+simulation_parameters = data.table::fread(paste0(dir, "/simulation-params.tsv"), select = c("id", "p_noint"))
+
+
+library(dplyr)
+library(parallel)
+library(igraph)
+
+process_row <- function(i) {
+  #------------------------
+  # Generate path
+  row <- simulation_parameters[i, ]
+  id <- row$id
+  p_noint <- as.numeric(row$p_noint)
+  A_file_path <- paste0(interactions_dir, paste0("/A_", id, ".feather"))
+  #------------------------
+  # Read interactions file
+  g <- arrow::read_feather(A_file_path) %>% as.matrix() %>% graph_from_adjacency_matrix(mode = "directed", weighted = TRUE)
+  table <- data.frame(
+    'is_connected' = is_connected(g),
+    'p_noint' = p_noint
+  )
+  table
+}
+
+results <- mclapply(1:nrow(simulation_parameters), process_row, mc.cores = detectCores() - 1)
+connected_table <- do.call(rbind, results)
+#-------------------------------------------
+# Section: Generate plot
+library(ggplot2)
+plt = connected_table %>% group_by(p_noint) %>% summarise(proportion_connected = sum(is_connected)/n()) %>%
+  ggplot(aes(x = factor(p_noint), y = proportion_connected)) +
+  geom_bar(stat = "identity", alpha = 0.6, color = "black", fill = "steelblue") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "p_noint", y = "Proportion of Connected Networks", title = "Network Connectivity by p_noint") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+
+path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Disconnection.png'
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+
+![Figure 7: Network Connectivity by p_noint](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Disconnection.png)
