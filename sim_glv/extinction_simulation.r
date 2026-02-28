@@ -50,7 +50,7 @@ process_arguments <- function(){
 
 args <- process_arguments()
 args <- list()
-args$sims <- "/home/sur/lab/exp/2026/today2/glv_simulation_parameters.tsv"
+args$sims <- "/home/sur/lab/exp/2026/today2/glv_simulation_parameters_controls.tsv"
 args$outdir <- "sims"
 args$ks_boost <- 10
 args$rdats <- file.path(args$outdir, "rdats")
@@ -103,7 +103,6 @@ generate_params <- function(n_species = 20,
   # Interaction matrix
   M <- matrix(NA, ncol = n_species, nrow = n_species)
   ii_diag <- diag(n_species) == 1
-  M[ ii_diag ] <- rep(-0.5, times = n_species)
   M[ ! ii_diag  ] <- runif(n = n_int, min = 0, max = 0.5) * signs
   
   # Use keystone boost
@@ -113,6 +112,9 @@ generate_params <- function(n_species = 20,
   }else{
     ks_ii <- NA
   }
+  
+  # Set diagonal
+  M[ ii_diag ] <- rep(-0.5, times = n_species)
   
   return(list(x0 = x0, mu = mu, M = M, ks_ii = ks_ii, ks_boost = ks_boost))
 }
@@ -338,6 +340,7 @@ if(!dir.exists(args$outdir)){
 date()
 
 # hyper <- read_tsv(args$sims)
+# hyper
 Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
   pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
