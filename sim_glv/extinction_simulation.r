@@ -30,7 +30,13 @@ process_arguments <- function(){
                     help = paste("Output directory"),
                     type = "character",
                     default = "output/")
+  p <- add_argument(p, "--ks_boost",
+                    help = paste("Boost factor for keystone speice. Zero does",
+                                 "nothing."),
+                    type = "numeric",
+                    default = 0)
   
+
   # Read arguments
   cat("Processing arguments...\n")
   args <- parse_args(p)
@@ -43,11 +49,12 @@ process_arguments <- function(){
 }
 
 args <- process_arguments()
-# args <- list()
-# args$sims <- "/Users/sur/lab/exp/2025/2025-01-24.prepare_simulation_grid_glv//simulations_batch2.tsv"
-# args$outdir <- "output"
-# args$rdats <- file.path(args$outdir, "rdats")
-# args$tsvs <- file.path(args$outdir, "tsvs")
+args <- list()
+args$sims <- "/home/sur/lab/exp/2026/today2/glv_simulation_parameters.tsv"
+args$outdir <- "sims"
+args$ks_boost <- 10
+args$rdats <- file.path(args$outdir, "rdats")
+args$tsvs <- file.path(args$outdir, "tsvs")
 print(args)
 
 library(tidyverse)
@@ -67,14 +74,19 @@ library(miaViz)
 #' non-diagonal element in the interaction matrix is zero. 
 #' @param p_neg Probability of a negative effect, i.e. probability that
 #' a non-diagonal non-zero element of the interaction matrix is negative
+#' @param ks_boost Indicates whether to and how much to boost the interaction parameters
+#' for 1 'keystone' species. If zero nothing is done. If greater than zero,
+#' then the effects of a random species are multiplied by the specified number.
 #'
-#' @return A list with starting conditions (x0), growth rates (mu), and
-#' interaction matrix (M) for gLV simulation
+#' @return A list with starting conditions (x0), growth rates (mu),
+#' interaction matrix (M) for gLV simulation, keystone species index (ks_ii),
+#' and kesytonge boost factor (ks_boost)
 #' 
 #' @export
 generate_params <- function(n_species = 20,
                             p_noint = 0.5,
-                            p_neg = 0.5){
+                            p_neg = 0.5,
+                            ks_boost = 0){
   
   # Simulate proportion of interactions
   n_int <- n_species ^ 2 - n_species
@@ -94,7 +106,15 @@ generate_params <- function(n_species = 20,
   M[ ii_diag ] <- rep(-0.5, times = n_species)
   M[ ! ii_diag  ] <- runif(n = n_int, min = 0, max = 0.5) * signs
   
-  return(list(x0 = x0, mu = mu, M = M))
+  # Use keystone boost
+  if(ks_boost > 0){
+    ks_ii <- sample(n_species, size = 1)
+    M[ , ks_ii ] <- ks_boost *  M[ , ks_ii ] 
+  }else{
+    ks_ii <- NA
+  }
+  
+  return(list(x0 = x0, mu = mu, M = M, ks_ii = ks_ii, ks_boost = ks_boost))
 }
 
 #' Simulate gLV
@@ -116,13 +136,13 @@ generate_params <- function(n_species = 20,
 #' @export
 sim_glv <- function(params = params, n_t = n_t, timeout = 600){
   
-  # Check that matrrix is square
+  # Check that matrix is square
   if(nrow(params$M) != ncol(params$M))
     stop("ERROR", call. = TRUE)
   
   # Use miaSim to simulate standard gLV
   # Added timeout for dealing with rare instance where simulation
-  # keeps going forever. An issue is that we cannto distinguish failure
+  # keeps going forever. An issue is that we cannot distinguish failure
   # by timeout from other types of failure.
   msim <- tryCatch(
     R.utils::withTimeout(msim <- simulateGLV(n_species = nrow(params$M), 
@@ -336,7 +356,8 @@ Tab <- read_tsv(args$sims) %>%
     set.seed(seed)
     params <- generate_params(n_species = n_species,
                               p_noint = p_noint, 
-                              p_neg = p_neg)
+                              p_neg = p_neg,
+                              ks_boost = args$ks_boost)
     
     # print(params)
     Sims <- sim_glv(params = params, n_t = n_t, timeout = 600)
