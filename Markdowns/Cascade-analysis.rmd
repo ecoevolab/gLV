@@ -1,5 +1,5 @@
 ---
-title: "Cascaded experiment"
+title: "Cascade experiment"
 author: "Manuel Rivera"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
@@ -10,25 +10,49 @@ vignette: >
 ---
 
 # Description
-One approach to generate keystone datasets controls is the use of cascaded interactions matrixes. Suppose a 5 species community, if we set the diagonal to a certain value and we can craft a cascading effect on the matrix.
-A represation of this process is shown below, setting keystone specie to 1, we can generate a matrix with the next structure:
-Specie 1 -> Specie 2 -> Specie 3 -> Specie 4 -> Specie 5
-Or peerhaps a more complex one:
-Specie 1 -> Specie 5 -> Specie 4 -> Specie 2 -> Specie 3
+This analysis examines the cascade approach for generating keystone dataset controls. In this method, off-diagonal 
+elements are set to zero or negative by default, with the exception of a select few that are assigned a negative interaction strength drawn from `-U(0,1)*10`.
+To illustrate, consider a community of 5 species where species 3 is the keystone species. The resulting interaction matrix would take the following form:
+Interactions would follow the pattern: Specie 3 -> Specie 1, Specie 3 -> Specie 2, Specie 3 -> Specie 4, and Specie 3 -> Specie 5. 
+The remaining interactions would be set to zero or negative values.
+```{r, eval=TRUE}
+# Generate a 5x5 matrix 
+n_species <- 5
+k = 3 # keystone species index
+num_noint = 10 # number of zero interactions
+#--------------------
+# Generate matrices
+mask <- matrix(TRUE, n_species, n_species)    # mask matrix
+M = matrix(NA, n_species, n_species)          # initialize interaction matrix
+diag(mask) <- FALSE                           # remove diagonal
+whom_rows = seq_len(n_species)[-k] # species affected by the cascade effect
+who_cols = c(k, whom_rows)     # who
+#-------------------
+# Mark positions affected by the cascade effect
+for (i in seq_along(whom_rows)) {
+  # Update the mask 
+  mask[whom_rows[i], who_cols[i]] = FALSE
+  # Fill M matrix
+  M[whom_rows[i], who_cols[i]] = -runif(1, min = 0, max = 1)  * 10 
+  # Print order
+  cat("Specie", whom_rows[i], "(row) affected by", who_cols[i], "(column)\n", sep = " ")
+}
+#------------------
+# Fill diagonal
+diag(M) <- -0.5
+num_negs = sum(mask) - num_noint # number of negative interactions
+M[mask] <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1))
+print(M)
+```
 
-For testing we will run the metric distributions:
-
-# Fixing needed
-What if boosted interaction is 0
 # Generate data
 ```{r, eval=FALSE}
 
-dir = '/mnt/data/sur/users/mrivera/Controls/exp_20251125'
-simulation_parameters = data.table::fread(paste0(dir, "/Simulation-parameters.tsv"), select = c("id", "keys", "p_noint"))
-total_rows = nrow(simulation_parameters) * 30
-
-ext_dir = '/mnt/data/sur/users/mrivera/Controls/exp_20251125/GNN-targets'
-raw_outs_dir = '/mnt/data/sur/users/mrivera/Controls/exp_20251125/raw-ODEs'
+dir = '/mnt/data/sur/users/mrivera/Controls/Cascade_keystone'
+ext_dir = paste0(dir, "/ExtSummaries")
+raw_outs_dir = paste0(dir, "/RawOutputs")
+simulation_parameters = data.table::fread(paste0(dir, "/simulation-params.tsv"), select = c("id", "key", "p_noint"))
+i = 1
 
 library(dplyr)
 library(parallel)
@@ -40,23 +64,19 @@ process_row <- function(i) {
   id <- row$id
   key <- as.numeric(row$key)
   p_noint <- as.numeric(row$p_noint)
-  ext_file_path <- paste0(ext_dir, paste0("/tgt_", id, ".feather"))
-  ode_file_path <- paste0(raw_outs_dir, paste0("/O_", id, ".feather"))
-  #------------------------
-  # Generate relative abundance
-  population <- arrow::read_feather(ode_file_path, col_select = 1000)
-  relative_pop <- population / sum(population)
+  ext_file_path <- paste0(ext_dir, paste0("/ExtSummary_", id, ".feather"))
   #------------------------
   # Read extinctions file
-  cols <- c("new_ext", "BC_diss", "K_s")
+  cols <- c("prop_extinctions", "dissimilarity_bc", "keystoneness", "rel_pop_initial")
   table <- arrow::read_feather(ext_file_path, col_select = all_of(cols)) %>%
-    rename(n_extinctions = new_ext) %>%
-    rename(dissimilarity = BC_diss) %>%
-    rename(keystoneness = K_s) %>%
-    mutate(pop_initial = population[[1]]) %>%
-    mutate(rel_pop_initial = relative_pop[[1]]) %>%
-    mutate(prop_extinctions = n_extinctions / n()) %>%
-    mutate(is_keystone = FALSE, p_noint = p_noint)
+    rename(dissimilarity = dissimilarity_bc) %>%
+    rename(keystoneness = keystoneness) %>%
+    #mutate(pop_initial = population[[1]]) %>%
+    mutate(rel_pop_initial = rel_pop_initial) %>%
+    mutate(prop_extinctions = prop_extinctions) %>%
+    mutate(is_keystone = FALSE, p_noint = p_noint) %>%
+    mutate(specie = 1:n()) %>%
+    mutate(id = id)
   # Add keystone
   table$is_keystone[key] <- TRUE
   table
@@ -64,28 +84,127 @@ process_row <- function(i) {
 
 results <- mclapply(1:nrow(simulation_parameters), process_row, mc.cores = detectCores() - 1)
 full_summary <- do.call(rbind, results)
-
-#-----------------------
-# Section: Convert to long format.
-library(tidyr)
-full_summary_long <- full_summary %>%
-    pivot_longer(
-        cols = c(keystoneness, dissimilarity, n_extinctions, pop_initial, prop_extinctions, rel_pop_initial),
-        names_to = "variable",
-        values_to = "value"
-    ) %>%
-    dplyr::mutate(value = replace_na(value, 0))
-
-
-#-----------------------
-# Section: Generate directory for plots
-plt_dir = paste0('/mnt/data/sur/users/mrivera/Plots/', basename(dir))
-if (!(dir.exists(plt_dir))) { 
-  dir.create(plt_dir)
-  print('>> Directory created\n')}
 ```
 
-# Metric distribution
+# Distributions metrics
 ```{r, eval=FALSE}
+library(ggplot2)
+library(ggridges)
 
+# Define common theme and colors
+theme_custom <- theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", size = 11),
+        axis.title = element_text(size = 10)
+    )
+
+colors <- c("FALSE" = "#4575b4", "TRUE" = "#d73027")  # Better color contrast
+
+# Only plot these variables
+variables_to_plot <- c("keystoneness", "dissimilarity", "prop_extinctions")
+
+# Generate plot
+library(tidyr)
+plt = full_summary %>% select(is_keystone, all_of(variables_to_plot)) %>%
+    pivot_longer(cols = all_of(variables_to_plot), names_to = "variable", values_to = "value") %>%
+    mutate(value = ifelse(value < 0, 0, value)) %>%
+    ggplot(aes(x = variable, y = value, fill = is_keystone)) +
+    geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+    scale_y_continuous(trans = "log1p") +
+    stat_summary(fun = mean, geom = "point", color = "red", size = 3, position = position_dodge(width = 0.75), show.legend = FALSE) +
+    scale_fill_manual(values = colors, labels = c("Non-keystone", "Keystone")) +
+    labs(x = "Metric", y = "Value", fill = "Species Type") +
+    theme_custom
+
+#------------------------------
+# Section: Save plot
+path = file.path("/mnt/data/sur/users/mrivera/Plots/Cascade_keystone", "Metric_distributions.png")
+if (!(dir.exists(dirname(path)))) { 
+  dir.create(dirname(path), recursive = TRUE)
+  print('>> Directory created\n')}
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+
+# Verify data
+I dounf strange data where keystoneness is NA, to test this I will look if it is a code problem or R problem.
+SOLVED:
+- At the moment when I calculate biomass component it has to be with before population.
+```{r, eval=FALSE}
+library(dplyr)
+library(tidyr)
+
+# Look at data
+cols <- c("keystoneness", "dissimilarity", "prop_extinctions", "rel_pop_initial")
+dat = full_summary %>% select(all_of(cols)) %>%   
+  summarise(across(everything(), list(
+    min  = ~min(.x, na.rm = TRUE),
+    max  = ~max(.x, na.rm = TRUE),
+    NAs  = ~sum(is.na(.x))
+  )))  %>%
+  pivot_longer(everything(),names_to  = c("variable", ".value"), names_sep = "_(?=[^_]+$)")
+print(dat)
+
+# Select cases where keystoneness is NA
+na_cases = full_summary %>% filter(is.na(keystoneness)) %>% mutate(expected_keystoneness = dissimilarity * rel_pop_initial)
+sum(is.na(na_cases$expected_keystoneness))
+
+# Which simulations failed?
+failed_sims = unique(na_cases$id)
+
+#--------------------------
+# Section: Replicate error
+# Get parameters 
+simulation_parameters = data.table::fread(paste0(dir, "/simulation-params.tsv")) %>% filter(id %in% failed_sims) 
+fspecies =  na_cases$specie
+unique(fspecies)
+
+# Only specie 30????
+source('/mnt/data/sur/users/mrivera/gLV/src-sims/FUN/generate-cascade-params.R')
+source('/mnt/data/sur/users/mrivera/gLV/src-sims/FUN/solver-gLV.R')
+
+replicate_error = function(index) {
+  #--------------------------
+  # Generate parameters
+  row = simulation_parameters[index,]
+  fspecie = fspecies[index]
+  # Parameters
+  params = gen_cascade_params(row)
+  #-------------------------
+  # Population at stable state
+  out = solve_gLV(times = 1000, params)
+  x_before = out[, ncol(out)]
+  #-------------------------
+  # Extinction of specie fspecie
+  tmp_params <- list(
+    x0 = params$x0[-fspecie],
+    mu = params$mu[-fspecie],
+    M = params$M[-fspecie, -fspecie, drop = FALSE]
+  )
+  new_out = solve_gLV(times = 1000, tmp_params)
+  x_after = new_out[, ncol(new_out)]                 # Last column
+ #------------------------------------
+  # Section: Extinctions
+  n = params$n - 1
+  extinct_after = x_after <= 1e-6                       # NOW DIED
+  extinct_before = tmp_params$x0 > 1e-6                 # WERE ALIVE
+  n_extinctions <- sum(extinct_after & extinct_before)  # new extinctions
+  props_extinctions = n_extinctions/n                   # proportion of extinctions
+  #------------------------------------
+  # Section: Bray-Curtis dissimilarity 
+  # Remove species i from the original community.
+  # Calculate
+  x_removed = x_before[-fspecie]
+  bray_curtis <- 1 - (2 * sum(pmin(x_removed, x_after))) / (sum(x_removed) + sum(x_after))
+  #------------------------------------
+  # Section: Keystoneness 
+  props <- x_before / sum(x_before) # relative abundance
+  keystoneness <- bray_curtis * (1 - props[fspecie])
+  flag = is.na(keystoneness)
+  return(flag)
+}
+index = 1
+
+# 
 ```
