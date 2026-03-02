@@ -31,8 +31,8 @@
 sim_all_ext <- function(params, path_core) {
   # Extract parameters
   n = params$n
-  x_before = params$x0                              # Non perturbated populations  
-  rel_pop_initial <- x_before / sum(x_before)       # Proportions
+  x_before = params$x0                        # Non perturbated populations  
+  rel_x_before <- x_before / sum(x_before)    # Do them proportions
   # Pre-allocate data frame
   exts_df <- data.frame(
     specie = integer(n),
@@ -55,23 +55,26 @@ sim_all_ext <- function(params, path_core) {
     x_after = new_out[, ncol(new_out)]                 # Last column 
     #------------------------------------
     # Section: Extinctions
-    extinct_after = x_after <= 1e-6                   # NOW DIED
-    extinct_before = tmp_params$x0 > 1e-6                  # WERE ALIVE
-    n_extinctions <- sum(extinct_after & extinct_before)    # new extinctions
-    props_extinctions = n_extinctions/n                     # proportion of extinctions
+    # Species already extincted
+    alive_before = tmp_params$x0 > 1e-6                # were alive
+    extinct_after = x_after <= 1e-6                      # now died
+    # NUmber of extinctions
+    # testing lines
+    # extinct_after = c(TRUE, TRUE, FALSE)
+    # extinct_before = rep(TRUE, 3)
+    n_extinctions <- sum(extinct_after & alive_before)    # new extinctions
+    props_extinctions = n_extinctions/length(extinct_after) # proportion of extinctions
     #------------------------------------
-    # Section: Bray-Curtis dissimilarity 
+    # Section: Bray-Curtis dissimilarity
     # Remove species i from the original community.
-    # Calculate
-    x_removed = x_before[-i]
-    bray_curtis <- 1 - (2 * sum(pmin(x_removed, x_after))) / (sum(x_removed) + sum(x_after))
+    bray_curtis <- 1 - (2 * sum(pmin(tmp_params$x0, x_after))) / (sum(tmp_params$x0) + sum(x_after))
     #------------------------------------
     # Section: Keystoneness 
-    props <- x_after / sum(x_after) # relative abundance
-    keystoneness <- bray_curtis * (1 - props[i])
-    #--------------------Time to stability-------------------------#
+    keystoneness <- bray_curtis * (1 - rel_x_before[i])
+    #------------------------------------
+    # Section: Time to stability 
     time_stability <- find_ts(new_out)
-    # 
+    #------------------------------------
     # Generate data frame
     exts_df[i, "specie"] <- i                                     # specie-extinct
     exts_df[i, "n_extinctions"] <- n_extinctions                  # new-extinctions
@@ -85,7 +88,7 @@ sim_all_ext <- function(params, path_core) {
   }
   # Add relative abundance of the extinct species before extinction
   exts_df$pop_initial = x_before
-  exts_df$rel_pop_initial = rel_pop_initial   
+  exts_df$rel_pop_initial = rel_x_before   
   cat(">> Extinctions completed for", params$id, ".\n")
   return(exts_df)
 }
