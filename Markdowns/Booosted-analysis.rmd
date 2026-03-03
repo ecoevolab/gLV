@@ -60,6 +60,30 @@ results <- mclapply(1:nrow(simulation_parameters), process_row, mc.cores = detec
 full_summary <- do.call(rbind, results)
 ```
 
+# Metric summary
+```{r, eval=FALSE}
+library(dplyr)
+library(tidyr)
+
+# Look at data
+cols <- c("keystoneness", "dissimilarity", "prop_extinctions", "rel_pop_initial")
+dat = full_summary %>% select(all_of(cols)) %>%   
+  summarise(across(everything(), list(
+    min  = ~min(.x, na.rm = TRUE),
+    max  = ~max(.x, na.rm = TRUE),
+    NAs  = ~sum(is.na(.x))
+  )))  %>%
+  pivot_longer(everything(),names_to  = c("variable", ".value"), names_sep = "_(?=[^_]+$)")
+print(dat)
+
+# Select cases where keystoneness is NA
+# na_cases = full_summary %>% filter(is.na(keystoneness)) %>% mutate(expected_keystoneness = dissimilarity * rel_pop_initial)
+# sum(is.na(na_cases$expected_keystoneness))
+
+# # Which simulations failed?
+# failed_sims = unique(na_cases$id)
+```
+
 # Metrics distributions
 ```{r, eval=FALSE}
 library(ggplot2)
@@ -154,7 +178,7 @@ if (!(dir.exists(dirname(path)))) {
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
-![Figure 1: Metrics distribution grid](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Metric_grid.png)
+![Figure 2: Metrics distribution grid](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Metric_grid.png)
 
 # Relative abundance vs metrics distribution for keystone species
 ```{r, eval=FALSE}
@@ -173,7 +197,7 @@ path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics.png'
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
-![Figure 2: Relative abundance vs metrics](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics.png)
+![Figure 3: Relative abundance vs metrics](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics.png)
 
 ```{r, eval=FALSE}
 library(tidyr)
@@ -194,7 +218,7 @@ path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics-facet.pn
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
-![Figure 3: Relative abundance vs metrics separated by p_noint](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics-facet.png)
+![Figure 4: Relative abundance vs metrics separated by p_noint](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-metrics-facet.png)
 
 # Threshold analysis
 ```{r, eval=FALSE}
@@ -218,7 +242,7 @@ path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png'
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
-![Figure 4: Relative abundance thresholds](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png)
+![Figure 5: Relative abundance thresholds](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Relative-thresholds.png)
 
 # Run correlation analysis
 ```{r, eval=FALSE}
@@ -233,7 +257,7 @@ path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png'
 ggsave(path, plot = plt, width = 8, height = 6)
 ```
 
-![Figure 5: Correlation Analysis](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png)
+![Figure 6: Correlation Analysis](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Correlation_Analysis.png)
 
 # Keystone column distribution
 ```{r, eval=FALSE}
@@ -262,9 +286,8 @@ process_interactions <- function(i) {
 # process_interactions(i)
 results <- mclapply(1:nrow(simulation_parameters), process_interactions, mc.cores = detectCores() - 1)
 inters_summary <- do.call(rbind, results) %>% mutate(total = positive + negative ) 
-```
 
-```{r, eval=FALSE}
+#--------------------------
 # Plotting code
 plt <- inters_summary %>% count(zero) %>% mutate(pct = n / sum(n)) %>%
   ggplot(aes(x = zero, y = pct)) +
@@ -276,7 +299,7 @@ path = '/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Interactions_distribution
 ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
-![Figure 6: Distribution of Zero Interactions](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Interactions_distribution.png)
+![Figure 7: Distribution of Zero Interactions](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Interactions_distribution.png)
 
 # Disconnection analysis
 ```{r, eval=FALSE}
@@ -324,4 +347,4 @@ ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
 
-![Figure 7: Network Connectivity by p_noint](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Disconnection.png)
+![Figure 8: Disconnection analysis](/mnt/data/sur/users/mrivera/Plots/Boosted_keys/Disconnection.png)
