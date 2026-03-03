@@ -3,12 +3,15 @@
 # This code is for fixing the keyetoneness of some simulations were the index was wrong.
 
 # For training data
+library(dplyr)
+
 train_dirs =  list.dirs('/mnt/data/sur/users/mrivera/Training-Data', recursive = FALSE)
+controls_dirs = c("/mnt/data/sur/users/mrivera/Controls/Boosted_keystone","/mnt/data/sur/users/mrivera/Controls/Cascade_keystone")
 
 process_file <- function(f) {
   table <- arrow::read_feather(f) %>%
     mutate(
-      keystoneness     = rel_pop_initial * dissimilarity_bc,
+      keystoneness     = (1 - rel_pop_initial) * dissimilarity_bc,
       prop_extinctions = n_extinctions / (n() - 1)
     )
   arrow::write_feather(x = table, sink = f)
@@ -20,10 +23,10 @@ process_file <- function(f) {
   invisible(NULL)
 }
 
-all_files <- unlist(lapply(train_dirs, function(b) {
+all_files <- unlist(lapply(controls_dirs, function(b) {
   list.files(paste0(b, '/ExtSummaries'), full.names = TRUE)
 }))
 
-
+f = all_files[1]
 library(parallel)
 mclapply(all_files, process_file, mc.cores = parallel::detectCores() - 1)
