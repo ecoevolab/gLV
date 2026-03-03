@@ -242,7 +242,6 @@ ggsave(path, plot = plt, width = 8, height = 6)
 ![Figure 4: Correlation analysis](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/Correlation_metrics.png)
 
 # Disconnection analysis
-Here is a clearer and more cohesive version of your notes:
 *Note:The plot looks as expected. It shows that all networks remain connected, regardless of the proportion of zeros.*
 ```{r, eval=FALSE}
 dir = '/mnt/data/sur/users/mrivera/Controls/Cascade_keystone'
@@ -290,9 +289,9 @@ ggsave(path, plot = plt, width = 12, height = 5)
 ![Figure 5: Disconnection analysis](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/Disconnection.png)
 
 # Verify data
-I found cases where keystoneness of specie 30 was NA, to test this I will look if it is a code problem or R problem.
-SOLVED:
-- At the moment when I calculate biomass component it has to be with before population not after perturbation.
+I found cases where keystoneness of specie 30 was NA, to test this I will look if it is a code problem or R problem. <br>
+SOLVED:<br>
+* At the moment when I calculate biomass component it has to be with before population not after perturbation.
 ```{r, eval=FALSE}
 #--------------------------
 # Section: Replicate error
