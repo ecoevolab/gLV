@@ -18,7 +18,7 @@ For example, consider a community of five species in which species 3 is designat
 The interaction matrix is constructed so that species 3 exerts negative effects on species 1, 2, 4, and 5. 
 All other pairwise interactions are set to zero or remain negative, depending on the baseline configuration.
 
-```{r, eval=TRUE}
+```{r example, eval=TRUE}
 # Generate a 5x5 matrix 
 n_species <- 5
 k = 3 # keystone species index
@@ -48,7 +48,9 @@ M[mask] <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1))
 print(M)
 ```
 
-# Generate data
+# Raw analysis
+
+## Generate data
 ```{r, eval=FALSE}
 
 dir = '/mnt/data/sur/users/mrivera/Controls/Cascade_keystone'
@@ -70,14 +72,14 @@ process_row <- function(i) {
   ext_file_path <- paste0(ext_dir, paste0("/ExtSummary_", id, ".feather"))
   #------------------------
   # Read extinctions file
-  cols <- c("prop_extinctions", "dissimilarity_bc", "keystoneness", "rel_pop_initial")
-  table <- arrow::read_feather(ext_file_path, col_select = all_of(cols)) %>%
+  table <- arrow::read_feather(ext_file_path) %>%
     rename(dissimilarity = dissimilarity_bc) %>%
     rename(keystoneness = keystoneness) %>%
     #mutate(pop_initial = population[[1]]) %>%
     mutate(rel_pop_initial = rel_pop_initial) %>%
     mutate(prop_extinctions = prop_extinctions) %>%
     mutate(is_keystone = FALSE, p_noint = p_noint) %>%
+    mutate(alive = rel_pop_initial > 1e-06) %>%
     mutate(specie = 1:n()) %>%
     mutate(id = id)
   # Add keystone
@@ -89,7 +91,7 @@ results <- mclapply(1:nrow(simulation_parameters), process_row, mc.cores = detec
 full_summary <- do.call(rbind, results)
 ```
 
-# Metrics summary
+## Metrics summary
 ```{r, eval=FALSE}
 library(dplyr)
 library(tidyr)
@@ -113,7 +115,7 @@ sum(is.na(na_cases$expected_keystoneness))
 failed_sims = unique(na_cases$id)
 ```
 
-# Distributions metrics
+## Distributions metrics
 ```{r, eval=FALSE}
 library(ggplot2)
 library(ggridges)
@@ -155,7 +157,7 @@ ggsave(path, plot = plt, width = 12, height = 5)
 
 ![Figure 1: Distribution of metrics by group](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/Metric_distributions.png)
 
-# Metrics distributions separated by p_noint
+## Metrics distributions separated by p_noint
 ```{r, eval=FALSE}
 library(ggplot2)
 library(ggridges)
@@ -206,7 +208,7 @@ ggsave(path, plot = plt, width = 12, height = 5)
 
 ![Figure 2: Distribution of metrics by p_noint](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/Metric_grid.png)
 
-# Relative abundance vs metrics distribution for keystone species
+## Relative abundance vs metrics distribution for keystone species
 Notes: This plot looks suspicious. It appear as if it exist a linear relationship.
 ```{r, eval=FALSE}
 plt = full_summary %>% filter(is_keystone) %>% select(rel_pop_initial, keystoneness, dissimilarity, prop_extinctions) %>%
@@ -226,7 +228,7 @@ ggsave(path, plot = plt, width = 12, height = 5)
 
 ![Figure 3: Relative abundance vs metrics](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/Relative_metrics.png)
 
-# Run correlation analysis
+## Correlation analysis
 ```{r, eval=FALSE}
 # Correlation analysis
 full_summary[is.na(full_summary)] <- 0
@@ -241,7 +243,7 @@ ggsave(path, plot = plt, width = 8, height = 6)
 
 ![Figure 4: Correlation analysis](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/Correlation_metrics.png)
 
-# Disconnection analysis
+## Disconnection analysis
 *Note:The plot looks as expected. It shows that all networks remain connected, regardless of the proportion of zeros.*
 ```{r, eval=FALSE}
 dir = '/mnt/data/sur/users/mrivera/Controls/Cascade_keystone'
@@ -287,6 +289,94 @@ ggsave(path, plot = plt, width = 12, height = 5)
 ```
 
 ![Figure 5: Disconnection analysis](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/Disconnection.png)
+
+# Plots Excluding Extinct Populations
+
+## Metric distribution
+```{r, eval=FALSE}
+library(ggplot2)
+library(ggridges)
+
+# Define common theme and colors
+theme_custom <- theme_minimal(base_size = 12) +
+    theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold", size = 11),
+        axis.title = element_text(size = 10)
+    )
+
+colors <- c("FALSE" = "#4575b4", "TRUE" = "#d73027")  # Better color contrast
+
+# Only plot these variables
+variables_to_plot <- c("keystoneness", "dissimilarity", "prop_extinctions")
+
+# Generate plot
+library(tidyr)
+plt = full_summary %>% filter(alive) %>% select(is_keystone, all_of(variables_to_plot)) %>%
+    pivot_longer(cols = all_of(variables_to_plot), names_to = "variable", values_to = "value") %>%
+    mutate(value = ifelse(value < 0, 0, value)) %>%
+    ggplot(aes(x = variable, y = value, fill = is_keystone)) +
+    geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+    scale_y_continuous(trans = "log1p") +
+    #stat_summary(fun = mean, geom = "point", color = "red", size = 3, position = position_dodge(width = 0.75), show.legend = FALSE) +
+    scale_fill_manual(values = colors, labels = c("Non-keystone", "Keystone")) +
+    labs(x = "Metric", y = "Value", fill = "Species Type") +
+    theme_custom
+
+#------------------------------
+# Section: Save plot
+path = file.path("/mnt/data/sur/users/mrivera/Plots/Cascade_keystone", "alive_metrics_distribution.png")
+if (!(dir.exists(dirname(path)))) { 
+  dir.create(dirname(path), recursive = TRUE)
+  print('>> Directory created\n')}
+ggsave(path, plot = plt, width = 12, height = 5)
+```
+
+![Figure 6: Alive population metric ditributions](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/alive_metrics_distribution.png)
+## Generate correlations
+```{r, eval=FALSE}
+# Correlation analysis
+library(GGally)
+cols = c("keystoneness", "dissimilarity", "prop_extinctions", "rel_pop_initial")
+subset = full_summary %>% filter(alive) 
+plt = GGally::ggpairs(subset, columns = cols, title = "Correlation Analysis", upper = list(continuous = "cor"), lower = list(continuous = "points")) 
+
+path = '/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/alive_correlations.png'
+ggsave(path, plot = plt, width = 8, height = 6)
+```
+
+![Figure 6: Alive population correlation analysis](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/alive_correlations.png)
+
+## Count number of alive populations
+```{r, eval=FALSE}
+
+# Calculate alive species
+tmp = full_summary %>% group_by(is_keystone, alive) %>% summarise(n = n(), .groups = "drop") %>%
+  group_by(is_keystone) %>%
+  mutate(prop = n / sum(n)) %>%
+  select(-n) %>% pivot_wider(names_from = alive, values_from = prop, values_fill = 0) %>%
+  rename(extinct = `FALSE`, alive = `TRUE`)
+
+# Generate plot
+library(ggplot2)
+plt = tmp %>% ggplot(aes(x = extinct, y = factor(is_keystone))) +
+  geom_col(fill = "steelblue") +
+  labs(x = "Proportion Extinct", y = NULL, title='Proportion of extinctions at perturbation time') +
+  scale_y_discrete(labels = c("FALSE" = "Non-Keystone", "TRUE" = "Keystone")) +
+  xlim(0,1) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text.y = element_text(face = "bold", size = 12),
+    plot.title = element_text(face = "bold", margin = margin(b = 10))
+  )
+
+
+path = '/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/alive_success.png'
+ggsave(path, plot = plt, width = 8, height = 6)
+```
+
+![Figure 6: Alive population proportion](/mnt/data/sur/users/mrivera/Plots/Cascade_keystone/alive_success.png)
+
 
 # Verify data
 I found cases where keystoneness of specie 30 was NA, to test this I will look if it is a code problem or R problem. <br>
