@@ -48,7 +48,8 @@ process_arguments <- function(){
   return(args)
 }
 
-args <- process_arguments()
+# args <- process_arguments()
+setwd("/home/sur/lab/exp/2026/today2/")
 args <- list()
 args$sims <- "/home/sur/lab/exp/2026/today2/glv_simulation_parameters_controls.tsv"
 args$outdir <- "sims"
@@ -137,7 +138,7 @@ generate_params <- function(n_species = 20,
 #' 
 #' @export
 sim_glv <- function(params = params, n_t = n_t, timeout = 600){
-  
+
   # Check that matrix is square
   if(nrow(params$M) != ncol(params$M))
     stop("ERROR", call. = TRUE)
@@ -187,11 +188,15 @@ sim_glv <- function(params = params, n_t = n_t, timeout = 600){
   p_noint <- sum(params$M[!ii_diag] == 0) / n_int
   p_neg <- sum((params$M[!ii_diag] != 0) & (params$M[!ii_diag] < 0)) / (n_int - sum(params$M[!ii_diag] == 0))
   
+  # Sim
+  
+  
   # Combine results in tibble
   Sim <- tibble(n_species = n_species,
                 p_noint = p_noint,
                 p_neg = p_neg,
                 n_t = n_t,
+                ks_ii = params$ks_ii,
                 extinct_species = NA,
                 spec_abun = NA,
                 spec_freq = NA,
@@ -229,18 +234,21 @@ measure_start_end_change <- function(msim){
   # Identify number of timepoints
   t_end <- dim(sim)[2]
   
-  sim.prcomp <- prcomp(sim, center = TRUE, scale. = TRUE)
+  # Calculate relative abundance
+  sim <- apply(sim, 2, function(x) {x / sum(x)})
+  
+  # sim.prcomp <- prcomp(sim, center = TRUE, scale. = TRUE)
   
   Res <- tibble(shannon_start = vegan::diversity(sim[,1]),
                 shannon_end = vegan::diversity(sim[,t_end]),
                 richness_start = sum(sim[,1] > 0),
                 richness_end = sum(sim[,t_end] > 0),
-                bray_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "bray")),
-                euclidean_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "euclidean")),
-                manhattan_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "manhattan")),
-                pc1_change = abs(sim.prcomp$rotation[1,"PC1"] - sim.prcomp$rotation[t_end,"PC1"]),
-                pc1_propvar = summary(sim.prcomp)$sdev[1]^2 / sum(summary(sim.prcomp)$sdev^2),
-                pc_totvar = sum(summary(sim.prcomp)$sdev^2)
+                bray_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "bray"))
+                # euclidean_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "euclidean")),
+                # manhattan_change = as.numeric(vegan::vegdist(t(sim[,c(1,t_end)]), method = "manhattan")),
+                # pc1_change = abs(sim.prcomp$rotation[1,"PC1"] - sim.prcomp$rotation[t_end,"PC1"]),
+                # pc1_propvar = summary(sim.prcomp)$sdev[1]^2 / sum(summary(sim.prcomp)$sdev^2),
+                # pc_totvar = sum(summary(sim.prcomp)$sdev^2)
   )
   
   
@@ -339,18 +347,18 @@ if(!dir.exists(args$outdir)){
 
 date()
 
-# hyper <- read_tsv(args$sims)
-# hyper
+hyper <- read_tsv(args$sims)
+hyper
 Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
   pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
     
-    # i <- 1
-    # n_species <- hyper$n_species[i]
-    # p_noint <- hyper$p_noint[i]
-    # p_neg <- hyper$p_neg[i]
-    # seed <- hyper$seed[i]
-    # simid <- hyper$id[i]
+    i <- 1
+    n_species <- hyper$n_species[i]
+    p_noint <- hyper$p_noint[i]
+    p_neg <- hyper$p_neg[i]
+    seed <- hyper$seed[i]
+    simid <- hyper$id[i]
     
     message(paste0("===== Simulation ", simid," ====="))
     n_t <- 1000
@@ -366,6 +374,7 @@ Tab <- read_tsv(args$sims) %>%
     Sims <- sim_glv(params = params, n_t = n_t, timeout = 600)
     Sims$id <- simid
     
+    # Sims
     
     if( !is.logical(Sims$sim[[1]]) ){
       if(Sims$richness_end > 1){
@@ -383,7 +392,8 @@ Tab <- read_tsv(args$sims) %>%
       message("\t>Main simulation failed. Extinctions cannot be tested.")
     }
     
-
+    # Sims
+    
     # Save full results and table
     save(Sims, file = file.path(args$rdats, paste0(simid, ".rdat") ))
     Tab <- Sims %>%
