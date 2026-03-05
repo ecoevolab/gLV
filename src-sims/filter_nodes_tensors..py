@@ -29,7 +29,7 @@ import os
 from datetime import datetime
 
 # Section: Generate-paths
-experiment_dir = '/mnt/data/sur/users/mrivera/Controls/Cascade_keystone'
+experiment_dir = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone'
 interactions_dir = os.path.join(experiment_dir, "Interactions")
 targets_dir = os.path.join(experiment_dir, "ExtSummaries")
 topologies_dir = os.path.join(experiment_dir, "Topologies")
@@ -161,7 +161,7 @@ def batching(df, A_dir, targets_dir, topology_dir, path, batch_size=250, num_wor
 
 #-----------------------
 # Run parallelization
-tensors_path = '/mnt/data/sur/users/mrivera/Cuda-tensors/Cascade_filtered'
+tensors_path = '/mnt/data/sur/users/mrivera/Cuda-tensors/Boosted_filtered'
 batching(df = data_rows,
          A_dir = interactions_dir, 
          targets_dir = targets_dir,
