@@ -412,11 +412,31 @@ Tab <- read_tsv(args$sims) %>%
         tibble(deg_in = igraph::degree(M_surv_graph, mode = "in"),
                deg_out = igraph::degree(M_surv_graph, mode = "out"),
                strength_in = igraph::strength(M_surv_graph, mode = "in"),
-               strength_out = igraph::strength(M_surv_graph, mode = "out")
+               strength_out = igraph::strength(M_surv_graph, mode = "out"),
                
+               betweenness = igraph::betweenness(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)),
+               closeness = igraph::closeness(M_surv_graph, , weights = abs(igraph::E(M_surv_graph)$weight)),
+               harmonic_centrality = igraph::harmonic_centrality(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)),
+               eigen_centrality = igraph::eigen_centrality(M_surv_graph)$vector,
+               page_rank = igraph::page_rank(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight))$vector, # Can't use negative values
+               authority_score = igraph::authority_score(M_surv_graph)$vector,
+               hub_score = igraph::hub_score(M_surv_graph)$vector,
+               
+               transitivity = igraph::transitivity(M_surv_graph, type = "local"),
+               local_efficiency = igraph::local_efficiency(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)),
+               knn = igraph::knn(M_surv_graph)$knn,                        # average neighbor degree,
+               eccentricity = igraph::eccentricity(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)),
+               # walktrap = igraph::membership(igraph::cluster_walktrap(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)))
+               triangles = igraph::count_triangles(M_surv_graph)
               
-               
                )
+        
+
+        
+        
+
+        
+        
         
 
         
