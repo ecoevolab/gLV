@@ -382,9 +382,45 @@ Tab <- read_tsv(args$sims) %>%
         Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params,
                                         timeout = 600)
         if(!is.null(Ext)){
-          Ext$id <- simid
+          Ext <- Ext %>%
+            arrange(extinct_species) %>%
+            mutate(ext_ii = 1:length(extinct_species)) %>%
+            mutate(id = simid) 
         }
         Sims <- bind_rows(Sims, Ext)
+        
+        # Extract & write networks
+        x_t <- Sims$sim[[1]][,n_t]
+        surv_specs <- which(x_t > 0)
+        M_surv <- params$M[surv_specs, surv_specs]
+        write_tsv(M_surv %>% as_tibble, paste0(simid, "_net.tsv"), col_names = FALSE)
+        
+        # Extract metrics of species importance that we want to predict later
+        Ext %>%
+          transmute(prop_extinction = (richness_start - richness_end) / (length(surv_specs) - 1),
+                    bray_change,
+                    ks_bray = bray_change * (1 - spec_freq),
+                    extinct_species) %>%
+          mutate(ks_label = 1*(extinct_species == params$ks_ii)) %>%
+          select(-extinct_species) %>%
+          write_tsv(paste0(simid, "_target_obs.tsv"))
+        
+        
+        # Extract node level features
+        # help(package = "igraph")
+        M_surv_graph <- igraph::graph_from_adjacency_matrix(t(M_surv), mode = "directed", weighted = TRUE, diag = FALSE)
+        tibble(deg_in = igraph::degree(M_surv_graph, mode = "in"),
+               deg_out = igraph::degree(M_surv_graph, mode = "out"),
+               strength_in = igraph::strength(M_surv_graph, mode = "in"),
+               strength_out = igraph::strength(M_surv_graph, mode = "out")
+               
+              
+               
+               )
+        
+
+        
+        
       }else{
         message("\t>Only one species survived, no additional extinctions.")
       }
@@ -392,7 +428,7 @@ Tab <- read_tsv(args$sims) %>%
       message("\t>Main simulation failed. Extinctions cannot be tested.")
     }
     
-    # Sims
+    Sims
     
     # Save full results and table
     save(Sims, file = file.path(args$rdats, paste0(simid, ".rdat") ))
