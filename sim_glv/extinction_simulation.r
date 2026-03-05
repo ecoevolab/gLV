@@ -396,13 +396,14 @@ Tab <- read_tsv(args$sims) %>%
         write_tsv(M_surv %>% as_tibble, paste0(simid, "_net.tsv"), col_names = FALSE)
         
         # Extract metrics of species importance that we want to predict later
-        Ext %>%
+        Y <- Ext %>%
           transmute(prop_extinction = (richness_start - richness_end) / (length(surv_specs) - 1),
                     bray_change,
                     ks_bray = bray_change * (1 - spec_freq),
                     extinct_species) %>%
           mutate(ks_label = 1*(extinct_species == params$ks_ii)) %>%
-          select(-extinct_species) %>%
+          select(-extinct_species)
+        Y %>%
           write_tsv(paste0(simid, "_target_obs.tsv"))
         
         
