@@ -56,6 +56,9 @@ args$outdir <- "sims"
 args$ks_boost <- 10
 args$rdats <- file.path(args$outdir, "rdats")
 args$tsvs <- file.path(args$outdir, "tsvs")
+args$networks <- file.path(args$outdir, "networks")
+args$node_x <- file.path(args$outdir, "node_x")
+args$targets <- file.path(args$outdir, "targets")
 print(args)
 
 library(tidyverse)
@@ -343,6 +346,19 @@ if(!dir.exists(args$outdir)){
   if(!dir.exists(args$tsvs)){
     dir.create(args$tsvs)
   }
+  
+  if(!dir.exists(args$networks)){
+    dir.create(args$networks)
+  }
+  
+  if(!dir.exists(args$node_x)){
+    dir.create(args$node_x)
+  }
+  
+  if(!dir.exists(args$targets)){
+    dir.create(args$targets)
+  }
+
 }
 
 date()
