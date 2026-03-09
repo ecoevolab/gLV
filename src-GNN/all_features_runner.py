@@ -63,19 +63,18 @@ def training_loop(model_declared, device, batched_paths, weights_dir, loss_fn, o
                 loss = loss_fn(out, data.y)
                 loss.backward()
                 #----------------------
-                # Section: Extract node with maximum values
+                # Section: Last layeer information
                 if iter == epochs - 1:  # Only for the last epoch
                     #----------------------
-                    # Append predicted node with maximum value
+                    # Append true values
                     max_data = torch.argmax(data.y, dim=0).detach().cpu().numpy()
                     idx_max_true.append(max_data)
-                    # prop_extinctions, dissimilarity, keystoneness
                     metrics_true.append(data.y[:, 0].detach().cpu().numpy())
                     #----------------------
                     # Append predicted  values
                     max_out = torch.argmax(out, dim=0).detach().cpu().numpy()
                     idx_max_pred.append(max_out)
-                    metrics_pred.append(data.y[:, 0].detach().cpu().numpy())
+                    metrics_pred.append(out[:, 0].detach().cpu().numpy())
                     #----------------------
                     # Save weights
                     path_save = f'{weights_dir}/{os.path.basename(data_dir)}.pth'
@@ -89,7 +88,7 @@ def training_loop(model_declared, device, batched_paths, weights_dir, loss_fn, o
         total_elapsed += elapsed
         # Print every 25 epochs
         if iter % 10 == 0:
-            tqdm.write(f"Epoch {iter}: Loss = {loss:.4f}, Elapsed time: {elapsed:.2f}")
+            tqdm.write(f"Epoch {iter}: Loss = {epoch_loss:.4f}, Elapsed time: {elapsed:.2f}")
     # Summary
     print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
     return  loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred
@@ -111,34 +110,43 @@ def seed_fn(seed=42):
     torch.backends.cudnn.deterministic = True   # Ensure deterministic behavior
     torch.backends.cudnn.benchmark = False 
 
+
 # Set seed and run model
 loss_fn = nn.MSELoss()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 seed_fn(42)
 model_declared = model(hidden_channels=64, num_layers=5).to(device)
 optimizer = optim.Adam(model_declared.parameters(), lr=0.00001)
-epochs = 5
+epochs = 200
+print('The number of epochs will be:', epochs, '\n')
 
 # Load file paths
-data_dir = '/home/mriveraceron/data/Boosted_filtered'
-weights_dir = '/home/mriveraceron/model_weights'
+data_dir = '/home/mriveraceron/glv-research/data_tensors/Boosted_filtered'
+weights_dir = '/home/mriveraceron/glv-research/model_weights'
 batched_paths = glob.glob(f"{data_dir}/*.pt")
 loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred = training_loop(model_declared, device, batched_paths, weights_dir, loss_fn, optimizer, epochs)
 
+# Flatten lists of indexes
+idx_max_true = np.concatenate(idx_max_true).tolist()
+idx_max_pred = np.concatenate(idx_max_pred).tolist()
+#  Flatten lists of values
+metrics_true = np.concatenate(metrics_true).tolist()
+metrics_pred = np.concatenate(metrics_pred).tolist()
 
 #-------------------------------
 # Section: Save loss and max data/out tensor
-results_dir = '/home/mriveraceron/Results'
-result_path = f'{results_dir}/{os.path.basename(data_dir)}/Raw-AllFeatures'
+results_dir = '/home/mriveraceron/glv-research/Results'
+result_path = '/home/mriveraceron/glv-research/Results/Boosted_keystone/Filtered_AllFeats'
 os.makedirs(result_path, exist_ok=True)
+print('The results directory will be:', result_path, '\n')
 #-------------------------------
 # Save max indexes
-idx_max_true.to_feather(f'{result_path}/max_idx_true.feather')
-idx_max_pred.to_feather(f'{result_path}/max_idx_pred.feather')
+np.save(f'{result_path}/max_idx_true.npy', idx_max_true)
+np.save(f'{result_path}/max_idx_pred.npy', idx_max_pred)
 #-------------------------------
 # Save metrics
-df_true.to_feather(f'{result_path}/Metrics_true.feather')
-df_pred.to_feather(f'{result_path}/Metrics_pred.feather')
+np.save(f'{result_path}/values_true.npy', metrics_true)
+np.save(f'{result_path}/values_pred.npy', metrics_pred)
 #-------------------------------
 # Save loss history
 np.save(f'{result_path}/loss_history.npy', np.array(loss_history))
@@ -156,56 +164,45 @@ plt.title("Loss over time")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.grid(True)
-plt.savefig(f'{result_path}/Data_loss_plot.png')
+plt.savefig(f'{result_path}/DataLoss_plot.png')
 
 #-------------------------------
-# Section: Plot values predicted vs true
-fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-# Plot prop_extinctions
-axes[0].scatter(x=df_true['prop_extinctions'], y=df_pred['prop_extinctions'], color='blue')
-axes[0].set_title('prop_extinctions True vs predicted')
-# Plot dissimilarity
-axes[1].scatter(x=df_true['dissimilarity'], y=df_pred['dissimilarity'], color='blue')
-axes[1].set_title('dissimilarity True vs predicted')
-# Plot keystoneness
-axes[2].scatter(x=df_true['keystoneness'], y=df_pred['keystoneness'], color='blue')
-axes[2].set_title('keystoneness True vs predicted')
-for ax in axes:
-    ax.grid(True)
-    ax.set_xlabel('True values Raw Data')
-    ax.set_ylabel('Predicted values')
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)  
-    
-fig.savefig(f'{result_path}/Values_TP.png')
+# Section: Plot indexes predicted vs true
+import matplotlib.pyplot as plt
+
+# Calculate accuracy
+accuracy = np.mean(np.array(idx_max_true) == np.array(idx_max_pred))
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.scatter(idx_max_pred, idx_max_true, color='steelblue', s=80)
+ax.text(0.95, 0.95, f'Accuracy: {accuracy:.2f}', transform=ax.transAxes,ha='right', va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+ax.set_xlabel('Predicted max node', fontsize=13)
+ax.set_ylabel('Expected max node', fontsize=13)
+ax.set_title('Predicted maximum node', fontsize=15)
+ax.grid(True, linestyle='--', alpha=0.6)
+
+plt.tight_layout()
+plt.savefig(f'{result_path}/Indexes_plot.png',dpi=150)
 
 #-------------------------------
-# Section: Plot indexes of max values predicted vs true
-v = []
-for c in ['prop_extinctions', 'dissimilarity', 'keystoneness']:
-    acc = (idx_max_true[c] == idx_max_pred[c]).mean()
-    print(f"Accuracy for {c}: {acc:.2f}")
-    v.append(acc)
+# Section: Plot indexes predicted vs true
+import matplotlib.pyplot as plt
 
-fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-# Plot prop_extinctions 
-axes[0].scatter(x=idx_max_true['prop_extinctions'], y=idx_max_pred['prop_extinctions'], color='blue')
-axes[0].text(0.95, 0.95, f'Accuracy: {v[0]:.2f}', transform=axes[0].transAxes,ha='right', va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-axes[0].set_title('prop_extinctions Max Index True vs predicted')
-# Plot dissimilarity
-axes[1].scatter(x=idx_max_true['dissimilarity'], y=idx_max_pred['dissimilarity'], color='blue')
-axes[1].text(0.95, 0.95, f'Accuracy: {v[1]:.2f}', transform=axes[1].transAxes,ha='right', va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-axes[1].set_title('dissimilarity Max Index True vs predicted')
-# Plot keystoneness
-axes[2].scatter(x=idx_max_true['keystoneness'], y=idx_max_pred['keystoneness'], color='blue')
-axes[2].text(0.95, 0.95, f'Accuracy: {v[2]:.2f}', transform=axes[2].transAxes,ha='right', va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-axes[2].set_title('keystoneness Max Index True vs predicted')
-for ax in axes:
-    ax.grid(True)
-    ax.set_xlabel('True Max Index')
-    ax.set_ylabel('Predicted Max Index')
-    ax.set_xlim(0, 30)
-    ax.set_ylim(0, 30)  
+# Calculate accuracy
+accuracy = np.mean(np.array(metrics_true) == np.array(metrics_pred))
 
+# Plot
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.scatter(metrics_true, metrics_pred, color='steelblue', s=80)
+ax.text(0.95, 0.95, f'Accuracy: {accuracy:.2f}', transform=ax.transAxes,ha='right', va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
-fig.savefig(f'{result_path}/Values_MaxIndex_TP.png')
+ax.set_xlabel('Predicted max node', fontsize=13)
+ax.set_ylabel('Expected max node', fontsize=13)
+ax.set_title('Predicted maximum node', fontsize=15)
+ax.grid(True, linestyle='--', alpha=0.6)
+
+plt.tight_layout()
+plt.savefig(f'{result_path}/Values_plot.png',dpi=150)
+
