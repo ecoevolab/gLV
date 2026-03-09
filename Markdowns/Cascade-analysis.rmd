@@ -1,0 +1,91 @@
+---
+title: "Cascaded experiment"
+author: "Manuel Rivera"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Description
+One approach to generate keystone datasets controls is the use of cascaded interactions matrixes. Suppose a 5 species community, if we set the diagonal to a certain value and we can craft a cascading effect on the matrix.
+A represation of this process is shown below, setting keystone specie to 1, we can generate a matrix with the next structure:
+Specie 1 -> Specie 2 -> Specie 3 -> Specie 4 -> Specie 5
+Or peerhaps a more complex one:
+Specie 1 -> Specie 5 -> Specie 4 -> Specie 2 -> Specie 3
+
+For testing we will run the metric distributions:
+
+# Fixing needed
+What if boosted interaction is 0
+# Generate data
+```{r, eval=FALSE}
+
+dir = '/mnt/data/sur/users/mrivera/Controls/exp_20251125'
+simulation_parameters = data.table::fread(paste0(dir, "/Simulation-parameters.tsv"), select = c("id", "keys", "p_noint"))
+total_rows = nrow(simulation_parameters) * 30
+
+ext_dir = '/mnt/data/sur/users/mrivera/Controls/exp_20251125/GNN-targets'
+raw_outs_dir = '/mnt/data/sur/users/mrivera/Controls/exp_20251125/raw-ODEs'
+
+library(dplyr)
+library(parallel)
+
+process_row <- function(i) {
+  #------------------------
+  # Generate path
+  row <- simulation_parameters[i, ]
+  id <- row$id
+  key <- as.numeric(row$key)
+  p_noint <- as.numeric(row$p_noint)
+  ext_file_path <- paste0(ext_dir, paste0("/tgt_", id, ".feather"))
+  ode_file_path <- paste0(raw_outs_dir, paste0("/O_", id, ".feather"))
+  #------------------------
+  # Generate relative abundance
+  population <- arrow::read_feather(ode_file_path, col_select = 1000)
+  relative_pop <- population / sum(population)
+  #------------------------
+  # Read extinctions file
+  cols <- c("new_ext", "BC_diss", "K_s")
+  table <- arrow::read_feather(ext_file_path, col_select = all_of(cols)) %>%
+    rename(n_extinctions = new_ext) %>%
+    rename(dissimilarity = BC_diss) %>%
+    rename(keystoneness = K_s) %>%
+    mutate(pop_initial = population[[1]]) %>%
+    mutate(rel_pop_initial = relative_pop[[1]]) %>%
+    mutate(prop_extinctions = n_extinctions / n()) %>%
+    mutate(is_keystone = FALSE, p_noint = p_noint)
+  # Add keystone
+  table$is_keystone[key] <- TRUE
+  table
+}
+
+results <- mclapply(1:nrow(simulation_parameters), process_row, mc.cores = detectCores() - 1)
+full_summary <- do.call(rbind, results)
+
+#-----------------------
+# Section: Convert to long format.
+library(tidyr)
+full_summary_long <- full_summary %>%
+    pivot_longer(
+        cols = c(keystoneness, dissimilarity, n_extinctions, pop_initial, prop_extinctions, rel_pop_initial),
+        names_to = "variable",
+        values_to = "value"
+    ) %>%
+    dplyr::mutate(value = replace_na(value, 0))
+
+
+#-----------------------
+# Section: Generate directory for plots
+plt_dir = paste0('/mnt/data/sur/users/mrivera/Plots/', basename(dir))
+if (!(dir.exists(plt_dir))) { 
+  dir.create(plt_dir)
+  print('>> Directory created\n')}
+```
+
+# Metric distribution
+```{r, eval=FALSE}
+
+```

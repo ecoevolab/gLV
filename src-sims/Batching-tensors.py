@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 
 # Section: Generate-paths
-experiment_dir = "/mnt/data/sur/users/mrivera/Controls/NegCtrl-V1"
+experiment_dir = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone'
 interactions_dir = os.path.join(experiment_dir, "Interactions")
 targets_dir = os.path.join(experiment_dir, "ExtSummaries")
 topologies_dir = os.path.join(experiment_dir, "Topologies")
@@ -28,7 +28,6 @@ data_ids = pd.read_csv(data_path, sep="\t", usecols=['id'])['id']
 # SECTION: Generate function to load data for one simulation.
 from torch_geometric.data import Data
 import pyarrow.feather as feather
-id = data_ids.iloc[0]
 
 def load_single_data(id, interactions_dir, targets_dir, topologies_dir):
     #------------------------------
@@ -74,7 +73,9 @@ def load_single_data(id, interactions_dir, targets_dir, topologies_dir):
     return data
 
 # Sanity check: load one data sample
-load_single_data(data_ids.iloc[0], interactions_dir, targets_dir, topologies_dir)
+id = data_ids.iloc[500]
+eg = load_single_data(id, interactions_dir, targets_dir, topologies_dir)
+(eg.edge_weights < 0).any()
 
 #-------------------------------------------------------------
 # Section: Create batches of data

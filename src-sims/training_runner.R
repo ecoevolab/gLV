@@ -8,14 +8,22 @@
 tictoc::tic("Section 0: Total running time")
 
 #' Indicate directories paths
-pdir <- "/mnt/data/sur/users/mrivera/Controls"      # Parent-dir                                                
-exp_id = "NegCtrl-V1"                               # Experiment-ID      
-exp_dir <- file.path(pdir, exp_id)                  # Experiment-dir
+parent_directory <- "/mnt/data/sur/users/mrivera/Training-Data" # Parent-dir 
 
-params_path <- file.path(exp_dir,"simulation-params.tsv")    # Parameters-TSV
-mc_dir <- file.path(exp_dir, "mc-apply")                     # Workers-dir
-info_path <- file.path(exp_dir, "summary.feather")           # Information-TSV
-cat(">> The experiment path is:", exp_dir,"\n", sep=" ")
+# Function to generate batch ID based on the current date
+gen_batch_id <- function(date = Sys.Date()) {
+  paste0("Batch_", format(date, "%y%m%d"), "_", ids::proquint(1, 1))
+}
+experiment_id = gen_batch_id()  # Experiment-ID  \
+exist = list.dirs(path = parent_directory, recursive = FALSE)
+while (experiment_id %in% basename(exist)) {
+  experiment_id = gen_batch_id()  # Regenerate if ID already exists
+}
+experiment_directory <- file.path(parent_directory, experiment_id)        # Experiment-dir
+params_path <- file.path(experiment_directory,"simulation-params.tsv")    # Parameters-TSV
+mc_dir <- file.path(experiment_directory, "mc-apply")                     # Workers-dir
+info_path <- file.path(experiment_directory, "summary.feather")           # Information-TSV
+cat(">> The experiment path is:", experiment_directory,"\n", sep=" ")
  
 
 #============================================================================
@@ -28,32 +36,31 @@ tictoc::tic("Section 1: Time for Parameter Generation")
 #+ eval=FALSE
 generate_params <- function (){
   dt <- data.table::CJ(n_species = 30, p_neg = 1, p_noint = seq(0, 0.9, by = 0.1))
-  dt <- dt[rep(1:.N, each = 100)]     # Replicate each row 'reps' times
+  dt <- dt[rep(1:.N, each = 1000)]     # Replicate each row 'reps' times
   n_total <- nrow(dt)
   all_seeds <- sample.int(3e6L, 3L *n_total, replace = FALSE)
   
   dt[, `:=`(
-    key = sample(x = 1:30, size = n_total, replace = TRUE),  # key species to not go extinct
-    id = ids::random_id(n = n_total, bytes = 3),
-    x0_seed = all_seeds[1:n_total],
-    mu_seed = all_seeds[(n_total+1):(n_total*2)],
-    A_seed = all_seeds[(2 * n_total + 1):(3 * n_total)]
+    id = ids::random_id(n = n_total, bytes = 3),        # siumulation ID
+    x0_seed = all_seeds[1:n_total],                     # population-seed
+    mu_seed = all_seeds[(n_total+1):(n_total*2)],       # growth-rate-seed
+    A_seed = all_seeds[(2 * n_total + 1):(3 * n_total)] # interactions-seed
   )]
   
   return(dt)
 }
 
-df <- generate_params()
+df_parameters <- generate_params()
 # Verify if ids are unique and in case they are, save the parameters.
-while (nrow(df) != length(unique(df$id))) {
-    df <- generate_params() # Repeat function
+while (nrow(df_parameters) != length(unique(df_parameters$id))) {
+  df_parameters <- generate_params() # Repeat function
 }
       
 # Save parameters
-dir.create(exp_dir, recursive = TRUE, showWarnings = FALSE)
-data.table::fwrite(x = df, file = params_path, sep = "\t", quote = FALSE, row.names = FALSE) 
+dir.create(experiment_directory, recursive = TRUE, showWarnings = FALSE)
+data.table::fwrite(x = df_parameters, file = params_path, sep = "\t", quote = FALSE, row.names = FALSE) 
 message("\nParameteres generated and saved at path:\n", params_path, "\n")
-cat(">> The number of extinctions to do is:", 30 * nrow(df),"\n", sep=" ")
+cat(">> The number of extinctions to do is:", 30 * nrow(df_parameters),"\n", sep=" ")
 tictoc::toc() # For section 1
 
 #============================================================================
@@ -72,7 +79,7 @@ split_table <- function(df, n_chunks) {
 }
 
 # TEST
-chunks <- split_table(df, num_cores)
+chunks <- split_table(df_parameters, num_cores)
 message("\nData split completed...\n")
 tictoc::toc() # For section 2
 
@@ -115,13 +122,13 @@ lapply(codes, function(file){
 })
 
 #------------------------------------------------------
-# Function to generate positive controls: build_posctrl
+# Function to generate positive controls: gen_training_params
 # testing lines
-# index = df[900,]
-# params = build_params(index)
+# index = df_parameters[900,]
+# params = gen_training_params(index)
 # path_core = workers_ODE[1]
 # num_cores = 5
-# chunks = split_table(df[1:5,], num_cores)
+# chunks = split_table(df_parameters[1:5,], num_cores)
 # workers_ODE <- create_dirs(mc_dir, num_cores)
 #------------------------------------------------------
 
@@ -170,7 +177,7 @@ build_topology <- function(A) {
 wrapper <- function(index, path_core) {
   #-----------------------------
   # Section: Generate parameters and run simulation
-  params <- build_params_ctrls(index)              # Generate-parameters
+  params <- gen_training_params(index)              # Generate-parameters
   output <- solve_gLV(times = 1000, params)   # Run-simulation
   #-----------------------------
   # Section: Generate filenames and save files
@@ -180,9 +187,9 @@ wrapper <- function(index, path_core) {
   topology_path <- file.path(path_core, paste0("Topology_", sim_id, ".feather"))    # network topology
   preds_path <- file.path(path_core, paste0("ExtSummary_", sim_id, ".feather"))     # extinctions summary
   # Save files
-  # df_subset <- df[, c(1, seq(10, ncol(df), by = 10))]       # Create df with every 10 cols
-  arrow::write_feather(x = output, sink = out_path)                      # Save output
-  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)       # Save interactions matrix
+  output_subset <- output[, c(1, seq(1, ncol(output), by = 50))]       # Save output every 50 cols
+  arrow::write_feather(x = output_subset, sink = out_path)             # Save output
+  arrow::write_feather(x = as.data.frame(params$M), sink = A_path)     # Save interactions matrix
   #-----------------------------
   # Section: Generate topology and summary of the simulation
   na_count <- sum(is.na(output))                              # simulation-NAs

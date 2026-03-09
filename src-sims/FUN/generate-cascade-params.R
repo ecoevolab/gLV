@@ -18,63 +18,65 @@
 #' 
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
 #'  positive interactions or negatives. 
+#' @examples
+#' index = list(n_species = 5, p_noint = 0.5, p_neg = 1, key = 1, id = "example_id", x0_seed = 123, mu_seed = 456, A_seed = 789)
+#' gen_cascade_params(index)
 
-build_params_ctrls <- function(index) {
-  
+gen_cascade_params <- function(index) {
+  #-------------------Parameters-------------------------#
   n_species <- as.numeric(index[["n_species"]])
-  
+  p_noint   <- as.numeric(index[["p_noint"]])
+  p_neg     <- as.numeric(index[["p_neg"]])
+  k         <- as.numeric(index[["key"]])       # Keystone specie
+  a_seed    <- as.numeric(index[["A_seed"]])
+  x0_seed   <- as.numeric(index[["x0_seed"]])
+  mu_seed   <- as.numeric(index[["mu_seed"]])
+  id        <- index[["id"]]
   #------------------Populations-----------------------------#
-  set.seed(as.numeric(index[["x0_seed"]]))
+  set.seed(x0_seed)
   x0 <- stats::runif(n_species, min = 0.1, max = 1)
-  
   #------------------------Growth Rates---------------------#
-  set.seed(as.numeric(index[["mu_seed"]]))
+  set.seed(mu_seed)
   mu <- stats::runif(n_species, min = 0.001, max = 1)
-  
   #--------------------Interactions-------------------------#
-    
-  #' Define proportions for zero and negative values
-  p_noint <- as.numeric(index[["p_noint"]])
-  p_neg <- as.numeric(index[["p_neg"]])
-  k = as.numeric(index[["key"]])  # Keystone specie
-
   # Define the number of interactions
   # Removed diagonal elements n
-  # Removed one species interaction from the pool (n_species - 1)
-  total = (n_species**2) - n_species - (n_species - 1)
+  # Remove keystone effects (n-1)
+  effects = n_species - 1
+  total = (n_species**2) - n_species - effects
   num_noint = floor(p_noint * total)      # null-interactions
   remaining = total - num_noint           # Non-zero-interactions
   num_negs = floor(p_neg * remaining)     # Negative interactions
   num_pos = remaining - num_negs
-  
-  # Create the interaction vector
-  set.seed(as.numeric(index[["A_seed"]]))
-  interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 1, max = 2),runif(num_pos, min = 0, max = 1))
-  
+  #------------------------
+  # Section: Generate interactions
+  set.seed(a_seed)
+  interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1),runif(num_pos, min = 0, max = 1))
   # Shuffle the interaction vector
-  set.seed(as.numeric(index[["A_seed"]]))
   interaction_values <- sample(interaction_values)
-
+  #------------------------
+  # Section: Generate cascading effects
   # Create matrix of TRUE masking
   mask <- matrix(TRUE, n_species, n_species)    # mask matrix
+  M = matrix(NA, n_species, n_species)          # initialize interaction matrix
   diag(mask) <- FALSE                           # remove diagonal
-  mask[,k] <- FALSE                            # remove keystone COLUMN
-  
-  # Generate matrix to fill
-  M <- matrix(NA, n_species, n_species)         # values matrix
-  M[mask] <- interaction_values  # off-diagonal and off keystone row values
-  set.seed(as.numeric(index[["A_seed"]]))
-  M[,k] <- -runif(n_species, min = 0, max = 1)                  # keystone column values  
-  diag(M) <- -0.5                # diagonal values
-
+  # Cascade is the vector containing the sequence.
+  whom_rows = seq_len(n_species)[-k] # species affected by the cascade effect
+  whom_rows = sample(whom_rows)  # shuffle 
+  who_cols = c(k, whom_rows)     # who
+  # Mark positions affected by the cascade effect
+  for (i in seq_along(whom_rows)) {
+    # Update the mask 
+    mask[whom_rows[i], who_cols[i]] = FALSE
+    # Fill M matrix
+    M[whom_rows[i], who_cols[i]] = -runif(1, min = 0, max = 1)  * 10 
+  }
+  # Fill the interaction matrix M
+  diag(M) <- -0.5
+  M[mask] <- interaction_values
   # Optional: Round if needed
   M <- round(M, digits = 5)
-  
-  # Extract ID
-  id <- index[["id"]]
-  
   # Return parameters as a list
   params <- list(x0 = x0, M = M, mu = mu, id = id, n = n_species)
-  
   return(params)
 }

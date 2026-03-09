@@ -18,51 +18,53 @@
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
 #'  positive interactions or negatives. 
 
-ctrl_regenerate <- function(index) {
+gen_training_params <- function(index) {
   
-  #------------------Species number--------------------------#
   n_species <- as.numeric(index[["n_species"]])
   
   #------------------Populations-----------------------------#
   set.seed(as.numeric(index[["x0_seed"]]))
   x0 <- stats::runif(n_species, min = 0.1, max = 1)
   
-  #------------------Growth Rates----------------------------#
+  #------------------------Growth Rates---------------------#
   set.seed(as.numeric(index[["mu_seed"]]))
   mu <- stats::runif(n_species, min = 0.001, max = 1)
   
-  #------------------Keystone specie-------------------------#
-  k <- as.numeric(index[["keys"]])
-
   #--------------------Interactions-------------------------#
-  # Create matrix of TRUE for off-diagonal positions
-  mask <- matrix(TRUE, n_species, n_species)
-  diag(mask) <- FALSE                             # remove diagonal
-  mask[k, ] <- FALSE                              # remove row k
-  M <- matrix(0, n_species, n_species)            # matrix to fill
-
-  # Total number of off-diagonal elements excluding row k
-  # (n**2 - n) is the number of off-diagonal elements
-  # (n-1) removes the elements in row k
-  # (n**2 - n) - (n-1) = n**2 - 2*n + 1
-  total = (n_species**2) - (2 * n_species) + 1 
-
-  # Define the number of interactions
+  #' Define proportions for zero and negative values
   p_noint <- as.numeric(index[["p_noint"]])
-  num_noint <- floor(p_noint * total)     # null-interactions
-  num_negs <- total - num_noint           # negative-interactions  
-
-  # Interaction values
+  p_neg <- as.numeric(index[["p_neg"]])
+  
+  # Define the number of interactions
+  total <- n_species * (n_species - 1)     # Total off-diagonal elements
+  num_noint <- floor(p_noint * total)      # null-interactions
+  remaining <- total - num_noint           # Non-zero-interactions
+  num_negs <- floor(p_neg * remaining)     # Negative interactions
+  num_pos <- remaining - num_negs
+  
+  # Create the interaction vector
   set.seed(as.numeric(index[["A_seed"]]))
-  values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1))
-  values <- sample(values)  # Shuffle 
-
-  # Assign values
-  M[mask] <- values                              # off-diagonal and no keystone interactions 
-  M[k,] = runif(n_species, min = 0.8, max = 1)   # Add keystone interactions 
-  diag(M) <- -0.5                                # Diagonal
-  M <- round(M, digits = 4)
-
-  # Return parameters as a list  
-  return(list(x0 = x0, M = M, mu = mu, id = index[["id"]], n = n_species, keystone = k))
+  interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1),runif(num_pos, min = 0, max = 1))
+  
+  # Shuffle the interaction vector
+  interaction_values <- sample(interaction_values)
+  # Create matrix of TRUE masking
+  mask <- matrix(TRUE, n_species, n_species)    # mask matrix
+  diag(mask) <- FALSE                           # remove diagonal
+  
+  # Generate matrix to fill
+  M <- matrix(NA, n_species, n_species)         # values matrix
+  M[mask] <- interaction_values  # off-diagonal and off keystone row values
+  diag(M) <- -0.5                # diagonal values
+  
+  # Optional: Round if needed
+  M <- round(M, digits = 5)
+  
+  # Extract ID
+  id <- index[["id"]]
+  
+  # Return parameters as a list
+  params <- list(x0 = x0, M = M, mu = mu, id = id, n = n_species)
+  
+  return(params)
 }
