@@ -9,6 +9,7 @@
 !*.r
 !*.ipynb
 !*.rmd
+!*.md
 
 # And not directories (so we can recurse into them)
 !*/
