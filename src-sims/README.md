@@ -30,7 +30,7 @@ Parameter generation, ODE solving, and post-processing utilities for gLV simulat
 | Script | Description |
 |---|---|
 | `generate-boosted-params.R` | Generates gLV parameters by boosting the full column of a keystone species (excluding its diagonal) |
-| `generate-cascade-params.R` | Generates gLV parameters with cascading interaction boosts (e.g. A→B→C, where A↔B and B↔C are boosted by factor *k*) |
+| `generate-cascade-params.R` | Generates gLV parameters with cascading interaction boosts (e.g. A→B→C, where A→B and B→C are boosted by factor *k*) |
 | `generate-controls-params.R` | Generates gLV parameters where one column is one order of magnitude weaker than the rest — no boosting applied |
 | `solver-gLV.R` | ODE solver for the gLV equations |
 | `forge-symls.R` | Merges per-core output directories into a single dataset, preventing race conditions during parallelization |
