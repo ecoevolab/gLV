@@ -1,7 +1,23 @@
-This repository is dedicated to generalized Lotka-Volterra simulations.
+# gLV In Silico Community Simulator
 
-GNN/ — contains code for Graph Neural Network architectures.
+> ⚠️ This project is under active development. 
 
-src/FUN/ — includes functions needed for running simulations.
+This repository provides tools for generating generalized Lotka-Volterra (gLV) 
+in silico communities through simulation, and training Graph Neural 
+Networks (GNNs) to model their dynamics.
 
-test-data/ — contains R scripts to reproduce extinctions from a failed experiment (c748247a-8dc2).
+## Overview
+
+The generalized Lotka-Volterra model describes the growth and interactions of 
+species in a community. This pipeline simulates synthetic communities, 
+structures the resulting data as tensors, and trains GNN models to learn from 
+those ecological dynamics.
+
+## Repository Structure
+
+| Directory | Description |
+|---|---|
+| [`src-sims/`](src-sims/README.md) | Scripts and functions for simulating control and training datasets |
+| [`src-GNN/`](src-GNN/README.md) | Tensor data generation, GNN model definitions, and training/testing scripts |
+| [`Markdowns/`](Markdowns/README.md) | Notes and records of experiments performed |
+
