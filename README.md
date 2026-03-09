@@ -19,5 +19,5 @@ those ecological dynamics.
 |---|---|
 | [`src-sims/`](src-sims/README.md) | Scripts and functions for simulating control and training datasets |
 | [`src-GNN/`](src-GNN/README.md) | Tensor data generation, GNN model definitions, and training/testing scripts |
-| [`Markdowns/`](Markdowns/README.md) | Notes and records of experiments performed |
+| `Markdowns/` | Notes and records of experiments performed |
 
