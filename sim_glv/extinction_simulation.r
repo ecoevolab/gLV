@@ -144,6 +144,10 @@ generate_params <- function(n_species = 20,
 #' 
 #' @export
 sim_glv <- function(params = params, n_t = n_t, timeout = 600){
+  
+  # params <- params_e
+  # n_t <- n_t
+  # timeout <- 600
 
   # Check that matrix is square
   if(nrow(params$M) != ncol(params$M))
@@ -372,7 +376,7 @@ Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
   pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
     
-    # i <- 1
+    # i <- 10
     # n_species <- hyper$n_species[i]
     # p_noint <- hyper$p_noint[i]
     # p_neg <- hyper$p_neg[i]
@@ -396,7 +400,7 @@ Tab <- read_tsv(args$sims) %>%
     # Sims
     
     if( !is.logical(Sims$sim[[1]]) ){
-      if(Sims$richness_end > 1){
+      if(Sims$richness_end > 5){
         # Simulate extinctions
         Ext <- simulate_all_extinctions(sim = Sims$sim[[1]], params = params,
                                         timeout = 600)
