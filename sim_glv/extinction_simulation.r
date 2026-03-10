@@ -461,7 +461,7 @@ Tab <- read_tsv(args$sims) %>%
         
         
       }else{
-        message("\t>Only one species survived, no additional extinctions.")
+        message("\t>No more than five species survived, no additional extinctions.")
       }
     } else{
       message("\t>Main simulation failed. Extinctions cannot be tested.")
