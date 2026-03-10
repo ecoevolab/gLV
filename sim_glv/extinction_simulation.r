@@ -48,18 +48,18 @@ process_arguments <- function(){
   return(args)
 }
 
-# args <- process_arguments()
-setwd("/home/sur/lab/exp/2026/today2/")
-args <- list()
-args$sims <- "/home/sur/lab/exp/2026/today2/glv_simulation_parameters_controls.tsv"
-args$outdir <- "sims"
-args$ks_boost <- 10
-args$rdats <- file.path(args$outdir, "rdats")
-args$tsvs <- file.path(args$outdir, "tsvs")
-args$networks <- file.path(args$outdir, "networks")
-args$node_x <- file.path(args$outdir, "node_x")
-args$targets <- file.path(args$outdir, "targets")
-print(args)
+args <- process_arguments()
+# setwd("/home/sur/lab/exp/2026/today2/")
+# args <- list()
+# args$sims <- "/home/sur/lab/exp/2026/today2/glv_simulation_parameters_controls.tsv"
+# args$outdir <- "sims"
+# args$ks_boost <- 10
+# args$rdats <- file.path(args$outdir, "rdats")
+# args$tsvs <- file.path(args$outdir, "tsvs")
+# args$networks <- file.path(args$outdir, "networks")
+# args$node_x <- file.path(args$outdir, "nodes")
+# args$targets <- file.path(args$outdir, "targets")
+# print(args)
 
 library(tidyverse)
 library(miaSim)
@@ -363,18 +363,18 @@ if(!dir.exists(args$outdir)){
 
 date()
 
-hyper <- read_tsv(args$sims)
-hyper
+# hyper <- read_tsv(args$sims)
+# hyper
 Tab <- read_tsv(args$sims) %>%
   select(simid=id, n_species, p_noint, p_neg, seed) %>% # Renamming unnecesary
   pmap_dfr(.f = function(simid, n_species, p_noint, p_neg, seed){
     
-    i <- 1
-    n_species <- hyper$n_species[i]
-    p_noint <- hyper$p_noint[i]
-    p_neg <- hyper$p_neg[i]
-    seed <- hyper$seed[i]
-    simid <- hyper$id[i]
+    # i <- 1
+    # n_species <- hyper$n_species[i]
+    # p_noint <- hyper$p_noint[i]
+    # p_neg <- hyper$p_neg[i]
+    # seed <- hyper$seed[i]
+    # simid <- hyper$id[i]
     
     message(paste0("===== Simulation ", simid," ====="))
     n_t <- 1000
@@ -409,7 +409,8 @@ Tab <- read_tsv(args$sims) %>%
         x_t <- Sims$sim[[1]][,n_t]
         surv_specs <- which(x_t > 0)
         M_surv <- params$M[surv_specs, surv_specs]
-        write_tsv(M_surv %>% as_tibble, paste0(simid, "_net.tsv"), col_names = FALSE)
+        filename <- file.path(args$networks, paste0(simid, "_net.tsv") )
+        write_tsv(M_surv %>% as_tibble, file = filename, col_names = FALSE)
         
         # Extract metrics of species importance that we want to predict later
         Y <- Ext %>%
@@ -419,14 +420,15 @@ Tab <- read_tsv(args$sims) %>%
                     extinct_species) %>%
           mutate(ks_label = 1*(extinct_species == params$ks_ii)) %>%
           select(-extinct_species)
+        filename <- file.path(args$targets, paste0(simid, "_target.tsv") )
         Y %>%
-          write_tsv(paste0(simid, "_target_obs.tsv"))
+          write_tsv(file = filename)
         
         
         # Extract node level features
         # help(package = "igraph")
         M_surv_graph <- igraph::graph_from_adjacency_matrix(t(M_surv), mode = "directed", weighted = TRUE, diag = FALSE)
-        tibble(deg_in = igraph::degree(M_surv_graph, mode = "in"),
+        X <- tibble(deg_in = igraph::degree(M_surv_graph, mode = "in"),
                deg_out = igraph::degree(M_surv_graph, mode = "out"),
                strength_in = igraph::strength(M_surv_graph, mode = "in"),
                strength_out = igraph::strength(M_surv_graph, mode = "out"),
@@ -436,7 +438,7 @@ Tab <- read_tsv(args$sims) %>%
                harmonic_centrality = igraph::harmonic_centrality(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)),
                eigen_centrality = igraph::eigen_centrality(M_surv_graph)$vector,
                page_rank = igraph::page_rank(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight))$vector, # Can't use negative values
-               authority_score = igraph::authority_score(M_surv_graph)$vector,
+               authority_score = igraph::hits_scores(M_surv_graph)$vector,
                hub_score = igraph::hub_score(M_surv_graph)$vector,
                
                transitivity = igraph::transitivity(M_surv_graph, type = "local"),
@@ -445,17 +447,10 @@ Tab <- read_tsv(args$sims) %>%
                eccentricity = igraph::eccentricity(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)),
                # walktrap = igraph::membership(igraph::cluster_walktrap(M_surv_graph, weights = abs(igraph::E(M_surv_graph)$weight)))
                triangles = igraph::count_triangles(M_surv_graph)
-              
-               )
-        
-
-        
-        
-
-        
-        
-        
-
+               ) %>%
+          mutate(ks_label = Y$ks_label)
+        filename <- file.path(args$nodes, paste0(simid, "_nodes.tsv") )
+        write_tsv(X, file = filename)
         
         
       }else{
@@ -465,7 +460,7 @@ Tab <- read_tsv(args$sims) %>%
       message("\t>Main simulation failed. Extinctions cannot be tested.")
     }
     
-    Sims
+    # Sims
     
     # Save full results and table
     save(Sims, file = file.path(args$rdats, paste0(simid, ".rdat") ))
