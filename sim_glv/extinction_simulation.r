@@ -44,6 +44,9 @@ process_arguments <- function(){
   # Process arguments
   args$rdats <- file.path(args$outdir, "rdats")
   args$tsvs <- file.path(args$outdir, "tsvs")
+  args$networks <- file.path(args$outdir, "networks")
+  args$node_x <- file.path(args$outdir, "nodes")
+  args$targets <- file.path(args$outdir, "targets")
   
   return(args)
 }
@@ -449,7 +452,7 @@ Tab <- read_tsv(args$sims) %>%
                triangles = igraph::count_triangles(M_surv_graph)
                ) %>%
           mutate(ks_label = Y$ks_label)
-        filename <- file.path(args$nodes, paste0(simid, "_nodes.tsv") )
+        filename <- file.path(args$node_x, paste0(simid, "_nodes.tsv") )
         write_tsv(X, file = filename)
         
         
