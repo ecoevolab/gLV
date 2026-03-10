@@ -46,7 +46,8 @@ def load_single_data(row, interactions_dir, targets_dir, topologies_dir):
     n = len(rel_pops)
     zero_tensor = torch.zeros(n,1) 
     zero_tensor[keystone] = 1
-    y_tensor = zero_tensor[alive_indices]
+    # Target labels must be shape [nodes], so:
+    y_tensor = zero_tensor[alive_indices].squeeze().long()
     #------------------------------
     # Section: Load adjacency matrix 
     A_path = os.path.join(interactions_dir, f"A_{id}.feather")
