@@ -28,7 +28,7 @@ wrapper <- function(index, path_core = NULL) {
     row = df_params[index, ]  
     # Section: Generate parameters and run simulation
     id = row$id
-    path_out = paste0(outs_dir, '/RawOutput_', id, '.feather')
+    path_out = paste0(output_dir, '/RawOutput_', id, '.feather')
     out = arrow::read_feather(path_out, col_select = 21)[[1]]
     # Section: Generate extinctions
     params = gen_Kboost_params(row)
@@ -36,12 +36,13 @@ wrapper <- function(index, path_core = NULL) {
     summary_exts = sim_all_ext(params, path_core = path_core)
     preds_path <- file.path(extinctions_dir, paste0("ExtSummary_", id, ".feather"))
     arrow::write_feather(x = summary_exts, sink = preds_path)
-    cat(paste0('>> Extinctions generated for: ', id, '\n'))
+    # cat(paste0('>> Extinctions generated for: ', id, '\n'))
 }
 
+library(parallel)
 results <- mclapply(
     seq_len(nrow(df_params)),           # iterate over row indices
     wrapper,
-    path_core = path_core,       # passed as additional argument
+    path_core = NULL,       # passed as additional argument
     mc.cores = detectCores() - 1
 )
