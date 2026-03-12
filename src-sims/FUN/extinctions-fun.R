@@ -28,7 +28,7 @@
 #' result <- sim_all_ext(output, params)
 #'
 
-sim_all_ext <- function(params, path_core) {
+sim_all_ext <- function(params) {
   # Extract parameters
   n = params$n
   x_before = params$x0                        # Non perturbated populations  
@@ -81,15 +81,12 @@ sim_all_ext <- function(params, path_core) {
     exts_df[i, "prop_extinctions"] <- round(props_extinctions, 2) # proportion-extinctions
     exts_df[i, "dissimilarity_bc"] <- bray_curtis                 # Bray-Curtis
     exts_df[i, "keystoneness"] <- keystoneness                    # Keystoneness             
-    exts_df[i, "time_stability"] <- time_stability                # Time-to-stability          
-    # Lines to save the output of each extinction 
-    # ext_path <- paste0(path_core, "/E_", params$id, "-S", i, ".feather")         
-    # arrow::write_feather(x = new_out, sink = ext_path)                                       
+    exts_df[i, "time_stability"] <- time_stability                # Time-to-stability                                              
   }
   # Add relative abundance of the extinct species before extinction
   exts_df$pop_initial = x_before
   exts_df$rel_pop_initial = rel_x_before   
-  cat(">> Extinctions completed for", params$id, ".\n")
+  # cat(">> Extinctions completed for", params$id, ".\n")
   return(exts_df)
 }
 
