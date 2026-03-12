@@ -7,12 +7,18 @@
 # Section: Generate-ID-and-paths
 tictoc::tic("Section 0: Total running time")
 
-# Indicate directories paths
-pdir <- "/mnt/data/sur/users/mrivera/Controls"  # Parent-dir                                                
-experiment_id <- "kboost_dataset_v2"            # Experiment-ID      
+# Parent directory
+parent_directory <- "/mnt/data/sur/users/mrivera/Training-Data"  
+
+# Generate experiment ID
+experiment_id = paste0('Batch_', substr(ids::random_id(),1, 12))
+exist = list.dirs(path = parent_directory, recursive = FALSE)
+while (experiment_id %in% basename(exist)) {
+  experiment_id = paste0('Batch_', substr(ids::random_id(),1, 12)) # Regenerate if ID already exists
+}     
 
 # Generate directory paths
-experiment_dir <- file.path(pdir, experiment_id)                    # Experiment-dir
+experiment_dir <- file.path(parent_directory, experiment_id)                    # Experiment-dir
 dir.create(experiment_dir)
 cat(">> The experiment path is:", experiment_dir,"\n", sep=" ")
  
@@ -39,7 +45,7 @@ generate_params <- function (n_reps = 100){
   return(dt)
 }
 
-n_reps = 100
+n_reps = 1
 df_params <- generate_params(n_reps)
 # Verify if ids are unique and in case they are, save the parameters.
 while (nrow(df_params) != length(unique(df_params$id))) {
@@ -109,7 +115,7 @@ wrapper <- function(index, df_params) {
   row = df_params[index, ] 
   sim_id = row$id
   # Generate parameters
-  params <- gen_Kboost_params(row)                                # Generate-parameters
+  params <- gen_training_params(row)                              # Generate-parameters
   output <- solve_gLV(times = 1000, params)                       # Run-simulation
   output_subset <- output[, c(1, seq(50, ncol(output), by = 50))]  # Save output every 50 cols
   #-----------------------------
@@ -156,3 +162,11 @@ result_df <- data.table::rbindlist(results_summary, use.names = TRUE)
 info_path <- file.path(experiment_dir, "summary.feather")           # Information-TSV
 arrow::write_feather(x = result_df, sink = info_path)
 tictoc::toc() # For section 4
+
+# Sanity check
+all_dirs = list.dirs(experiment_dir, recursive = TRUE)[-1]
+for (dir in all_dirs) {
+  x = list.files(dir)
+  p = paste0('>> The number of files at ', dir, ' are: ', length(x))
+  print(p)
+}
