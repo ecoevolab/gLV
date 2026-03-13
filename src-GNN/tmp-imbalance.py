@@ -1,6 +1,5 @@
-# 20-February-2026
-# This code is for running the model using only the dummy data.
-
+# 24-February-2024
+# This code is for running the model using all node features.
 
 #-------------------------------
 # Section: Generate model
@@ -14,7 +13,7 @@ class model(nn.Module):
         super().__init__()
         self.convs = nn.ModuleList()
         # First layer: 1 -> hidden_channels
-        self.convs.append(GraphConv(1, hidden_channels))
+        self.convs.append(GraphConv(13, hidden_channels))
         # Middle layers: hidden_channels -> hidden_channels
         for _ in range(num_layers - 2):
             #self.convs.append(GATConv(hidden_channels*heads, hidden_channels, heads=heads))
@@ -58,7 +57,6 @@ def training_loop(model_declared, device, batched_paths, weights_dir, loss_fn, o
                 #----------------------
                 # Move it to device and run model
                 # data = data_list[0]
-                data.x = torch.ones(data.y.shape[0], 1, dtype=torch.float32)
                 data = data.to(device)
                 optimizer.zero_grad()
                 out = model_declared(data)
@@ -79,7 +77,7 @@ def training_loop(model_declared, device, batched_paths, weights_dir, loss_fn, o
                     metrics_pred.append(out[:, 0].detach().cpu().numpy())
                     #----------------------
                     # Save weights
-                    path_save = f'{weights_dir}/{os.path.basename(data_dir)}-Dummy.pth'
+                    path_save = f'{weights_dir}/{os.path.basename(data_dir)}.pth'
                     torch.save(model_declared.state_dict(), path_save)
                 #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
@@ -94,6 +92,7 @@ def training_loop(model_declared, device, batched_paths, weights_dir, loss_fn, o
     # Summary
     print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
     return  loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred
+
 
 #-------------------------------
 # Section: Run model
@@ -137,7 +136,7 @@ metrics_pred = np.concatenate(metrics_pred).tolist()
 #-------------------------------
 # Section: Save loss and max data/out tensor
 results_dir = '/home/mriveraceron/glv-research/Results'
-result_path = '/home/mriveraceron/glv-research/Results/Boosted_keystone/Filtered_Dummy'
+result_path = '/home/mriveraceron/glv-research/Results/Boosted_keystone/Filtered_AllFeats'
 os.makedirs(result_path, exist_ok=True)
 print('The results directory will be:', result_path, '\n')
 #-------------------------------
@@ -206,3 +205,4 @@ ax.grid(True, linestyle='--', alpha=0.6)
 
 plt.tight_layout()
 plt.savefig(f'{result_path}/Values_plot.png',dpi=150)
+
