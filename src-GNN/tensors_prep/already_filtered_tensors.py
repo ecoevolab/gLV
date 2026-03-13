@@ -100,15 +100,14 @@ from functools import partial
 from tqdm import tqdm
 
 def load_all_data(ids, filtered_inters, filtered_exts, filtered_stats, max_workers=8):
-    results = {}
+    results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(load_single_data, id, filtered_inters, filtered_exts, filtered_stats): id for id in ids
         }
         for future in tqdm(as_completed(futures), total=len(ids)):
-            id = futures[future]
             try:
-                results[id] = future.result()
+                results.append(future.result())
             except Exception as e:
                 print(f"Failed for id {id}: {e}")
     return results
