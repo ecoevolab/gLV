@@ -101,8 +101,10 @@ lapply(codes, function(file){
 # Load parameters file
 parameters_path = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone/simulation-params.tsv'
 parameters_tsv = data.table::fread(parameters_path)
-row = parameters_tsv[1]
-test = new_wrapper(row)
+
+# Testing line
+# row = parameters_tsv[1]
+# test = new_wrapper(row)
 
 library(parallel)
 results <- mclapply(seq_len(nrow(parameters_tsv)), new_wrapper, mc.cores = detectCores() - 1)
