@@ -62,6 +62,11 @@ new_wrapper = function(index) {
   out = arrow::read_feather(path_out, col_select=21)[[1]]
   relative = out/sum(out)
   to_filter <- which(relative > 1e-06)
+  # Skip simulation if only one specie survived
+  if (!(length(to_filter) > 1)) {
+    cat(paste0('>> Skipping id ', id, ': only ', length(to_filter), ' species passed filter\n'))
+    return(list(id = id, n = length(to_filter)))
+  }
   #-------------------
   # Section: Generate parameters
   params = gen_Kboost_params(row)
@@ -75,18 +80,18 @@ new_wrapper = function(index) {
   topology_df = build_topology(filter_params$M)
   path_topo = paste0(dirs[["filtered_topo"]], '/topology_',id,'.feather')
   arrow::write_feather(x = as.data.frame(topology_df), sink = path_topo)
-  cat(paste0('>> Node statistics filtered for: ', id, '\n'))
   #---------------------
   # Section: Generate extinctions
   extinctions_result = sim_all_ext(filter_params)
   extinctions_path = paste0(dirs[["filtered_ext"]], '/ExtSummary_',id,'.feather')
   arrow::write_feather(x = extinctions_result, sink = extinctions_path) 
-  cat(paste0('>> Extinctions filtered for: ', id, '\n'))
   #---------------------
   # Section: Save interactions
   A_path = paste0(dirs[["filtered_A"]], '/A_',id,'.feather')
   arrow::write_feather(x = as.data.frame(filter_params$M), sink = A_path) 
-  cat(paste0('>> Interactions filtered for: ', id, '\n'))
+  #---------------------
+  cat(paste0('>> Nodes filtered for: ', id, '\n'))
+  return(list(id = id, n = length(to_filter)))
 }
 
 #-------------------------------------------
@@ -107,4 +112,14 @@ parameters_tsv = data.table::fread(parameters_path)
 # test = new_wrapper(row)
 
 library(parallel)
-results <- mclapply(seq_len(nrow(parameters_tsv)), new_wrapper, mc.cores = detectCores() - 1)
+seq_len(nrow(parameters_tsv))
+results <- mclapply(seq_len(100), new_wrapper, mc.cores = detectCores() - 1)
+
+results_df <- do.call(rbind, lapply(results, function(r) {
+  data.frame(id = r$id, n = r$n)
+}))
+
+# Save failed simulations
+path = '/mnt/data/sur/users/mrivera/Controls/Boosted_keystone/failed_filters.feather'
+arrow::write_feather(x = as.data.frame(results_df), sink = path)
+arrow::read_feather(path)
