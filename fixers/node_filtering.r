@@ -112,8 +112,7 @@ parameters_tsv = data.table::fread(parameters_path)
 # test = new_wrapper(row)
 
 library(parallel)
-seq_len(nrow(parameters_tsv))
-results <- mclapply(seq_len(100), new_wrapper, mc.cores = detectCores() - 1)
+results <- mclapply(seq_len(nrow(parameters_tsv)), new_wrapper, mc.cores = detectCores() - 1)
 
 results_df <- do.call(rbind, lapply(results, function(r) {
   data.frame(id = r$id, n = r$n)
