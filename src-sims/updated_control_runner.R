@@ -5,7 +5,7 @@
 
 #--------------------------------------------------------------------------
 # Section: Generate-ID-and-paths
-tictoc::tic("Section 0: Total running time")
+tictoc::tic("Section 1: Parameter generation")
 
 # Indicate directories paths
 pdir <- "/mnt/data/sur/users/mrivera/Controls"  # Parent-dir                                                
@@ -143,7 +143,7 @@ wrapper <- function(index, df_params) {
   to_filter <- which(relative > 1e-06)
   # Skip simulation if only one specie survived
   if (!(length(to_filter) > 1)) {
-    cat(paste0('>> Skipping filtering of extinctions for id ', id, ': only ', length(to_filter), ' species passed filter\n'))
+    cat(paste0('>> Skipping filtering of extinctions for id ', sim_id, ': only ', length(to_filter), ' species passed filter\n'))
     cat(">> Simulation ", sim_id, " completed.\n")  
     return(list(id = sim_id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
   }
@@ -162,16 +162,19 @@ wrapper <- function(index, df_params) {
   return(list(id = sim_id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
 }
 
+wrapper(index=1, df_params)
 #----------------------------------------------
 # Section: Parallelize-code and get the summary of simulations
 tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
 
 library(parallel)
+ncore = max(1, detectCores() - 1, na.rm = TRUE)
+cat('>> The number of cores to use are: ', ncore, '\n')
 results_summary <- mclapply(
-    seq_len(nrow(df_params)),           # iterate over row indices
+    #seq_len(nrow(df_params)),           # iterate over row indices
     wrapper,
     df_params,
-    mc.cores = max(1, detectCores() - 1, na.rm = TRUE)
+    mc.cores = ncore
 )
 
 # Generate information file
