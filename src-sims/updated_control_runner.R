@@ -123,7 +123,7 @@ wrapper <- function(index, df_params) {
   topology_path <- file.path(experiment_dir, 'Topologies', paste0("Topology_", sim_id, ".feather"))    # network topology
   preds_path <- file.path(experiment_dir, 'ExtSummaries', paste0("ExtSummary_", sim_id, ".feather"))   # extinctions summary
   # Save files
-  arrow::write_feather(x = output_subset, sink = out_path)             # Save output
+  arrow::write_feather(x = as.data.frame(output_subset), sink = out_path)             # Save output
   arrow::write_feather(x = as.data.frame(params$M), sink = A_path)     # Save interactions matrix
   #-----------------------------
   # Section: Generate topology and summary of the simulation
@@ -136,7 +136,7 @@ wrapper <- function(index, df_params) {
   params$x0 = final                                             # Stable-population
   summary_exts = sim_all_ext(params)                            # Generate-extinctions
   extinction_stability_time = max(summary_exts$time_stability)  # time-to-stability 
-  arrow::write_feather(x = summary_exts, sink = preds_path)     # Save files
+  arrow::write_feather(x = as.data.frame(summary_exts), sink = preds_path)     # Save files
   #-----------------------------
   # Section: Simulate SURVIVAL NODES extinctions
   relative = final/sum(final)
