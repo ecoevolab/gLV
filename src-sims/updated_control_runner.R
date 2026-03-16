@@ -162,16 +162,17 @@ wrapper <- function(index, df_params) {
   return(list(id = sim_id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
 }
 
-wrapper(index=1, df_params)
+# Test line:
+# wrapper(index=1, df_params)
 #----------------------------------------------
 # Section: Parallelize-code and get the summary of simulations
-tictoc::tic("Section 4: Run simulations and extinctions using the parallel package")
+tictoc::tic("Section 2: Run simulations and extinctions using the parallel package")
 
 library(parallel)
 ncore = max(1, detectCores() - 1, na.rm = TRUE)
 cat('>> The number of cores to use are: ', ncore, '\n')
 results_summary <- mclapply(
-    #seq_len(nrow(df_params)),           # iterate over row indices
+    seq_len(nrow(df_params)),           # iterate over row indices
     wrapper,
     df_params,
     mc.cores = ncore
