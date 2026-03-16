@@ -9,7 +9,7 @@ tictoc::tic("Section 0: Total running time")
 
 # Indicate directories paths
 pdir <- "/mnt/data/sur/users/mrivera/Controls"  # Parent-dir                                                
-experiment_id <- "kboost_dataset_v2"            # Experiment-ID      
+experiment_id <- "KBoost_dataset_v2"            # Experiment-ID      
 
 # Generate directory paths
 experiment_dir <- file.path(pdir, experiment_id)                    # Experiment-dir
@@ -17,7 +17,7 @@ dir.create(experiment_dir)
 cat(">> The experiment path is:", experiment_dir,"\n", sep=" ")
  
 # Section: Generate directories
-dirs <- c('RawOutputs', 'Interactions', 'Topologies', 'ExtSummaries')
+dirs <- c('RawOutputs', 'Interactions', 'Topologies', 'ExtSummaries', 'Filtered_ExtSummaries')
 sapply(file.path(experiment_dir, dirs), dir.create)
 
 #--------------------------------------------------------------------------
@@ -104,6 +104,8 @@ build_topology <- function(A) {
 #----------------------------------------------
 # Section: Wrapper function
 wrapper <- function(index, df_params) {
+  # Test line
+  # index = 1
   #-----------------------------
   # Section: Generate parameters and run simulation
   row = df_params[index, ] 
@@ -112,12 +114,14 @@ wrapper <- function(index, df_params) {
   params <- gen_Kboost_params(row)                                # Generate-parameters
   output <- solve_gLV(times = 1000, params)                       # Run-simulation
   output_subset <- output[, c(1, seq(50, ncol(output), by = 50))]  # Save output every 50 cols
+  # Population at quasi stable state
+  final <- output[[ncol(output)]]    
   #-----------------------------
   # Section: Generate filenames and save files
   out_path <- file.path(experiment_dir, 'RawOutputs', paste0("RawOutput_", sim_id, ".feather"))        # simulation output
-  A_path <- file.path(experiment_dir, 'Interactions', paste0("A_", sim_id, ".feather"))                  # interactions matrix
+  A_path <- file.path(experiment_dir, 'Interactions', paste0("A_", sim_id, ".feather"))                # interactions matrix
   topology_path <- file.path(experiment_dir, 'Topologies', paste0("Topology_", sim_id, ".feather"))    # network topology
-  preds_path <- file.path(experiment_dir, 'ExtSummaries', paste0("ExtSummary_", sim_id, ".feather"))     # extinctions summary
+  preds_path <- file.path(experiment_dir, 'ExtSummaries', paste0("ExtSummary_", sim_id, ".feather"))   # extinctions summary
   # Save files
   arrow::write_feather(x = output_subset, sink = out_path)             # Save output
   arrow::write_feather(x = as.data.frame(params$M), sink = A_path)     # Save interactions matrix
@@ -125,17 +129,36 @@ wrapper <- function(index, df_params) {
   # Section: Generate topology and summary of the simulation
   na_count <- sum(is.na(output))                              # simulation-NAs
   out_stability_time <- find_ts(output)                       # time-to-stability OUTPUT
-  topology_df <- build_topology(params$M)                     # network topology
-  arrow::write_feather(x = as.data.frame(topology_df), sink = topology_path) # Save topology
-  cat(">> Simulation ", sim_id, " completed.\n")   
+  topology_df <- build_topology(params$M)                     # node statistics
+  arrow::write_feather(x = as.data.frame(topology_df), sink = topology_path) 
   #-----------------------------
-  # Section: Simulate extinctions and summary of extinctions
-  params$x0 = output[[ncol(output)]]                            # Stable-population
-  summary_exts = sim_all_ext(params, path_core=NULL)            # Generate-extinctions
+  # Section: Simulate ALL extinctions
+  params$x0 = final                                             # Stable-population
+  summary_exts = sim_all_ext(params)                            # Generate-extinctions
   extinction_stability_time = max(summary_exts$time_stability)  # time-to-stability 
-  # Save files
-  arrow::write_feather(x = summary_exts, sink = preds_path)   
+  arrow::write_feather(x = summary_exts, sink = preds_path)     # Save files
   #-----------------------------
+  # Section: Simulate SURVIVAL NODES extinctions
+  relative = final/sum(final)
+  to_filter <- which(relative > 1e-06)
+  # Skip simulation if only one specie survived
+  if (!(length(to_filter) > 1)) {
+    cat(paste0('>> Skipping filtering of extinctions for id ', id, ': only ', length(to_filter), ' species passed filter\n'))
+    cat(">> Simulation ", sim_id, " completed.\n")  
+    return(list(id = sim_id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
+  }
+  # Filter survival nodes
+  filter_params = list(x0 = final[to_filter], # for extinctions
+    M = params$M[to_filter,to_filter],
+    mu = params$mu[to_filter], 
+    id = sim_id, n = length(to_filter)
+  )
+  filtered_summary = sim_all_ext(filter_params)            # Generate-extinctions
+  # Save filtered summary
+  filter_exts_path <- file.path(experiment_dir, 'Filtered_ExtSummaries', paste0("ExtSummary_", sim_id, ".feather"))     
+  arrow::write_feather(x = as.data.frame(filtered_summary), sink = filter_exts_path) 
+  #-----------------------------
+  cat(">> Simulation ", sim_id, " completed.\n")  
   return(list(id = sim_id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
 }
 
