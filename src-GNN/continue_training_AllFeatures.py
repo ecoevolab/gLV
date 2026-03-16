@@ -1,22 +1,6 @@
-"""
-GNN Model Training
-=================================================
-Purpose:
-    Train a Graph Neural Network (GNN) using pre-built tensors. 
-    Species with low relative abundance at perturbation time are pre-filtered prior to training.
+# 24-February-2024
+# This code is for running the model using all node features.
 
-Input Data:
-    - X          : Node feature matrix, where each row represents the statistics of a node in the network.
-    - Y          : Target variable representing keystoneness.
-    - edge_index : Graph connectivity in COO format, defining species interactions.
-    - edge_attr  : Edge weights representing the strength of each interaction.
-
-Dependencies:
-    torch==2.8, pandas==2.3.3, numpy==2.0.2
-
-Author: Manuel Rivera
-Date:   March 13, 2026
-"""
 #-------------------------------
 # Section: Generate model
 import torch 
@@ -48,6 +32,7 @@ class model(nn.Module):
         return x  # [num_nodes]
     
 
+
 #-------------------------------
 # Section: Traning loop
 import glob
@@ -57,7 +42,14 @@ import pandas as pd
 from tqdm import tqdm
 import os
 
-def training_loop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs=100):
+def training_loop(model_declared, device, batched_paths, checkpoint_path, weights_path, loss_fn, optimizer, epochs=100):
+    #------------------------------------------
+    # Section: Load checkpoint
+    checkpoint = torch.load(checkpoint_path, weights_only=False)
+    model_declared.load_state_dict(checkpoint)
+    # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    # epoch_start = checkpoint['epoch']
+    # loss = checkpoint['loss']
     #------------------------------------------
     model_declared.train()
     loss_history  =  []             # Loss at epoch
@@ -72,7 +64,7 @@ def training_loop(model_declared, device, batched_paths, weights_path, loss_fn, 
             data_list = torch.load(path, weights_only=False)          
             for data in data_list:
                 #----------------------
-                # Move it to device and run model
+                # Section: Move it to device and run model
                 # data = data_list[0]
                 data = data.to(device)
                 optimizer.zero_grad()
@@ -115,6 +107,8 @@ def training_loop(model_declared, device, batched_paths, weights_path, loss_fn, 
     return  loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred
 
 
+
+
 #-------------------------------
 # Section: Run model
 import torch.optim as optim
@@ -143,9 +137,15 @@ print('The number of epochs will be:', epochs, '\n')
 
 # Load file paths
 data_dir = '/home/mriveraceron/glv-research/data_tensors/Boosted_filtered'
-weights_path = '/home/mriveraceron/glv-research/model_weights/Boosted_filtered_V2.pth'
+
+# Weights to keep training
+checkpoint_path = '/home/mriveraceron/glv-research/model_weights/Boosted_filtered_V2.pth'
+print('Weights checkpoint path:', checkpoint_path, '\n')
+
+# New weights file
+weights_path = '/home/mriveraceron/glv-research/model_weights/Boosted_filtered_V3.pth'
 batched_paths = glob.glob(f"{data_dir}/*.pt")
-loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred = training_loop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs)
+loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred = training_loop(model_declared, device, batched_paths, checkpoint_path, weights_path, loss_fn, optimizer, epochs)
 
 # Flatten lists of indexes
 idx_max_true = np.concatenate(idx_max_true).tolist()
@@ -156,7 +156,7 @@ metrics_pred = np.concatenate(metrics_pred).tolist()
 
 #-------------------------------
 # Section: Save loss and max data/out tensor
-result_path = '/home/mriveraceron/glv-research/Results/Boosted_keystone/Filtered_AllFeats_V2'
+result_path = '/home/mriveraceron/glv-research/Results/Boosted_keystone/Filtered_AllFeats_V3'
 os.makedirs(result_path, exist_ok=True)
 print('The results directory will be:', result_path, '\n')
 #-------------------------------
@@ -182,6 +182,7 @@ plt.plot(loss_history)
 plt.title("Loss over time")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
+#plt.xlim(400, 800)
 plt.grid(True)
 plt.savefig(f'{result_path}/DataLoss_plot.png')
 
@@ -230,4 +231,3 @@ ax.grid(True, linestyle='--', alpha=0.6)
 
 plt.tight_layout()
 plt.savefig(f'{result_path}/Values_plot.png',dpi=150)
-
