@@ -197,7 +197,8 @@ validation_ids = pass_ids[indexes[split:]]
 #-----------------------
 # Run parallelization
 tensors_dir = '/mnt/data/sur/users/mrivera/Cuda-tensors/'
-tensors_path = os.path.join(tensors_dir, os.path.basename(experiment_dir))
+name = 'KBoost_v2_hybrid'
+tensors_path = os.path.join(tensors_dir, name)
 batching(ids_list = train_ids, 
         outputs_dir = outs_dir, 
         targets_dir = filtered_tgt_dir, 
