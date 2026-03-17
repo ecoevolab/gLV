@@ -18,6 +18,16 @@ Author: Manuel Rivera
 Date:   March 13, 2026
 """
 #-------------------------------
+"""
+Model declaration
+
+5-layer architecture:
+    - Layer 1:   13 input features  →  64 channels
+    - Layers 2-4: 64 channels       →  64 channels
+    - Layer 5:   64 channels        →   1 channel
+
+Output activation: Sigmoid, to match the keystoneness target range.
+"""
 # Section: Generate model
 import torch 
 import torch.nn as nn
@@ -48,8 +58,15 @@ class model(nn.Module):
         return x  # [num_nodes]
     
 
-#-------------------------------
-# Section: Traning loop
+"""
+Training function.
+
+At the final epoch, the model returns:
+    - The expected and predicted network node with the highest keystoneness value.
+    - The expected and predicted keystoneness values.
+
+Model weights are saved for reproducibility.
+"""
 import glob
 import time
 import random
@@ -64,61 +81,70 @@ def training_loop(model_declared, device, batched_paths, weights_path, loss_fn, 
     total_elapsed = 0               # Running time
     metrics_pred, metrics_true = [], []   # Declare list for metrics
     idx_max_true, idx_max_pred = [], []     # Declare list for max values
-    for i, iter in enumerate(tqdm(range(epochs), desc="Training")):
+    #---------------------
+    # Sectioin: Load all data once before training
+    all_data = []
+    for path in batched_paths:
+        all_data.extend(torch.load(path, weights_only=False))
+    all_data = [data.to(device) for data in all_data]  # move to GPU once
+    for epoch in tqdm(range(epochs), desc="Training"):
         start = time.time()
         epoch_loss = 0
-        for path in batched_paths:
-            # path = batched_paths[1]
-            data_list = torch.load(path, weights_only=False)          
-            for data in data_list:
+        for data in all_data:
+            #----------------------
+            # Move it to device and run model
+            # data = data_list[0]
+            optimizer.zero_grad()
+            out = model_declared(data)
+            loss = loss_fn(out, data.y)
+            loss.backward()
+            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            epoch_loss += loss.item()   # Accumulate loss
+            #----------------------
+            # Section: At last epochs
+            #----------------------
+            if epoch == epochs - 1:  
                 #----------------------
-                # Move it to device and run model
-                # data = data_list[0]
-                data = data.to(device)
-                optimizer.zero_grad()
-                out = model_declared(data)
-                loss = loss_fn(out, data.y)
-                loss.backward()
-                #----------------------
-                # Section: Last layeer information
-                if iter == epochs - 1:  # Only for the last epoch
-                    #----------------------
-                    # Append true values
-                    max_data = torch.argmax(data.y, dim=0).detach().cpu().numpy()
-                    idx_max_true.append(max_data)
-                    metrics_true.append(data.y[:, 0].detach().cpu().numpy())
-                    #----------------------
-                    # Append predicted  values
-                    max_out = torch.argmax(out, dim=0).detach().cpu().numpy()
-                    idx_max_pred.append(max_out)
-                    metrics_pred.append(out[:, 0].detach().cpu().numpy())
-                    #----------------------
-                    # Save weights
-                    torch.save({
-                        'epoch': iter,
-                        'model_state_dict': model_declared.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'loss': loss
-                    }, weights_path)
-                #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
-                epoch_loss += loss.item()   # Accumulate loss
+                # Append values and node with maximum value
+                idx_max_true.append(torch.argmax(data.y, dim=0).detach())
+                idx_max_pred.append(torch.argmax(out, dim=0).detach())
+                metrics_true.append(data.y[:, 0].detach())
+                metrics_pred.append(out[:, 0].detach())
+        #----------------------
         # Append epoch loss to history
         loss_history.append(epoch_loss)
         elapsed = time.time() - start
         total_elapsed += elapsed
-        # Print every 25 epochs
-        if iter % 10 == 0:
-            tqdm.write(f"Epoch {iter}: Loss = {epoch_loss:.4f}, Elapsed time: {elapsed:.2f}")
+        # Print every n epochs
+        if epoch % 10 == 0:
+            tqdm.write(f"Epoch {epoch}: Loss = {epoch_loss:.4f}, Elapsed time: {elapsed:.2f}")
+    #----------------------
+    # Save weights
+    #----------------------
+    torch.save({
+        'epoch': epochs - 1,
+        'model_state_dict': model_declared.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': epoch_loss
+    }, weights_path)
     # Summary
     print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
     return  loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred
 
 
-#-------------------------------
-# Section: Run model
+"""
+Model preparation
+
+- Seeds are fixed for reproducibility.
+- Loss function: MSE.
+- Device: CUDA.
+- Model is moved to device.
+- Optimizer: Adam.
+- Number of training epochs is set.
+- Learning rate is set to 0.001
+"""
 import torch.optim as optim
-import glob
 import numpy as np
 import random
 
@@ -135,44 +161,66 @@ def seed_fn(seed=42):
 # Set seed and run model
 loss_fn = nn.MSELoss()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-seed_fn(42)
+n_seed = 42
+seed_fn(n_seed)
 model_declared = model(hidden_channels=64, num_layers=5).to(device)
 optimizer = optim.Adam(model_declared.parameters(), lr=0.001)
-epochs = 400
+epochs = 100
 print('The number of epochs will be:', epochs, '\n')
-
-# Load file paths
-data_dir = '/home/mriveraceron/glv-research/data_tensors/Boosted_filtered'
-weights_path = '/home/mriveraceron/glv-research/model_weights/Boosted_filtered_V2.pth'
-batched_paths = glob.glob(f"{data_dir}/*.pt")
-loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred = training_loop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs)
-
-# Flatten lists of indexes
-idx_max_true = np.concatenate(idx_max_true).tolist()
-idx_max_pred = np.concatenate(idx_max_pred).tolist()
-#  Flatten lists of values
-metrics_true = np.concatenate(metrics_true).tolist()
-metrics_pred = np.concatenate(metrics_pred).tolist()
+print('The optimizer LR will be:', optimizer.param_groups[0]['lr'], '\n')
 
 #-------------------------------
-# Section: Save loss and max data/out tensor
-result_path = '/home/mriveraceron/glv-research/Results/Boosted_keystone/Filtered_AllFeats_V2'
+# Section: Generate paths
+#-------------------------------
+import os
+import glob
+
+# Experiment data
+tensors_dir = '/home/mriveraceron/glv-research/data_tensors/'
+experiment_name = 'KBoost_v2_hybrid'
+experiment_data = os.path.join(tensors_dir,experiment_name)
+batched_paths = glob.glob(f"{experiment_data}/TrainBatch_*.pt")
+
+# Results path
+result_dir = '/home/mriveraceron/glv-research/Results/'
+result_path = os.path.join(result_dir, experiment_name)
 os.makedirs(result_path, exist_ok=True)
 print('The results directory will be:', result_path, '\n')
-#-------------------------------
-# Save max indexes
-np.save(f'{result_path}/max_idx_true.npy', idx_max_true)
-np.save(f'{result_path}/max_idx_pred.npy', idx_max_pred)
-#-------------------------------
-# Save metrics
-np.save(f'{result_path}/values_true.npy', metrics_true)
-np.save(f'{result_path}/values_pred.npy', metrics_pred)
-#-------------------------------
-# Save loss history
-np.save(f'{result_path}/loss_history.npy', np.array(loss_history))
-# np.load(f'{result_path}/Dummy_loss.npy')
-# x= np.load(f'{result_path}/Dummy_max_true.npy')
 
+# Declare directory to save model weights
+weights_dir = '/home/mriveraceron/glv-research/model_weights/'
+weights_path = os.path.join(weights_dir,experiment_name + '.pth')
+
+#-------------------------------
+# Section: Run Model
+#-------------------------------
+loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred = training_loop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs)
+
+# List of node indexes and values
+idx_max_true = torch.stack(idx_max_true).cpu().numpy()
+idx_max_pred = torch.stack(idx_max_pred).cpu().numpy()
+metrics_true = torch.cat(metrics_true).cpu().numpy()
+metrics_pred = torch.cat(metrics_pred).cpu().numpy()
+loss_history = np.array(loss_history)
+
+# Save
+np.savez(f'{result_path}/model_results.npz',
+    max_idx_true  = idx_max_true,
+    max_idx_pred  = idx_max_pred,
+    values_true   = metrics_true,
+    values_pred   = metrics_pred,
+    loss_history  = loss_history
+)
+# To load back:
+# data = np.load(f'{result_path}/model_results.npz')
+# idx_max_true  = data['max_idx_true']
+# idx_max_pred  = data['max_idx_pred']
+# metrics_true  = data['values_true']
+# metrics_pred  = data['values_pred']
+# loss_history  = data['loss_history']
+
+#-------------------------------
+# Section: Loss plot
 #-------------------------------
 # Section: Plot loss over time
 import matplotlib.pyplot as plt
@@ -186,7 +234,8 @@ plt.grid(True)
 plt.savefig(f'{result_path}/DataLoss_plot.png')
 
 #-------------------------------
-# Section: Plot indexes predicted vs true
+# Section: Expected vs predicted maximum node
+#-------------------------------
 import matplotlib.pyplot as plt
 
 # Calculate accuracy
@@ -196,17 +245,16 @@ accuracy = np.mean(np.array(idx_max_true) == np.array(idx_max_pred))
 fig, ax = plt.subplots(figsize=(8, 5))
 ax.scatter(idx_max_pred, idx_max_true, color='steelblue', s=80)
 ax.text(0.95, 0.95, f'Accuracy: {accuracy:.2f}', transform=ax.transAxes,ha='right', va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-
 ax.set_xlabel('Predicted max node', fontsize=13)
 ax.set_ylabel('Expected max node', fontsize=13)
 ax.set_title('Predicted maximum node', fontsize=15)
 ax.grid(True, linestyle='--', alpha=0.6)
-
 plt.tight_layout()
 plt.savefig(f'{result_path}/Indexes_plot.png',dpi=150)
 
 #-------------------------------
-# Section: Plot indexes predicted vs true
+# Section: Expected vs predicted values
+#-------------------------------
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 from scipy.stats import spearmanr
@@ -219,7 +267,7 @@ correlationS, pvalue = spearmanr(metrics_true, metrics_pred)
 fig, ax = plt.subplots(figsize=(8, 5))
 ax.scatter(x = metrics_true, y = metrics_pred, color='steelblue', s=80)
 ax.text(0.95, 0.95, 
-    f'Pearson Correlation: {correlationP:.4f}\nSpearman Correlation: {correlationS:.4f}',
+    f'Pearson Correlation: {correlationP.item():.4f}\nSpearman Correlation: {correlationS.item():.4f}',
     transform=ax.transAxes, ha='right', va='top',
     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
 )
@@ -227,7 +275,27 @@ ax.set_xlabel('Predicted values', fontsize=13)
 ax.set_ylabel('Expected values', fontsize=13)
 ax.set_title('Keystoneness values', fontsize=15)
 ax.grid(True, linestyle='--', alpha=0.6)
-
 plt.tight_layout()
 plt.savefig(f'{result_path}/Values_plot.png',dpi=150)
 
+#-------------------------------
+# Generate Summary
+#-------------------------------
+summary = f"""
+Model Training Summary
+=========================
+Model: {model_declared}
+Optimizer LR:   {optimizer.param_groups[0]['lr']}
+Number of epochs: {epochs}
+Seed: {n_seed}
+Data path: {experiment_data}
+
+Pearson Correlation:  {correlationP.item():.4f}  
+Spearman Correlation: {correlationS.item():.4f}  
+Maximum node accuracy: {accuracy.item():.4f}  
+"""
+
+with open(f'{result_path}/evaluation_summary.txt', 'w') as f:
+    f.write(summary)
+
+print(summary)

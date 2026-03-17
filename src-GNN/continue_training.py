@@ -1,6 +1,22 @@
-# 24-February-2024
-# This code is for running the model using all node features.
+"""
+Continue GNN training 
+=================================================
+Purpose:
+    Continue trainining of Graph Neural Network (GNN) using pre-trained weights.
+    Species with low relative abundance at perturbation time are pre-filtered prior to training.
 
+Input Data:
+    - X          : Node feature matrix, where each row represents the statistics of a node in the network.
+    - Y          : Target variable representing keystoneness.
+    - edge_index : Graph connectivity in COO format, defining species interactions.
+    - edge_attr  : Edge weights representing the strength of each interaction.
+
+Dependencies:
+    torch==2.8, pandas==2.3.3, numpy==2.0.2
+
+Author: Manuel Rivera
+Date:   March 13, 2026
+"""
 #-------------------------------
 # Section: Generate model
 import torch 
