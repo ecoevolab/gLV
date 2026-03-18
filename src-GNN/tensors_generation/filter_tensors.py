@@ -63,7 +63,7 @@ def load_single_data(id, output_dir, target_dir, networks_dir, features_dir):
     # Section: Load which species to filter
     output_path = os.path.join(output_dir, f"RawOutput_{id}.feather")
     output = feather.read_table(output_path).to_pandas().iloc[:, 20].to_numpy()
-    relative = output/sum(output)
+    relative = output / output.sum()
     to_filter = np.where(relative > 1e-06)[0]
     #-------------------------------
     # Section: Read target features
@@ -79,99 +79,78 @@ def load_single_data(id, output_dir, target_dir, networks_dir, features_dir):
     row_idx, col_idx = np.nonzero(A_filter) # who with whom
     edge_weights = A_filter[row_idx, col_idx]# edge weights 
     # Convert to torch tensors efficiently
-    edge_index_tensor = torch.from_numpy(np.vstack([row_idx, col_idx]).astype(np.int64))
+    edge_index_tensor = torch.from_numpy(np.stack([row_idx, col_idx]).astype(np.int64))
     edge_weights_tensor = torch.from_numpy(edge_weights).float()   
     #------------------------------ 
     # Section: Load node features 
     features_path = os.path.join(features_dir, f"Topology_{id}.feather")
-    network_stats = feather.read_feather(features_path).iloc[to_filter]
+    network_stats = feather.read_table(features_path).to_pandas().iloc[to_filter]
     x_tensor = torch.from_numpy(network_stats.to_numpy(dtype=np.float32))  
     # Add dummy data, vector of ones
     n = x_tensor.shape[0]
     x_tensor = torch.cat([x_tensor, torch.ones(n, 1, dtype=torch.float32)], dim=1)
     #------------------------------
     # Clean up large intermediate
-    del A, A_filter, tgt_table
+    del output, relative, row_idx, col_idx, edge_weights, network_stats
     #------------------------------
     # Create Data object
     data = Data(
         x=x_tensor,
         edge_weights=edge_weights_tensor,
         edge_index=edge_index_tensor,
-        y=y_tensor
+        y=y_tensor,
+        num_nodes=n
     )
     return data
-
-
 
 # Sanity check: load one data sample
 id = ids_list[0]
 load_single_data(id = id, output_dir = outs_dir, target_dir = targets_dir, networks_dir = networks_dir, features_dir = features_dir)
 
-#-------------------------------------------------------------
-# Section: Parallelize function
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time, gc
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
-from tqdm import tqdm  # optional, for progress bar
+from tqdm import tqdm
+import traceback
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 
-def load_dataset_parallel(ids_list, outs_dir, target_dir, networks_dir, features_dir, max_workers=8):
-    # Fix arguments
-    func = partial(load_single_data, output_dir = outs_dir, target_dir = target_dir, networks_dir = networks_dir, features_dir = features_dir)
-    # Preallocate results
-    results = [None] * len(ids_list)  
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_idx = {executor.submit(func, id): i for i, id in enumerate(ids_list)}
-        for future in tqdm(as_completed(future_to_idx), total=len(ids_list)):
-            idx = future_to_idx[future]
-            try:
-                results[idx] = future.result()
-            except Exception as e:
-                print(f"Row {idx} failed: {e}")
-                results[idx] = None
-    return results
-
-
-#-------------------------------------------------------------
-# Section: Create batches
-import time
-
-def batching(ids_list, outputs_dir, targets_dir, networks_dir, features_dir, save_path, batch_size=250, num_workers=6, prefix='TrainBatch'):
-    #----------------------------
-    # Section: Calculate batch size
-    os.makedirs(save_path, exist_ok=True) # Generate directory if it does not exist
+def batching(ids_list, outputs_dir, targets_dir, networks_dir, features_dir, save_path, 
+             batch_size=250, num_workers=6, prefix='TrainBatch'):
+    # Create directory to save tensors
+    os.makedirs(save_path, exist_ok=True)
     start = time.time()
-    n_ids = len(ids_list)
-    num_batches = n_ids // batch_size
-    #------------------------
-    # Section: Process rows
-    for i in tqdm(range(num_batches), desc="Processing batches"):
-        batch_ids = ids_list[i*batch_size : (i+1)*batch_size]  
-        batch_data = load_dataset_parallel(batch_ids, outputs_dir, targets_dir, networks_dir, features_dir, num_workers)  
+    func = partial(load_single_data, output_dir=outputs_dir, target_dir=targets_dir,networks_dir=networks_dir, features_dir=features_dir)
+    #---------------------------------
+    # Generate batches
+    for i, batch_start in enumerate(range(0, len(ids_list), batch_size)):
+        batch_ids = ids_list[batch_start : batch_start + batch_size]
+        results = [None] * len(batch_ids)
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            future_to_idx = {executor.submit(func, id): j for j, id in enumerate(batch_ids)}
+            for future in tqdm(as_completed(future_to_idx), total=len(batch_ids), desc=f"Batch {i}"):
+                j = future_to_idx[future]
+                try:
+                    results[j] = future.result()
+                except Exception as e:
+                    print(f"  ID {batch_ids[j]} failed: {type(e).__name__}: {e}")
+                    traceback.print_exc()
+        # Saving path
         name = os.path.join(save_path, f'{prefix}_{i}.pt')
-        torch.save(batch_data, name)
-        del batch_data  # free memory
-        print(f"Saved batch {i}/{num_batches-1}: {name}")
-    #------------------------
-    # Handle leftover rows that don't fill a complete batch
-    remainder = n_ids % batch_size
-    if remainder > 0:
-        batch_ids = ids_list[num_batches*batch_size:]
-        batch_data = load_dataset_parallel(batch_ids, outputs_dir, targets_dir, networks_dir, features_dir, num_workers)
-        name = os.path.join(save_path, f'{prefix}_{num_batches}.pt')
-        torch.save(batch_data, name)
-        del batch_data
-        print(f"Saved remainder batch: {name}")
-    #--------------
+        torch.save(results, name)
+        del results
+        gc.collect()
+        print(f">> Saved {name} \n")
+    #------------------------------------
     elapsed = time.time() - start
+    num_batches = -(-len(ids_list) // batch_size)  # ceiling division
     print(f">> Batch size: {batch_size} | Num batches: {num_batches} | Elapsed: {elapsed:.2f}s")
-
 
 """
 We will divide our data in 80/20 for cross validation. 
 Generate batches of data, save them and compress it to reduce storage.
 """
 # We divide our data into 80/20 for cross validation.
-import random
 import numpy as np 
 
 # Shuffle indixes
@@ -183,31 +162,50 @@ train_ids = ids_list[indexes[:split]]
 validation_ids = ids_list[indexes[split:]]
 #----------------------------------------------
 # Run parallelization
-tensors_dir = '/mnt/data/sur/users/mrivera/Cuda-tensors/'
-name = 'KBoost_v2_filter'
+#----------------------------------------------
+tensors_dir = '/mnt/data/sur/users/mrivera/test-tensors/'
+name = 'KBoost_v2_testing'
 tensors_path = os.path.join(tensors_dir, name)
 
-# 
-batching(ids_list = train_ids, 
-        outputs_dir = outs_dir, 
-        targets_dir = targets_dir, 
-        networks_dir = networks_dir, 
-        features_dir =features_dir, 
-        save_path = tensors_path, 
-        batch_size=250, 
-        num_workers=6,
-        prefix='TrainBatch')
+batching_fn = partial(batching,
+    outputs_dir   = outs_dir,
+    targets_dir   = targets_dir,
+    networks_dir  = networks_dir,
+    features_dir  = features_dir,
+    save_path     = tensors_path,
+    num_workers   = 6
+)
 
-batching(ids_list = validation_ids, 
-        outputs_dir = outs_dir, 
-        targets_dir = targets_dir, 
-        networks_dir = networks_dir, 
-        features_dir =features_dir, 
-        save_path = tensors_path, 
-        batch_size=100, 
-        num_workers=6,
-        prefix='ValBatch')
+if __name__ == '__main__':
+    batching_fn(ids_list=train_ids, batch_size=250, prefix='TrainBatch')
+    batching_fn(ids_list=validation_ids, batch_size=250, prefix='ValBatch')
 
+#----------------------------------------------
+# Section: Copy to GPU
+#----------------------------------------------
+from dotenv import load_dotenv
+import os
+import subprocess
+
+load_dotenv()
+
+user = os.getenv("REMOTE_USER")
+host = os.getenv("REMOTE_HOST")
+path = os.getenv("REMOTE_PATH")
+
+def scp_file(src, dst, host, user):
+    remote = f"{user}@{host}:{dst}"
+    result = subprocess.run(
+        ["scp", src, remote],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"SCP failed: {result.stderr}")
+    else:
+        print(f"Transferred: {src} → {remote}")
+
+dir_to_cp = tensors_path
+scp_file(src="myfile.pt", dst=dir_to_cp, host=host, user=user)
 
 #===============================================
 # Create Zip of batches
