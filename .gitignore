@@ -2,6 +2,7 @@
 *
 *.qmd
 *.html
+*.env
 
 # But not these files...
 !*.py
