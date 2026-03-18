@@ -164,8 +164,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 n_seed = 42
 seed_fn(n_seed)
 model_declared = model(hidden_channels=64, num_layers=5).to(device)
-optimizer = optim.Adam(model_declared.parameters(), lr=0.001)
-epochs = 100
+optimizer = optim.Adam(model_declared.parameters(), lr=0.01)
+epochs = 600
 print('The number of epochs will be:', epochs, '\n')
 print('The optimizer LR will be:', optimizer.param_groups[0]['lr'], '\n')
 
@@ -177,19 +177,19 @@ import glob
 
 # Experiment data
 tensors_dir = '/home/mriveraceron/glv-research/data_tensors/'
-experiment_name = 'KBoost_v2_hybrid'
+experiment_name = 'KBoost_v2_filter/'
 experiment_data = os.path.join(tensors_dir,experiment_name)
 batched_paths = glob.glob(f"{experiment_data}/TrainBatch_*.pt")
 
 # Results path
 result_dir = '/home/mriveraceron/glv-research/Results/'
-result_path = os.path.join(result_dir, experiment_name)
+result_path = os.path.join(result_dir, experiment_name, 'LRdefault')
 os.makedirs(result_path, exist_ok=True)
 print('The results directory will be:', result_path, '\n')
 
 # Declare directory to save model weights
-weights_dir = '/home/mriveraceron/glv-research/model_weights/'
-weights_path = os.path.join(weights_dir,experiment_name + '.pth')
+# weights_dir = '/home/mriveraceron/glv-research/model_weights/'
+weights_path = os.path.join(result_path,'model_weights.pth')
 
 #-------------------------------
 # Section: Run Model
@@ -295,7 +295,7 @@ Spearman Correlation: {correlationS.item():.4f}
 Maximum node accuracy: {accuracy.item():.4f}  
 """
 
-with open(f'{result_path}/evaluation_summary.txt', 'w') as f:
+with open(f'{result_path}/training_summary.txt', 'w') as f:
     f.write(summary)
 
 print(summary)
