@@ -187,16 +187,19 @@ from dotenv import load_dotenv
 import os
 import subprocess
 
-load_dotenv()
+load_dotenv(dotenv_path="/mnt/data/sur/users/mrivera/.env", override=True)
 
 user = os.getenv("REMOTE_USER")
 host = os.getenv("REMOTE_HOST")
-path = os.getenv("REMOTE_PATH")
+remote_path = os.getenv("REMOTE_PATH")
 
-def scp_file(src, dst, host, user):
-    remote = f"{user}@{host}:{dst}"
+def scp_file(src, host, user, remote_path):
+    tgt = f'{remote_path}/{os.path.basename(src)}'
+    remote = f"{user}@{host}:{tgt}"
+    print(f'Remote: {remote}')
+    flags = ["-r"] if os.path.isdir(src) else []
     result = subprocess.run(
-        ["scp", src, remote],
+        ["scp"] + flags + [src, remote],
         capture_output=True, text=True
     )
     if result.returncode != 0:
@@ -204,8 +207,7 @@ def scp_file(src, dst, host, user):
     else:
         print(f"Transferred: {src} → {remote}")
 
-dir_to_cp = tensors_path
-scp_file(src="myfile.pt", dst=dir_to_cp, host=host, user=user)
+scp_file(src=tensors_path, host=host, user=user, remote_path=remote_path)
 
 #===============================================
 # Create Zip of batches
