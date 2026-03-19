@@ -21,3 +21,5 @@ those ecological dynamics.
 | [`src-GNN/`](src-GNN/README.md) | Tensor data generation, GNN model definitions, and training/testing scripts |
 | `Markdowns/` | Notes and records of experiments performed |
 
+## Acknowledgements
+The work in this repository is supported by DGAPA-PAPIIT grant IA200824.
