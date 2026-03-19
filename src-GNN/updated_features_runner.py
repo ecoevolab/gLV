@@ -77,7 +77,7 @@ import os
 from torch_geometric.utils import unbatch
 from torch_geometric.loader import DataLoader
 
-def training_loop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs=100):
+def training_DLloop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs=100):
     #------------------------------------------
     model_declared.train()
     loss_history  =  []             # Loss at epoch
@@ -114,10 +114,10 @@ def training_loop(model_declared, device, batched_paths, weights_path, loss_fn, 
                 out_list = unbatch(out, batch.batch)
                 for y, o in zip(y_list, out_list): 
                     # Append values and node with maximum value
-                    idx_max_true.append(torch.argmax(y.y, dim=0).detach())
+                    idx_max_true.append(torch.argmax(y, dim=0).detach())
                     idx_max_pred.append(torch.argmax(o, dim=0).detach())
-                    metrics_true.append(y.y[:, 0].detach())
-                    metrics_pred.append(o[:, 0].detach())
+                    metrics_true.append(y.detach())
+                    metrics_pred.append(o.detach())
         #----------------------
         # Append epoch loss to history
         loss_history.append(epoch_loss)
@@ -135,6 +135,14 @@ def training_loop(model_declared, device, batched_paths, weights_path, loss_fn, 
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': epoch_loss
     }, weights_path)
+    #----------------------
+    # List of node indexes and values
+    #----------------------
+    idx_max_true = torch.stack(idx_max_true).cpu().numpy()
+    idx_max_pred = torch.stack(idx_max_pred).cpu().numpy()
+    metrics_true = torch.cat(metrics_true).cpu().numpy()
+    metrics_pred = torch.cat(metrics_pred).cpu().numpy()
+    loss_history = np.array(loss_history)
     # Summary
     print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
     return  loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred
@@ -184,32 +192,29 @@ import glob
 
 # Experiment data
 tensors_dir = '/home/mriveraceron/glv-research/data_tensors/'
-experiment_name = 'KBoost_v2_hybrid'
+experiment_name = 'KBoost_v2_testing'
 experiment_data = os.path.join(tensors_dir,experiment_name)
 batched_paths = glob.glob(f"{experiment_data}/TrainBatch_*.pt")
 
 # Results path
 result_dir = '/home/mriveraceron/glv-research/Results/'
-result_path = os.path.join(result_dir, experiment_name)
+result_path = os.path.join(result_dir, experiment_name, 'DataLoader_testing')
 os.makedirs(result_path, exist_ok=True)
 print('The results directory will be:', result_path, '\n')
 
 # Declare directory to save model weights
-weights_dir = '/home/mriveraceron/glv-research/model_weights/'
-weights_path = os.path.join(weights_dir,experiment_name + '.pth')
+weights_path = os.path.join(result_path, f'testing-datload.pth')
 
 #-------------------------------
 # Section: Run Model
 #-------------------------------
-loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred = training_loop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs)
+loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred = training_DLloop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs)
+# >> the total elapsed time with 100 epochs is 4.77 seconds ( 0.08 minutes)
 
-# List of node indexes and values
-idx_max_true = torch.stack(idx_max_true).cpu().numpy()
-idx_max_pred = torch.stack(idx_max_pred).cpu().numpy()
-metrics_true = torch.cat(metrics_true).cpu().numpy()
-metrics_pred = torch.cat(metrics_pred).cpu().numpy()
-loss_history = np.array(loss_history)
-
+result_path = os.path.join(result_dir, experiment_name, 'Normal_testing')
+os.makedirs(result_path, exist_ok=True)
+weights_path = os.path.join(result_path, f'testing-normal.pth')
+loss_history2, metrics_true2, metrics_pred2, idx_max_true2, idx_max_pred2 = training_loop(model_declared, device, batched_paths, weights_path, loss_fn, optimizer, epochs)
 # Save
 np.savez(f'{result_path}/model_results.npz',
     max_idx_true  = idx_max_true,
