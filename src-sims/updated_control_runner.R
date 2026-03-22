@@ -6,10 +6,11 @@
 #--------------------------------------------------------------------------
 # Section: Generate-ID-and-paths
 tictoc::tic("Section 1: Parameter generation")
+start = Sys.time()
 
 # Indicate directories paths
-pdir <- "/mnt/data/sur/users/mrivera/Controls"  # Parent-dir                                                
-experiment_id <- "KBoost_dataset_v2"            # Experiment-ID      
+pdir <- "/mnt/data/sur/users/mrivera/clean_controls"  # Parent-dir                                                
+experiment_id <- substr(ids::uuid(1, drop_hyphens = TRUE, use_time = TRUE), start=1, stop=12)            
 
 # Generate directory paths
 experiment_dir <- file.path(pdir, experiment_id)                    # Experiment-dir
@@ -17,7 +18,7 @@ dir.create(experiment_dir)
 cat(">> The experiment path is:", experiment_dir,"\n", sep=" ")
  
 # Section: Generate directories
-dirs <- c('RawOutputs', 'Interactions', 'Topologies', 'ExtSummaries', 'Filtered_ExtSummaries')
+dirs <- c('RawOutputs', 'Interactions', 'Topologies', 'Full_ExtSummaries', 'Sub_ExtSummaries')
 sapply(file.path(experiment_dir, dirs), dir.create)
 
 #--------------------------------------------------------------------------
@@ -47,7 +48,7 @@ while (nrow(df_params) != length(unique(df_params$id))) {
 }
       
 # Save parameters
-params_path <- file.path(experiment_dir,"simulation-params.tsv")    # Parameters-TSV
+params_path <- file.path(experiment_dir,"simulation_params.tsv")    # Parameters-TSV
 data.table::fwrite(x = df_params, file = params_path, sep = "\t", quote = FALSE, row.names = FALSE) 
 message("\nParameters generated and saved at path:\n", params_path, "\n")
 cat(">> The number of extinctions to do is:", 30 * nrow(df_params),"\n", sep=" ")
@@ -61,11 +62,11 @@ tictoc::toc() # For section 1
 # Source functions to:
 codes = list.files("/mnt/data/sur/users/mrivera/gLV/src-sims/FUN", full.names=TRUE)
 
-lapply(codes, function(file){
+invisible(lapply(codes, function(file){
   cat(">> Sourcing function: ", file, "\n")
   capture.output(source(file))
   return()
-})
+}))
 
 #--------------------------------------------------------------------------
 # Section: Node statistics function
@@ -103,9 +104,11 @@ build_topology <- function(A) {
 
 #----------------------------------------------
 # Section: Wrapper function
-wrapper <- function(index, df_params) {
-  # Test line
-  # index = 1
+make_path <- function(experiment_dir, folder, prefix, sim_id) {
+  file.path(experiment_dir, folder, paste0(prefix, sim_id, ".feather"))
+}
+
+wrapper <- function(index, df_params, ext_threshold,...) {
   #-----------------------------
   # Section: Generate parameters and run simulation
   row = df_params[index, ] 
@@ -115,13 +118,16 @@ wrapper <- function(index, df_params) {
   output <- solve_gLV(times = 1000, params)                       # Run-simulation
   output_subset <- output[, c(1, seq(50, ncol(output), by = 50))]  # Save output every 50 cols
   # Population at quasi stable state
-  final <- output[[ncol(output)]]    
+  final <- output[, ncol(output)]  
   #-----------------------------
   # Section: Generate filenames and save files
-  out_path <- file.path(experiment_dir, 'RawOutputs', paste0("RawOutput_", sim_id, ".feather"))        # simulation output
-  A_path <- file.path(experiment_dir, 'Interactions', paste0("A_", sim_id, ".feather"))                # interactions matrix
-  topology_path <- file.path(experiment_dir, 'Topologies', paste0("Topology_", sim_id, ".feather"))    # network topology
-  preds_path <- file.path(experiment_dir, 'ExtSummaries', paste0("ExtSummary_", sim_id, ".feather"))   # extinctions summary
+  out_path <- make_path(experiment_dir, 'RawOutputs', 'RawOutput_', sim_id)  # output
+  A_path   <- make_path(experiment_dir, 'Interactions', 'A_', sim_id)  # interactions
+  topology_path <- make_path(experiment_dir, 'Topologies', 'Topology_', sim_id)  # node statistics
+  # Summary extinctions full community impact
+  summary_full_path <- make_path(experiment_dir, 'Full_ExtSummaries','ExtSummary_', sim_id)  
+  # Summary extinctions sub-community impact
+  summary_sub_path  <- make_path(experiment_dir, 'Sub_ExtSummaries', 'ExtSummary_', sim_id)  
   # Save files
   arrow::write_feather(x = as.data.frame(output_subset), sink = out_path)             # Save output
   arrow::write_feather(x = as.data.frame(params$M), sink = A_path)     # Save interactions matrix
@@ -132,54 +138,69 @@ wrapper <- function(index, df_params) {
   topology_df <- build_topology(params$M)                     # node statistics
   arrow::write_feather(x = as.data.frame(topology_df), sink = topology_path) 
   #-----------------------------
-  # Section: Simulate ALL extinctions
+  # Section: Simulate survivor nodes extinctions
   params$x0 = final                                             # Stable-population
-  summary_exts = sim_all_ext(params)                            # Generate-extinctions
-  extinction_stability_time = max(summary_exts$time_stability)  # time-to-stability 
-  arrow::write_feather(x = as.data.frame(summary_exts), sink = preds_path)     # Save files
-  #-----------------------------
-  # Section: Simulate SURVIVAL NODES extinctions
-  relative = final/sum(final)
-  to_filter <- which(relative > 1e-06)
-  # Skip simulation if only one specie survived
-  if (!(length(to_filter) > 1)) {
-    cat(paste0('>> Skipping filtering of extinctions for id ', sim_id, ': only ', length(to_filter), ' species passed filter\n'))
-    cat(">> Simulation ", sim_id, " completed.\n")  
-    return(list(id = sim_id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
+  # Extinctions of survival nodes with impact in full community
+  summary_full = sim_ext_surv_full(params, ext_threshold)    # Full community impact
+  # If no extinctions were performed
+  if (is.null(summary_full)){
+    cat(">> Simulation ", sim_id, " completed.\n")
+    return(list(id = sim_id, na_ct = na_count, tts_output = out_stability_time, ext_threshold = ext_threshold, ext_performed = FALSE, tts_ext = NA))
   }
-  # Filter survival nodes
-  filter_params = list(x0 = final[to_filter], # for extinctions
-    M = params$M[to_filter,to_filter],
-    mu = params$mu[to_filter], 
-    id = sim_id, n = length(to_filter)
-  )
-  filtered_summary = sim_all_ext(filter_params)            # Generate-extinctions
-  # Save filtered summary
-  filter_exts_path <- file.path(experiment_dir, 'Filtered_ExtSummaries', paste0("ExtSummary_", sim_id, ".feather"))     
-  arrow::write_feather(x = as.data.frame(filtered_summary), sink = filter_exts_path) 
+  # Extinctions of survival nodes with impact in sub-community
+  summary_subcom = sim_ext_surv_sub(params, ext_threshold)   # Sub-community impact
+  # Save extinctions at full community
+  extinction_stability_time = max(summary_full$time_stability)  # time-to-stability 
+  arrow::write_feather(x = as.data.frame(summary_full), sink = summary_full_path)   
+  # Save extinctions at full community
+  arrow::write_feather(x = as.data.frame(summary_subcom), sink = summary_sub_path) 
   #-----------------------------
   cat(">> Simulation ", sim_id, " completed.\n")  
-  return(list(id = sim_id, na_ct = na_count, tts_out = out_stability_time, tts_ext = extinction_stability_time))
+  return(list(id = sim_id, na_ct = na_count, tts_output = out_stability_time, ext_threshold = ext_threshold, ext_performed = TRUE, tts_ext = extinction_stability_time))
 }
 
 # Test line:
-# wrapper(index=1, df_params)
+# wrapper(index=1, df_params, ext_threshold)
 #----------------------------------------------
 # Section: Parallelize-code and get the summary of simulations
 tictoc::tic("Section 2: Run simulations and extinctions using the parallel package")
+
+# Set extinction threshold 
+ext_threshold = 5
+cat('>> The extinctions threshold is of:', ext_threshold, '\n')
 
 library(parallel)
 ncore = max(1, detectCores() - 1, na.rm = TRUE)
 cat('>> The number of cores to use are: ', ncore, '\n')
 results_summary <- mclapply(
-    seq_len(nrow(df_params)),           # iterate over row indices
-    wrapper,
-    df_params,
-    mc.cores = ncore
+  # seq_len(5),               # Test line
+  seq_len(nrow(df_params)),           # iterate over row indices
+  wrapper,
+  df_params,
+  ext_threshold,
+  make_path,
+  mc.cores = ncore
 )
 
 # Generate information file
 result_df <- data.table::rbindlist(results_summary, use.names = TRUE) 
-info_path <- file.path(experiment_dir, "summary.feather")           # Information-TSV
+info_path <- file.path(experiment_dir, "simulation_summary.feather")           # Information-TSV
 arrow::write_feather(x = result_df, sink = info_path)
-tictoc::toc() # For section 4
+tictoc::toc() 
+
+#--------------------------------------------
+# Section: Write TXT file
+elapsed = Sys.time() - start
+summary_text <- paste0(
+  "Experiment summary\n",
+  "=========================\n",
+  "Method used: Boost keystone column by K \n",
+  "Time for solver: 1000 \n",
+  "Number of cores: ", ncore, "\n",
+  "Extinction threshold: ", sum(result_df$ext_performed), "\n",
+  "Communities simulated: ", nrow(df_params), "\n",
+  "Communities with extinctions: ", ext_threshold, "\n",
+  'Elapsed time: ', elapsed, '\n',
+)
+
+writeLines(summary_text, file.path(experiment_dir, "simulation_notes.txt"))
