@@ -1,10 +1,8 @@
-#' Simulate Extinctions of Survivor Species
+#' Simulate Extinctions of all Species
 #'
-#' Simulates the extinction of each surviving species one by one, 
-#' provided that at least 25% of the species have survived. 
+#' Simulates the extinction of each species one by one.
 #' The function runs a new simulation for each extinction event 
-#' and calculates key ecological metrics such as Bray-Curtis 
-#' dissimilarity and keystoneness.
+#' and calculates key ecological metrics.
 #' 
 #' @param output A dataframe containing the original simulation results using `ode45`. 
 #' @param params A list containing the parameters required for the generalized Lotka-Volterra (gLV) model. 
@@ -33,16 +31,7 @@ sim_all_ext <- function(params) {
   n = params$n
   x_before = params$x0                        # Non perturbated populations  
   rel_x_before <- x_before / sum(x_before)    # Do them proportions
-  # Pre-allocate data frame
-  exts_df <- data.frame(
-    specie = integer(n),
-    n_extinctions = integer(n),
-    prop_extinctions = numeric(n),
-    dissimilarity_bc = numeric(n),
-    keystoneness = numeric(n),
-    time_stability = numeric(n)
-  )
-  for(i in 1:n){
+  exts_df <- do.call(rbind, lapply(1:n, function(i) { 
     # Remove species i from the community
     tmp_params <- list(
       x0 = params$x0[-i],
@@ -76,13 +65,15 @@ sim_all_ext <- function(params) {
     time_stability <- find_ts(new_out)
     #------------------------------------
     # Generate data frame
-    exts_df[i, "specie"] <- i                                     # specie-extinct
-    exts_df[i, "n_extinctions"] <- n_extinctions                  # new-extinctions
-    exts_df[i, "prop_extinctions"] <- round(props_extinctions, 2) # proportion-extinctions
-    exts_df[i, "dissimilarity_bc"] <- bray_curtis                 # Bray-Curtis
-    exts_df[i, "keystoneness"] <- keystoneness                    # Keystoneness             
-    exts_df[i, "time_stability"] <- time_stability                # Time-to-stability                                              
-  }
+    data.frame(
+        specie           = i,
+        n_extinctions    = n_extinctions,
+        prop_extinctions = round(props_extinctions, 2),
+        dissimilarity_bc = bray_curtis,
+        keystoneness     = keystoneness,
+        time_stability   = time_stability
+        )                                            
+    }))
   # Add relative abundance of the extinct species before extinction
   exts_df$pop_initial = x_before
   exts_df$rel_pop_initial = rel_x_before   
