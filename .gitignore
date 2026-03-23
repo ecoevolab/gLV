@@ -11,6 +11,7 @@
 !*.ipynb
 !*.rmd
 !*.md
+!*.css
 
 # And not directories (so we can recurse into them)
 !*/
