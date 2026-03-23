@@ -102,13 +102,14 @@ def training_DLloop(model_declared, device, all_data, weights_path, loss_fn, opt
     loss_history  =  []                   # Loss at epoch
     mt, mp, idxt, idxp = None, None, None, None
     total_elapsed = 0                   # Running time
-    patience = np.floor(epochs * 0.1)   # Epochs to wait
+    is_last_epoch = False
+    # Early stopping
+    patience = np.floor(epochs * 0.2)   # Epochs to wait
     best_loss = float('inf')            # Best loss
     no_improve = 0
-    is_last_epoch = False
     #---------------------
     # Section: Create batches of data
-    loader = DataLoader(all_data, batch_size=30, shuffle=True)
+    loader = DataLoader(all_data, batch_size=30, shuffle=False)
     for epoch in tqdm(range(epochs), desc="Training"):
         start = time.time()
         epoch_loss = 0
@@ -132,12 +133,12 @@ def training_DLloop(model_declared, device, all_data, weights_path, loss_fn, opt
         #----------------------
         # Append epoch loss to history
         #----------------------
-        loss_history.append(epoch_loss)
+        loss_history = np.append(loss_history, epoch_loss)
         elapsed = time.time() - start
         total_elapsed += elapsed
         # Print every n epochs
         if epoch % 10 == 0:
-            tqdm.write(f"Epoch {epoch}: Loss = {epoch_loss:.4f}, Elapsed time: {elapsed:.2f}")
+            tqdm.write(f"Epoch {epoch}: Loss = {epoch_loss}, Elapsed time: {elapsed:.2f}")
         #----------------------
         # Section: At last epochs
         #----------------------
@@ -229,7 +230,7 @@ def wrapper(experiment_dir, row, all_data):
     # Declare directory to save model weights
     model_results_dir = os.path.join(experiment_dir, name)
     os.makedirs(model_results_dir, exist_ok=True)
-    weights_path = os.path.join(model_results_dir, f'{name}-weights.pth')
+    weights_path = os.path.join(model_results_dir, f'model-weights.pth')
     loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred, total_elapsed = training_DLloop(model_declared, device, all_data, weights_path, loss_fn, optimizer, epochs)
     # Save output
     np.savez(f'{model_results_dir}/{name}-values.npz',
@@ -269,8 +270,14 @@ def wrapper(experiment_dir, row, all_data):
     # Section: Expected vs predicted values
     #-------------------------------
     # Generate correlations
-    correlationP, _ = pearsonr(metrics_true.flatten(), metrics_pred.flatten())
-    correlationS, _ = spearmanr(metrics_true.flatten(), metrics_pred.flatten())
+    # Case scenario: One vector is just one value (constant)
+    if np.std(metrics_true) == 0 or np.std(metrics_pred) == 0:
+        print("Cannot compute correlation: one input is constant.")
+        correlationP = float('nan')
+        correlationS = float('nan')
+    else:
+        correlationP, _ = pearsonr(metrics_true.flatten(), metrics_pred.flatten())
+        correlationS, _ = spearmanr(metrics_true.flatten(), metrics_pred.flatten())
     # Plot
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.scatter(x = metrics_pred, y = metrics_true, color='steelblue', s=80)
@@ -319,7 +326,7 @@ import glob
 
 # Experiment data
 tensors_dir = '/home/mriveraceron/glv-research/data_tensors/'
-experiment_name = 'KBoost_v2_testing'
+experiment_name = '91074c4e25b4'
 experiment_data = os.path.join(tensors_dir,experiment_name)
 batched_paths = glob.glob(f"{experiment_data}/TrainBatch_*.pt")
 
@@ -332,11 +339,12 @@ for path in batched_paths:
 #-------------------------------
 result_dir = '/home/mriveraceron/glv-research/tuning_results'
 experiment_dir = os.path.join(result_dir, experiment_name)
-os.makedirs(experiment_dir, exist_ok=True)
 print('The experiment result directory will be:', experiment_dir, '\n')
+os.makedirs(experiment_dir, exist_ok=True)
 
 
-row = tuning_df.iloc[0]
+# Testing line
+row = tuning_df.iloc[1]
 accuracy, correlationP, correlationS = wrapper(experiment_dir, row, all_data)
 
 # In the runner loop
@@ -346,4 +354,7 @@ for i, row in tuning_df.iterrows():
     tuning_df.loc[i, 'pearson_corr'] = corrP
     tuning_df.loc[i, 'spearman_corr'] = corrS
 
-tuning_df.to_csv(f'{experiment_dir}/tuning_results.csv', index=False)  # save after each run
+tmp = tuning_df.sort_values("pearson_corr", ascending=False)
+tmp.to_csv(f'{experiment_dir}/tuning_results.csv', index=False)  # save after each run
+# test = pd.read_csv(f'{experiment_dir}/tuning_results.csv')
+# print(tmp.to_markdown(index=False))
