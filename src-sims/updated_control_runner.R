@@ -200,7 +200,7 @@ summary_text <- paste0(
   "Extinction threshold: ", sum(result_df$ext_performed), "\n",
   "Communities simulated: ", nrow(df_params), "\n",
   "Communities with extinctions: ", ext_threshold, "\n",
-  'Elapsed time: ', round(elapsed,5), ' seconds \n'
+  'Elapsed time: ', round(elapsed,5), ' minutes \n'
 )
 
 writeLines(summary_text, file.path(experiment_dir, "simulation_notes.txt"))

@@ -31,11 +31,13 @@ import pandas as pd
 import numpy as np
 import os
 from datetime import datetime
+import pyarrow.feather as feather
+import pyarrow.compute as pc
 
 # Section: Generate-paths
-experiment_dir = '/mnt/data/sur/users/mrivera/Controls/KBoost_dataset_v2'
+experiment_dir = '/mnt/data/sur/users/mrivera/clean_controls/91074c4e25b4'
 networks_dir = os.path.join(experiment_dir, "Interactions")
-targets_dir = os.path.join(experiment_dir, "ExtSummaries")
+targets_dir = os.path.join(experiment_dir, "Full_ExtSummaries")
 features_dir = os.path.join(experiment_dir, "Topologies")
 outs_dir = os.path.join(experiment_dir, "RawOutputs")
 
@@ -43,8 +45,8 @@ outs_dir = os.path.join(experiment_dir, "RawOutputs")
 timeID = datetime.now().strftime("Y%YM%mD%d")
 
 #  Load-data
-data_path = os.path.join(experiment_dir, "simulation-params.tsv")
-ids_list = pd.read_csv(data_path, sep="\t", usecols=['id'])['id'].to_numpy()
+data_path = os.path.join(experiment_dir, "simulation_summary.feather")
+ids_list = feather.read_table(data_path).filter(pc.field('ext_performed') == True)['id'].to_numpy()
 
 """
 We did not save the indices of which species should be filtered, so we will calculate them 
@@ -68,7 +70,7 @@ def load_single_data(id, output_dir, target_dir, networks_dir, features_dir):
     #-------------------------------
     # Section: Read target features
     tgt_path = os.path.join(target_dir, f"ExtSummary_{id}.feather")
-    tgt_table = feather.read_table(tgt_path, columns=['keystoneness']).to_pandas().iloc[to_filter]
+    tgt_table = feather.read_table(tgt_path, columns=['keystoneness']).to_pandas()
     y_tensor = torch.from_numpy(tgt_table.to_numpy(dtype=np.float32)) # Convert to tensor
     #------------------------------
     # Section: Load adjacency matrix 
@@ -107,6 +109,9 @@ def load_single_data(id, output_dir, target_dir, networks_dir, features_dir):
 id = ids_list[0]
 load_single_data(id = id, output_dir = outs_dir, target_dir = targets_dir, networks_dir = networks_dir, features_dir = features_dir)
 
+#-------------------------------------------------------------
+# Section: Batch data
+#-------------------------------------------------------------
 import time, gc
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
@@ -163,8 +168,8 @@ validation_ids = ids_list[indexes[split:]]
 #----------------------------------------------
 # Run parallelization
 #----------------------------------------------
-tensors_dir = '/mnt/data/sur/users/mrivera/test-tensors/'
-name = 'KBoost_v2_testing'
+tensors_dir = '/mnt/data/sur/users/mrivera/Cuda-tensors'
+name = os.path.basename(experiment_dir)
 tensors_path = os.path.join(tensors_dir, name)
 
 batching_fn = partial(batching,
@@ -179,35 +184,6 @@ batching_fn = partial(batching,
 if __name__ == '__main__':
     batching_fn(ids_list=train_ids, batch_size=250, prefix='TrainBatch')
     batching_fn(ids_list=validation_ids, batch_size=250, prefix='ValBatch')
-
-#----------------------------------------------
-# Section: Copy to GPU
-#----------------------------------------------
-from dotenv import load_dotenv
-import os
-import subprocess
-
-load_dotenv(dotenv_path="/mnt/data/sur/users/mrivera/.env", override=True)
-
-user = os.getenv("REMOTE_USER")
-host = os.getenv("REMOTE_HOST")
-remote_path = os.getenv("REMOTE_PATH")
-
-def scp_file(src, host, user, remote_path):
-    tgt = f'{remote_path}/{os.path.basename(src)}'
-    remote = f"{user}@{host}:{tgt}"
-    print(f'Remote: {remote}')
-    flags = ["-r"] if os.path.isdir(src) else []
-    result = subprocess.run(
-        ["scp"] + flags + [src, remote],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"SCP failed: {result.stderr}")
-    else:
-        print(f"Transferred: {src} → {remote}")
-
-scp_file(src=tensors_path, host=host, user=user, remote_path=remote_path)
 
 #===============================================
 # Create Zip of batches
