@@ -125,7 +125,7 @@ wrapper <- function(index, df_params, ext_threshold, experiment_dir) {
   A_path   <- make_path(experiment_dir, 'Interactions', 'A_', sim_id)           # interactions
   topology_path <- make_path(experiment_dir, 'Topologies', 'Topology_', sim_id) # node statistics
   # Summary extinctions full community impact
-  summary_full_path <- make_path(experiment_dir, 'Full_ExtSummaries','ExtSummary_', sim_id)   
+  summary_full_path <- make_path(experiment_dir, 'ExtSummaries','ExtSummary_', sim_id)   
   # Save files
   arrow::write_feather(x = as.data.frame(output_subset), sink = out_path)             # Save output
   arrow::write_feather(x = as.data.frame(params$M), sink = A_path)     # Save interactions matrix
@@ -154,7 +154,7 @@ wrapper <- function(index, df_params, ext_threshold, experiment_dir) {
 }
 
 # Test line:
-# wrapper(index=1, df_params, ext_threshold)
+# wrapper(index=1, df_params, ext_threshold, experiment_dir)
 #----------------------------------------------
 # Section: Parallelize-code and get the summary of simulations
 tictoc::tic("Section 2: Run simulations and extinctions using the parallel package")
