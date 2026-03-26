@@ -40,7 +40,7 @@ gen_training_params <- function(index) {
   num_noint <- floor(p_noint * total)      # null-interactions
   remaining <- total - num_noint           # Non-zero-interactions
   num_negs <- floor(p_neg * remaining)     # Negative interactions
-  num_pos <- remaining - num_negs
+  num_pos <- remaining - num_negs          # Positive interactions
   
   # Create the interaction vector
   set.seed(as.numeric(index[["A_seed"]]))
