@@ -191,7 +191,7 @@ tictoc::toc()
 
 #--------------------------------------------
 # Section: Write TXT file
-elapsed = Sys.time() - start
+s.numeric(Sys.time() - start, units = "secs")
 
 summary_text <- paste0(
   "Experiment summary\n",

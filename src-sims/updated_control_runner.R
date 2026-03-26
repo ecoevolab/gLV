@@ -18,7 +18,7 @@ dir.create(experiment_dir)
 cat(">> The experiment path is:", experiment_dir,"\n", sep=" ")
  
 # Section: Generate directories
-dirs <- c('RawOutputs', 'Interactions', 'Topologies', 'Full_ExtSummaries', 'Sub_ExtSummaries')
+dirs <- c('RawOutputs', 'Interactions', 'Topologies', 'ExtSummaries')
 sapply(file.path(experiment_dir, dirs), dir.create)
 
 #--------------------------------------------------------------------------
@@ -121,13 +121,11 @@ wrapper <- function(index, df_params, ext_threshold,...) {
   final <- output[, ncol(output)]  
   #-----------------------------
   # Section: Generate filenames and save files
-  out_path <- make_path(experiment_dir, 'RawOutputs', 'RawOutput_', sim_id)  # output
-  A_path   <- make_path(experiment_dir, 'Interactions', 'A_', sim_id)  # interactions
-  topology_path <- make_path(experiment_dir, 'Topologies', 'Topology_', sim_id)  # node statistics
+  out_path <- make_path(experiment_dir, 'RawOutputs', 'RawOutput_', sim_id)     # output
+  A_path   <- make_path(experiment_dir, 'Interactions', 'A_', sim_id)           # interactions
+  topology_path <- make_path(experiment_dir, 'Topologies', 'Topology_', sim_id) # node statistics
   # Summary extinctions full community impact
-  summary_full_path <- make_path(experiment_dir, 'Full_ExtSummaries','ExtSummary_', sim_id)  
-  # Summary extinctions sub-community impact
-  summary_sub_path  <- make_path(experiment_dir, 'Sub_ExtSummaries', 'ExtSummary_', sim_id)  
+  summary_full_path <- make_path(experiment_dir, 'Full_ExtSummaries','ExtSummary_', sim_id)   
   # Save files
   arrow::write_feather(x = as.data.frame(output_subset), sink = out_path)             # Save output
   arrow::write_feather(x = as.data.frame(params$M), sink = A_path)     # Save interactions matrix
@@ -147,13 +145,9 @@ wrapper <- function(index, df_params, ext_threshold,...) {
     cat(">> Simulation ", sim_id, " completed.\n")
     return(list(id = sim_id, na_ct = na_count, tts_output = out_stability_time, ext_threshold = ext_threshold, ext_performed = FALSE, tts_ext = NA))
   }
-  # Extinctions of survival nodes with impact in sub-community
-  summary_subcom = sim_ext_surv_sub(params, ext_threshold)   # Sub-community impact
   # Save extinctions at full community
   extinction_stability_time = max(summary_full$time_stability)  # time-to-stability 
   arrow::write_feather(x = as.data.frame(summary_full), sink = summary_full_path)   
-  # Save extinctions at full community
-  arrow::write_feather(x = as.data.frame(summary_subcom), sink = summary_sub_path) 
   #-----------------------------
   cat(">> Simulation ", sim_id, " completed.\n")  
   return(list(id = sim_id, na_ct = na_count, tts_output = out_stability_time, ext_threshold = ext_threshold, ext_performed = TRUE, tts_ext = extinction_stability_time))
@@ -185,7 +179,7 @@ results_summary <- mclapply(
 # Generate information file
 result_df <- data.table::rbindlist(results_summary, use.names = TRUE) 
 info_path <- file.path(experiment_dir, "simulation_summary.feather")           # Information-TSV
-arrow::write_feather(x = result_df, sink = info_path)
+arrow::write_feather(x = as.data.frame(result_df,) sink = info_path)
 tictoc::toc() 
 
 #--------------------------------------------
