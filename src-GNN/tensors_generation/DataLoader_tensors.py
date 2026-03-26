@@ -35,14 +35,11 @@ import pyarrow.feather as feather
 import pyarrow.compute as pc
 
 # Section: Generate-paths
-experiment_dir = '/mnt/data/sur/users/mrivera/clean_controls/91074c4e25b4'
+experiment_dir = '/mnt/data/sur/users/mrivera/Training-Data/d2f93775a813'
 networks_dir = os.path.join(experiment_dir, "Interactions")
-targets_dir = os.path.join(experiment_dir, "Full_ExtSummaries")
+targets_dir = os.path.join(experiment_dir, "ExtSummaries")
 features_dir = os.path.join(experiment_dir, "Topologies")
 outs_dir = os.path.join(experiment_dir, "RawOutputs")
-
-# Generate ID for training.
-timeID = datetime.now().strftime("Y%YM%mD%d")
 
 #  Load-data
 data_path = os.path.join(experiment_dir, "simulation_summary.feather")
@@ -100,8 +97,7 @@ def load_single_data(id, output_dir, target_dir, networks_dir, features_dir):
         x=x_tensor,
         edge_weights=edge_weights_tensor,
         edge_index=edge_index_tensor,
-        y=y_tensor,
-        num_nodes=n
+        y=y_tensor
     )
     return data
 
@@ -168,7 +164,8 @@ validation_ids = ids_list[indexes[split:]]
 #----------------------------------------------
 # Run parallelization
 #----------------------------------------------
-tensors_dir = '/mnt/data/sur/users/mrivera/Cuda-tensors'
+tensors_dir = '/mnt/data/sur/users/mrivera/Training_tensors'
+# tensors_dir = '/mnt/data/sur/users/mrivera/Cuda-tensors'
 name = os.path.basename(experiment_dir)
 tensors_path = os.path.join(tensors_dir, name)
 
@@ -182,15 +179,18 @@ batching_fn = partial(batching,
 )
 
 if __name__ == '__main__':
-    batching_fn(ids_list=train_ids, batch_size=250, prefix='TrainBatch')
-    batching_fn(ids_list=validation_ids, batch_size=250, prefix='ValBatch')
+    # batching_fn(ids_list=train_ids[1:1000], batch_size=250, prefix='TrainBatch')
+    batching_fn(ids_list=validation_ids[1:1000], batch_size=250, prefix='ValBatch')
 
-#===============================================
-# Create Zip of batches
+#----------------------------------------------
+# Section: Create Zip of batches
+#----------------------------------------------
 import shutil
 
-# Zip entire directory
-name = os.path.basename(tensors_path)
-zip_dir = f'/mnt/data/sur/users/mrivera/Cuda-tensors/{name}'
-shutil.make_archive(zip_dir, 'zip', tensors_path)
+shutil.make_archive(
+    base_name = tensors_path,  # output: tensors_path.zip
+    format    = 'zip',
+    root_dir  = os.path.dirname(tensors_path),
+    base_dir  = os.path.basename(tensors_path)
+)
 
