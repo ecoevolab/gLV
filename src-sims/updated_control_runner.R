@@ -108,7 +108,7 @@ make_path <- function(experiment_dir, folder, prefix, sim_id) {
   file.path(experiment_dir, folder, paste0(prefix, sim_id, ".feather"))
 }
 
-wrapper <- function(index, df_params, ext_threshold,...) {
+wrapper <- function(index, df_params, ext_threshold, experiment_dir) {
   #-----------------------------
   # Section: Generate parameters and run simulation
   row = df_params[index, ] 
@@ -167,13 +167,12 @@ library(parallel)
 ncore = max(1, detectCores() - 1, na.rm = TRUE)
 cat('>> The number of cores to use are: ', ncore, '\n')
 results_summary <- mclapply(
-  # seq_len(5),               # Test line
-  seq_len(nrow(df_params)),           # iterate over row indices
+  seq_len(nrow(df_params)),
   wrapper,
-  df_params,
-  ext_threshold,
-  make_path,
-  mc.cores = ncore
+  df_params       = df_params,
+  ext_threshold   = ext_threshold,
+  experiment_dir  = experiment_dir,
+  mc.cores        = ncore
 )
 
 # Generate information file
