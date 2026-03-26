@@ -63,6 +63,7 @@ def collect_metrics(loader, model_declared, device):
     finally:
         model_declared.train()
 
+
 def compute_metrics(idxt, idxp, mt, mp):
     accuracy = np.mean(np.array(idxt) == np.array(idxp))
     if np.std(mt) == 0 or np.std(mp) == 0:
@@ -160,9 +161,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load model weights and model
 model_dir = '/home/mriveraceron/glv-research/tuning_results/91074c4e25b4/Variant_3'
-weights = f'{model_dir}/model-weights.pth'
+weights_path = f'{model_dir}/model-weights.pth'
 model_declared = model()
-checkpoint = torch.load(weights, weights_only=True)
+checkpoint = torch.load(weights_path, weights_only=True)
 model_declared.load_state_dict(checkpoint['model_state_dict'])
 model_declared = model_declared.to(device)
 
@@ -175,7 +176,7 @@ from torch_geometric.loader import DataLoader
 
 # Experiment data
 # data_dir = '/home/mriveraceron/glv-research/data_null/d2f93775a813'
-data_dir = '/home/mriveraceron/glv-research/data_tensors/91074c4e25b4'
+data_dir = '/home/mriveraceron/glv-research/data_tensors/KBoost_v2_filter'
 data_paths = glob.glob(f'{data_dir}/ValBatch_*.pt')
 
 validation_data = []
@@ -194,10 +195,10 @@ import matplotlib.pyplot as plt
 # base_results_dir = f'/home/mriveraceron/glv-research/Validation/{os.path.basename(model_dir)}'
 base_results_dir = f'/home/mriveraceron/glv-research/Validation/91074c4e25b4'
 os.makedirs(base_results_dir, exist_ok=True)
-null_results_dir = os.path.join(base_results_dir, 'experiment_valbatch')
-os.makedirs(null_results_dir, exist_ok=True)
+val_results_dir = os.path.join(base_results_dir, os.path.basename(data_dir))
+os.makedirs(val_results_dir, exist_ok=True)
 
-generate_plots(loader, model_declared, device, null_results_dir)
+generate_plots(loader, model_declared, device, val_results_dir)
 
 # For running modify:
 #   model directory where the weights are located
