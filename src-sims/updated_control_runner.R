@@ -197,9 +197,9 @@ summary_text <- paste0(
   "Method used: Boost keystone column by K \n",
   "Time for solver: 1000 \n",
   "Number of cores: ", ncore, "\n",
-  "Extinction threshold: ", sum(result_df$ext_performed), "\n",
+  "Extinction threshold: ", ext_threshold, "\n",
   "Communities simulated: ", nrow(df_params), "\n",
-  "Communities with extinctions: ", ext_threshold, "\n",
+  "Communities with extinctions: ", sum(result_df$ext_performed), "\n",
   'Elapsed time: ', round(elapsed,5), ' minutes \n'
 )
 
