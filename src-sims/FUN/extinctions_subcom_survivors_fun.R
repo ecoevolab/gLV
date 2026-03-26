@@ -33,7 +33,7 @@ sim_ext_surv_sub <- function(params, ext_threshold) {
     x_before_full = params$x0                        # Non perturbated populations  
     rel_x_before_full <- x_before_full / sum(x_before_full)    # Do them proportions
     to_filter <- which(rel_x_before_full > 1e-06)    # Which species to filter
-    if (!(length(to_filter) > ext_threshold)) {
+    if (!(length(to_filter) >= ext_threshold)) {
         cat(paste0('>> Skipping sub-community impact extinctions for id ', sim_id, '. Not enough species (', length(to_filter),') passed the filter ', 
         ext_threshold ,'\n'))  
         return(NULL)
