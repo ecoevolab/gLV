@@ -174,7 +174,7 @@ sim_glv <- function(params = params, n_t = n_t, timeout = 600){
                                              t_end = n_t),
                          timeout = timeout), 
     error = function(e){
-      cat(">>Simulation failed...skipping")
+      cat(">>Simulation failed...skipping\n")
       matrix(NA)})
   sim <- assay(msim)
   
