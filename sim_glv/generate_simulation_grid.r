@@ -20,7 +20,7 @@ library(tidyverse)
 
 #' Here we prepare a grid of simulations with gLV
 #' 
-Sims <- expand_grid(n_species = rep(c(30), 10),
+Sims <- expand_grid(n_species = rep(c(30), 1000),
                     p_noint = seq(from = .1, to = .9, by = 0.1),
                     p_neg = seq(1)) %>%
   mutate(id = ids::random_id(n = length(n_species), bytes = 10)) %>%
