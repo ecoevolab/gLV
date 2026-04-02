@@ -1,5 +1,5 @@
 """
-GNN model evaluation
+GNN model evaluation with validation experiment dataset
 =================================================
 Purpose:
     Evaluate GNN performance using pre-trained model weights.
