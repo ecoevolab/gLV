@@ -178,7 +178,7 @@ results_summary <- mclapply(
 # Generate information file
 result_df <- data.table::rbindlist(results_summary, use.names = TRUE) 
 info_path <- file.path(experiment_dir, "simulation_summary.feather")           # Information-TSV
-arrow::write_feather(x = as.data.frame(result_df,) sink = info_path)
+arrow::write_feather(x = as.data.frame(result_df), sink = info_path)
 tictoc::toc() 
 
 #--------------------------------------------

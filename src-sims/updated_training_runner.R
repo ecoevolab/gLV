@@ -10,7 +10,7 @@ tictoc::tic("Section 1: Generate parameters and create directories")
 start = Sys.time()
 
 # Parent directory
-parent_directory <- "/mnt/data/sur/users/mrivera/Training-Data"  
+parent_directory <- "/mnt/data/sur/users/mrivera/Data/null_data"  
 
 # Generate experiment ID
 experiment_id = substr(ids::random_id(),1, 12)
@@ -188,10 +188,11 @@ result_df <- data.table::rbindlist(results_summary, use.names = TRUE)
 info_path <- file.path(experiment_dir, "simulation_summary.feather")           # Information-TSV
 arrow::write_feather(x = as.data.frame(result_df), sink = info_path)
 tictoc::toc() 
+# arrow::read_feather(info_path) # Check if the file was saved correctly
 
 #--------------------------------------------
 # Section: Write TXT file
-s.numeric(Sys.time() - start, units = "secs")
+elapsed <- as.numeric(Sys.time() - start, units = "secs")
 
 summary_text <- paste0(
   "Experiment summary\n",
