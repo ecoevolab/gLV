@@ -1,28 +1,47 @@
 # Training script for random networks.
 # 
 
+import logging
+import sys
+import os 
+
+# Create result directory
+results_dir = '/home/mriveraceron/glv-research/tuning_results/sample_size'
+os.makedirs(results_dir, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s',
+    handlers=[
+        logging.FileHandler(f'{results_dir}/run_log.txt'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+log = logging.getLogger(__name__)
 
 #-------------------------------
 # Section: Generate grid
 #-------------------------------
 """
     We will be training model with random networks.
-    Model to train will be Variant 3 at different sizes.
+    Model to train will be Variant 3 hyperparameters at different sizes.
 """
 from itertools import product
 import pandas as pd
 
-size = [1000,5000,8000]
+size = [1000] + list(range(5000, 40000, 5000))
 names = [f'Variant_{i}' for i in range(1, len(size)+1)]
 
 # Create a datafrane
 tuning_df = pd.DataFrame({
     'model_id': names,
-    'size': size,
+    'train_size': size,
+    'mem_usage(mb)': None,
     'channels': 64,
     'layers': 5,
     'learning_rate': 1e-03,
     'epochs': 700,
+    'eval_size': None,
     'accuracy_idx': None,
     'pearson_corr': None,
     'spearman_corr': None
@@ -36,7 +55,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GraphConv
 
-class model(nn.Module):
+class GCNModel(nn.Module):
     def __init__(self, hidden_channels=64, num_layers=5):
         super().__init__()
         self.convs = nn.ModuleList()
@@ -97,7 +116,7 @@ def compute_metrics(metrics_list):
     mt, mp = metrics_list.mt, metrics_list.mp
     accuracy = np.mean(np.array(idxt) == np.array(idxp))
     if np.std(mt) == 0 or np.std(mp) == 0:
-        print("Cannot compute correlation: one input is constant.")
+        log.warning("Cannot compute correlation: one input is constant.")
         correlationP = correlationS = float('nan')
     else:
         correlationP, _ = pearsonr(mt.flatten(), mp.flatten())
@@ -137,12 +156,13 @@ from torch_geometric.loader import DataLoader
 def training_DLloop(model_declared, device, data_train, data_eval, weights_path, loss_fn, optimizer, epochs):
     #------------------------------------------
     model_declared.train()
-    loss_history  =  []                 # Loss at epoch
-    total_elapsed = 0                   # Running time
-    is_last_epoch = False
+    loss_history  =  []             # Loss at epoch
+    total_elapsed = 0               # Running time
+    is_last_epoch = False           # Last epoch flag
+    metrics_list, performance_list = None, None            
     # Early stopping
-    patience = np.floor(epochs * 0.2)   # Epochs to wait
-    best_loss = float('inf')            # Best loss
+    patience = int(np.floor(epochs * 0.2))  # Epochs to wait
+    best_loss = float('inf')                # Best loss
     no_improve = 0
     #---------------------
     # Section: Create batches of data
@@ -161,22 +181,22 @@ def training_DLloop(model_declared, device, data_train, data_eval, weights_path,
             out = model_declared(batch)
             loss = loss_fn(out, batch.y)
             loss.backward()
-            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            #torch.nn.utils.clip_grad_norm_(model_declared.parameters(), max_norm=1.0)
             optimizer.step()
             epoch_loss += loss.item()   # Accumulate loss
             if torch.isnan(loss):
-                tqdm.write(f"NaN loss detected at epoch {epoch}, stopping.")
-                is_last_epoch = True
-                break
+                log.error(f"NaN loss at epoch {epoch}, aborting.")
+                raise ValueError(f"NaN loss detected at epoch {epoch}")
         #----------------------
         # Append epoch loss to history
         #----------------------
-        loss_history = np.append(loss_history, epoch_loss)
+        loss_history.append(epoch_loss)
+        # loss_history = np.append(loss_history, epoch_loss)
         elapsed = time.time() - start
         total_elapsed += elapsed
         # Print every n epochs
         if epoch % 10 == 0:
-            tqdm.write(f"Epoch {epoch}: Loss = {epoch_loss}, Elapsed time: {elapsed:.2f}")
+            log.info(f"Epoch {epoch}: Loss = {epoch_loss}, Elapsed time: {elapsed:.2f}")
         #----------------------
         # Section: At last epochs
         #----------------------
@@ -192,7 +212,7 @@ def training_DLloop(model_declared, device, data_train, data_eval, weights_path,
         else :
             no_improve += 1
         if no_improve >= patience:
-            tqdm.write(f"Early stopping at epoch {epoch}, no improvement for {patience} epochs.")
+            log.info(f"Early stopping at epoch {epoch}, no improvement for {patience} epochs.")
             is_last_epoch = True  
         #----------------------
         # Section: Evaluate model
@@ -210,88 +230,121 @@ def training_DLloop(model_declared, device, data_train, data_eval, weights_path,
             }, weights_path)
             break
     # Summary
-    print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
+    log.info(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
     return  loss_history, metrics_list, performance_list, total_elapsed
 
 #-------------------------------
 # Section: Function to save Summary
 #-------------------------------
-def summarize(model, optimizer, row, epochs_runned, val_samples, n_seed, data_path, performance_list, result_exp_dir, total_elapsed):
+def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, result_exp_dir, extra_info):
     summary = f"""
     Model Training Summary
     =========================
     Model variant: {row['model_id']}
-    Model: {model}
-    Samples for training {row['size']}
+    Model: {model_declared}
+    Samples for training {row['train_size']}
     Optimizer LR:   {optimizer.param_groups[0]['lr']}
     Number of epochs: {row['epochs']}
     Model layers: {row['layers']}
     Model hidden channels: {row['channels']}
-    Seed: {n_seed}
-    Training data path: {data_path}
+    Seed: {extra_info.n_seed}
+    Training data paths: \n\t{train_dirs}
     -----------------------------------------------
-    Validation data path: {data_path}
-    Validation samples: {val_samples}
+    Validation data path: {eval_dirs}
+    Validation samples: {extra_info.validation_samples}
     Pearson Correlation:  {performance_list.corrP}    
     Spearman Correlation: {performance_list.corrS}   
     Maximum node accuracy: {performance_list.acc}  
-    Running time seconds: {total_elapsed}
-    Epochs performed: {epochs_runned}
+    Running time seconds: {extra_info.total_elapsed}
+    Epochs performed: {extra_info.epochs_runned}
     """
     with open(f'{result_exp_dir}/training_summary.txt', 'w') as f:
         f.write(summary)
     print(summary)
+    log.info(summary)
 
+#-------------------------
+# Section: Generate data
+#-------------------------
+
+# Data for training
+data_dir = '/home/mriveraceron/glv-research/data_null'
+
+def data_generator(data_dir, split='train'):
+    data_list = []
+    paths = glob.glob(f'{data_dir}/*_{split}/*.pt')
+    if not paths:
+        raise FileNotFoundError(f"No .pt files found under {data_dir}/*_{split}/")
+    for path in paths:
+        data = torch.load(path, weights_only=False)
+        data_list.extend(data)
+    log.info(f"Total samples for {split}: {len(data_list)}")
+    return data_list, paths
+
+train_data, train_paths = data_generator(data_dir, split='train')
+eval_data, eval_paths = data_generator(data_dir, split='eval')
 
 #-------------------------------
 # Section: Run model
 #-------------------------------
 import os
 import glob
+import pickle
 
-# Add values to table
+
+# Define namedtuple for results
+MetricsResult     = namedtuple('MetricsResult', ['idxt', 'idxp', 'mt', 'mp'])
+PerformanceResult = namedtuple('PerformanceResult', ['acc', 'corrP', 'corrS'])
+ExtraInfo         = namedtuple('ExtraInfo', ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples'])
+
+# Get directories of data for training
+train_dirs = '\n'.join(f'  {p}' for p in set(os.path.dirname(p) for p in train_paths))
+eval_dirs  = '\n'.join(f'  {p}' for p in set(os.path.dirname(p) for p in eval_paths))
+
+# Constant model parameters
+device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+loss_fn = nn.MSELoss()
+
 for i, row in tuning_df.iterrows():
     #-------------------------
-    # Declare model parameters
+    # Declare model hyperparameters
     #-------------------------
-    # Hyperparameters
     # row = tuning_df.iloc[0]
-    size = row['size']
+    size = row['train_size']
     lr = row['learning_rate']
     model_name = row['model_id']
     epochs = row['epochs']
+    channels = int(row['channels'])
+    layers = int(row['layers'])
+    log.info(f'>> Starting model {model_name} with train size {size} and learning rate {lr}')
+    #-------------------------
+    # Section: Run model
+    #-------------------------
     # Seeding function
     n_seed = 42
     seed_fn(seed=n_seed)
     # Model parameters
-    loss_fn = nn.MSELoss()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model_declared = model(hidden_channels=64, num_layers=5).to(device)
+    model_declared = GCNModel(hidden_channels=channels,num_layers=layers).to(device)
     optimizer = optim.Adam(model_declared.parameters(), lr=lr)
-    #-------------------------
-    # Generate data
-    #-------------------------
-    data_dir = '/home/mriveraceron/glv-research/data_null/d2f93775a813'
-    train_paths =  glob.glob(f'{data_dir}/TrainBatch_*.pt')
-    eval_paths = glob.glob(f'{data_dir}/ValBatch_*.pt')
-    data_train, data_eval = [] , []
-    for path in train_paths:
-        data_train.extend(torch.load(path, weights_only=False))
-    for path in eval_paths:
-        data_eval.extend(torch.load(path, weights_only=False))
     # Create result directory
-    results_dir = '/home/mriveraceron/glv-research/tuning_results' 
-    result_exp_dir = f'{results_dir}/{os.path.basename(data_dir)}/{model_name}'
+    result_exp_dir = f'{results_dir}/{model_name}'
+    log.info(f'>> Variant results will be saved at: {result_exp_dir}')
     os.makedirs(result_exp_dir, exist_ok=True)
-    #-------------------------
-    # Run model
-    #-------------------------
+    data_to_train = train_data[:size]
     weights_path = f'{result_exp_dir}/model_weights.pth'
-    loss_history, metrics_list, performance_list, total_elapsed = training_DLloop(model_declared, device, data_train[:size], data_eval, weights_path, loss_fn, optimizer, epochs)
-    epochs_runned = len(loss_history)
-    val_samples = len(data_eval)
-    summarize(model_declared, optimizer, row, epochs_runned, n_seed, data_dir, performance_list, result_exp_dir, total_elapsed)
-    # Save metrics result_exp_dir
+    try:
+        loss_history, metrics_list, performance_list, total_elapsed = training_DLloop(model_declared, device, data_to_train, eval_data, weights_path, loss_fn, optimizer, epochs)
+    except ValueError as e:
+        log.info(f"Error occurred: {e}")
+        continue
+    #------------------------
+    # Section: Generate summary
+    #------------------------
+    extra_info = ExtraInfo(len(loss_history), n_seed, total_elapsed, len(eval_data))
+    summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, result_exp_dir, extra_info)
+    #------------------------
+    # Section: Save metrics result_exp_dir
+    #------------------------
     np.savez(f'{result_exp_dir}/metric-values.npz',
         max_idx_true  = metrics_list.idxt,
         max_idx_pred  = metrics_list.idxp,
@@ -299,7 +352,17 @@ for i, row in tuning_df.iterrows():
         values_pred   = metrics_list.mp,
         loss_history  = loss_history
     )
-    # Add validation to dataframe
+    #------------------------
+    # Add results to dataframe
+    #------------------------
+    total_bytes = len(pickle.dumps(data_to_train))
     tuning_df.loc[i, 'accuracy_idx'] = performance_list.acc
     tuning_df.loc[i, 'pearson_corr'] = performance_list.corrP
     tuning_df.loc[i, 'spearman_corr'] = performance_list.corrS
+    tuning_df.loc[i, 'mem_usage(mb)'] = total_bytes / 1e6
+    tuning_df.loc[i, 'eval_size'] = len(eval_data)
+
+
+# Save table
+tuning_df.to_csv(f'{results_dir}/model_size_tuning_results.csv', index=False)
+    
