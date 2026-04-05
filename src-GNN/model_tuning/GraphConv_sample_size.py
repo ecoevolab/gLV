@@ -1,6 +1,5 @@
 # Training script for random networks.
 # 
-
 import logging
 import sys
 import os 
