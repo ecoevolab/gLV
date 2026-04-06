@@ -211,12 +211,16 @@ def training_fn(model_declared, device, data_train, data_eval, weights_path, los
                         batch = batch.to(device)
                         out = model_declared(batch)
                         loss = loss_fn(out, batch.y)
+                        # Verify if loss is finite
+                        if torch.isnan(loss): # Safety check to avoid saving NaN loss as best model
+                            log.error(f"NaN loss at evaluation. Epoch {epoch}, aborting.")
+                            raise ValueError(f"NaN loss detected at evaluation, epoch {epoch}")
                         eval_loss += loss.item()
                 log.info(f"Evaluation loss at epoch {epoch}: {eval_loss}")
             finally:
                 model_declared.train()
             # If evaluation loss does not improve, increase counter
-            if eval_loss <= best_loss:
+            if eval_loss < best_loss: # it must be < because we want to minimize loss
                 best_loss = eval_loss
                 no_improve = 0
                 best_model = model_declared.state_dict()  # Save best model weights
@@ -360,7 +364,7 @@ for i, row in tuning_df.iterrows():
     weights_path = f'{result_exp_dir}/model_weights.pth'
     try:
         loss_history, metrics_list, performance_list, total_elapsed = training_fn(model_declared, device, data_to_train, eval_data, weights_path, loss_fn, optimizer, epochs, eval_interval, patience, batch_size)
-        log.info(f"{model_size_mb(model_declared):.2f} MB")
+        log.info(f">> Model memory usage:{model_size_mb(model_declared):.2f} MB")
     except ValueError as e:
         log.info(f"Error occurred: {e}")
         continue
