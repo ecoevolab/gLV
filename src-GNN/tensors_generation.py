@@ -157,9 +157,8 @@ def batching(ids_list, outputs_dir, targets_dir, networks_dir, features_dir, sav
     num_batches = -(-len(ids_list) // batch_size)
     print(f">> Batch size: {batch_size} | Num batches: {num_batches} | Elapsed: {elapsed:.2f}s")
 
-
 #----------------------------------------------
-# Generate tensors for single experiment
+# Divide ids into training and validation sets
 #----------------------------------------------
 # We divide our data into 80/20 for cross validation.
 import numpy as np 
@@ -171,11 +170,14 @@ split_train = int(0.8 * len(indexes))
 train_ids = ids_list[indexes[:split_train]]
 validation_ids = ids_list[indexes[split_train:]]
 
+#----------------------------------------------
+# Generate tensors for single experiment
+#----------------------------------------------
 # Declare paths for tensors
 tensors_dir = '/mnt/data/sur/users/mrivera/Tensors/null_tensors'
 # tensors_dir = '/mnt/data/sur/users/mrivera/Cuda-tensors'
 name = os.path.basename(experiment_dir)
-tensors_path = os.path.join(tensors_dir, name) + '.zip'
+tensors_path = os.path.join(tensors_dir, name) + '_train.zip'
 # tensors_path = os.path.join(tensors_dir, name) + '_train.zip' # For all training
 
 # Declare batching function with fixed paths and parameters
@@ -190,8 +192,9 @@ batching_fn = partial(batching,
 
 # Run function for both training and validation sets
 if __name__ == '__main__':
-    batching_fn(ids_list=train_ids, batch_size=200, prefix='TrainBatch', overwrite=True)
-    batching_fn(ids_list=validation_ids, batch_size=200, prefix='ValBatch', overwrite=False)
+    batching_fn(ids_list=ids_list, batch_size=200, prefix='TrainBatch', overwrite=True)
+    #batching_fn(ids_list=train_ids, batch_size=200, prefix='TrainBatch', overwrite=True)
+    #batching_fn(ids_list=validation_ids, batch_size=200, prefix='ValBatch', overwrite=False)
 
 #----------------------------------------------
 # Generate tensors for multiple experiments
