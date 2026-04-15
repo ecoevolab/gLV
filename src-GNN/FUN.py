@@ -212,9 +212,9 @@ def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance
     Evaluation interval: {extra_info.eval_interval} epochs
     Early stopping patience: {extra_info.patience} evaluations
     DataLoaders batch size: {extra_info.batch_size}
-    Training data paths: \n\t{train_dirs}
+    Training data paths: \n{train_dirs}
     -----------------------------------------------
-    Validation data path: {eval_dirs}
+    Validation data path: \n{eval_dirs}\n
     Validation samples: {extra_info.validation_samples}
     Pearson Correlation:  {performance_list.corrP}    
     Spearman Correlation: {performance_list.corrS}   
