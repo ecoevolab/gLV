@@ -18,7 +18,9 @@ import sys
 import os 
 import glob
 
-import pkg_resources
+# For package versions
+from importlib.metadata import packages_distributions, version
+import importlib.metadata as metadata
 
 # For model
 import torch
@@ -75,6 +77,7 @@ def make_logger(name, filepath):
     logger.addHandler(stream_handler)       # Log to console
     return logger
 
+
 # Two independent loggers
 log     = make_logger('run_log',  f'{results_dir}/run_log.txt')
 pkglog  = make_logger('pkg_log',  f'{results_dir}/pkgs_log.txt')
@@ -91,7 +94,7 @@ for handler in log.handlers:       # reuse run_log handlers
 # Section: Print imported packages and versions
 #-----------------------
 # Print imported packages and versions 
-installed = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
+installed = {dist.metadata['Name']: dist.metadata['Version'] for dist in metadata.distributions()}
 
 for package, version in sorted(installed.items()):
     pkglog.info(f"{package}=={version}")
@@ -122,19 +125,18 @@ def data_generator(data_dir, split='train'):
         data = torch.load(path, weights_only=False)
         data_list.extend(data)
     log.info(f"Total samples for {split}: {len(data_list)}")
-    return data_list, paths
+    # Get directories of data for training
+    used_dirs = '\n'.join(f'  {p}' for p in set(os.path.dirname(p) for p in paths))
+    return data_list, used_dirs
 
-train_data, train_paths = data_generator(data_dir, split='train')
-eval_data, eval_paths = data_generator(data_dir, split='eval')
 
-# Get directories of data for training
-train_dirs = '\n'.join(f'  {p}' for p in set(os.path.dirname(p) for p in train_paths))
-eval_dirs  = '\n'.join(f'  {p}' for p in set(os.path.dirname(p) for p in eval_paths))
+train_data, train_dirs = data_generator(data_dir, split='train')
+eval_data, eval_dirs = data_generator(data_dir, split='eval')
 
 #-------------------------------
 # Section: Declare model
 #-------------------------------
-class GCNModel(nn.Module):
+class GraphConvModel(nn.Module):
     def __init__(self, hidden_channels=64, num_layers=5):
         super().__init__()
         self.convs = nn.ModuleList()
@@ -161,8 +163,6 @@ class GCNModel(nn.Module):
 #-------------------------------
 # Section: Run model
 #-------------------------------
-# Define namedtuple for results
-ExtraInfo = namedtuple('ExtraInfo', ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size'])
 
 # Constant model parameters
 device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -187,7 +187,7 @@ log.info(f'>> Starting model {model_name} with train size {size} and learning ra
 n_seed = 42
 seed_fn(seed=n_seed)
 # Model parameters
-model_declared = GCNModel(hidden_channels=channels,num_layers=layers).to(device)
+model_declared = GraphConvModel(hidden_channels=channels,num_layers=layers).to(device)
 optimizer = optim.Adam(model_declared.parameters(), lr=lr)
 log.info(f'>> Variant results will be saved at: {results_dir}')
 # Slice data for training
@@ -209,12 +209,18 @@ row.loc[:, 'pearson_corr'] = performance_list.corrP
 row.loc[:, 'spearman_corr'] = performance_list.corrS
 row.loc[:, 'mem_usage(mb)'] = total_bytes / 1e6
 row.loc[:, 'eval_size'] = len(eval_data)
+# Add row to dataframe
+new_df.loc[new_df['model_id'] == 'Variant_9'] = row
 # Save table every row
+# table_dir = '/home/mriveraceron/glv-research/tuning_results/GraphConv_sample_size'
 new_df.to_csv(f'{results_dir}/tuning_results_V2.csv', index=False)
 
 #------------------------
 # Section: Generate summary
 #------------------------
+# Define namedtuple for results
+ExtraInfo = namedtuple('ExtraInfo', ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size'])
+
 # ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size']
 extra_info = ExtraInfo(len(loss_history), n_seed, total_elapsed, len(eval_data), eval_interval, patience, batch_size)
 summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, results_dir, extra_info)
