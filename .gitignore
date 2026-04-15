@@ -3,6 +3,9 @@
 *.qmd
 *.html
 *.env
+__pycache__/
+*.pyc
+*.pyo
 
 # But not these files...
 !*.py
