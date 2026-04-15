@@ -46,7 +46,9 @@ import pickle
 import pkg_resources
 
 # Import functions from FUN.py
-from FUN import seed_fn, training_fn, summarize
+import sys      
+sys.path.append("/home/mriveraceron/glv-research/gLV/src-GNN/")     # Specify functions directory path
+from FUN import collect_metrics, compute_metrics, training_fn, summarize, seed_fn
 #-----------------------
 # Set up logging
 #-----------------------
@@ -55,23 +57,39 @@ os.makedirs(results_dir, exist_ok=True)
 
 def make_logger(name, filepath):
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-    logger.handlers.clear()  # avoid duplicate handlers on re-runs
+    # info, warning, and error messages, but ignores debug.
+    logger.setLevel(logging.INFO)   
+    # Handler: Where does a log goes to? (file, console, etc.)
+    logger.handlers.clear()  # removes existing handlers 
+    # Propagate: when a logger handles a message, it also passes it up to its parent logger.
+    # With this messages do not appear twice
     logger.propagate = False  # don't bubble up to root logger
     formatter = logging.Formatter('%(asctime)s - %(message)s')
+    # File handler
     file_handler = logging.FileHandler(filepath, mode='w')
     file_handler.setFormatter(formatter)
+    # Console handler
     stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    logger.addHandler(stream_handler)
+    stream_handler.setFormatter(formatter)  # Add timestamps
+    logger.addHandler(file_handler)         # Log to file
+    logger.addHandler(stream_handler)       # Log to console
     return logger
 
 # Two independent loggers
 log     = make_logger('run_log',  f'{results_dir}/run_log.txt')
 pkglog  = make_logger('pkg_log',  f'{results_dir}/pkgs_log.txt')
 
+#  Route FUN.py logs into run_log 
+fun_logger = logging.getLogger("FUN")
+fun_logger.setLevel(logging.INFO)
+fun_logger.handlers.clear()
+fun_logger.propagate = False
+for handler in log.handlers:       # reuse run_log handlers
+    fun_logger.addHandler(handler)
 
+#-----------------------
+# Section: Print imported packages and versions
+#-----------------------
 # Print imported packages and versions 
 installed = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
 
@@ -84,12 +102,7 @@ model_dir = "/home/mriveraceron/glv-research/tuning_results/GraphConv_sample_siz
 variant_table = pd.read_csv(f'{model_dir}/tuning_results.csv')
 
 # Generate new row for new variant
-new_row = pd.DataFrame([{'model_id': 'Variant_9', 
-                         #'train_size': 70000, 
-                         'channels':64,
-                         'layers':5,
-                         'learning_rate':0.001,
-                         'epochs':700}])
+new_row = pd.DataFrame([{'model_id': 'Variant_9', 'channels':64, 'layers':5, 'learning_rate':0.001, 'epochs':700}])
 
 # Append new row to the existing table
 new_df = pd.concat([variant_table, new_row], ignore_index=True)
