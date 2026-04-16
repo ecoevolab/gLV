@@ -196,8 +196,6 @@ for i, row in tuning_df.iterrows():
     #-------------------------------
     # Section: Declare model hyperparameters
     #-------------------------------
-    # i =1
-    # row =  tuning_df.iloc[i]
     size = row['train_size']
     lr = row['learning_rate']
     model_name = row['model_id']
@@ -245,11 +243,11 @@ for i, row in tuning_df.iterrows():
     #------------------------
     # ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size']
     extra_info = ExtraInfo(len(loss_history), n_seed, total_elapsed, len(eval_data), eval_interval, patience, batch_size)
-    summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, results_dir, extra_info)
+    summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, variant_path, extra_info)
     #------------------------
     # Section: Save metrics result_exp_dir
     #------------------------
-    np.savez(f'{variant_path}/metric-values.npz',
+    np.savez(f'{variant_path}/metric_values.npz',
         max_idx_true  = metrics_list.idxt,
         max_idx_pred  = metrics_list.idxp,
         values_true   = metrics_list.mt,
