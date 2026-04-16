@@ -233,7 +233,7 @@ for i, row in tuning_df.iterrows():
     #------------------------
     # Add results to dataframe
     #------------------------
-    total_bytes = len(pickle.dumps(train_data))
+    total_bytes = len(pickle.dumps(data_slice))
     tuning_df.loc[i, 'eval_size'] = len(eval_data)
     tuning_df.loc[i, 'accuracy_idx'] = performance_list.acc
     tuning_df.loc[i, 'pearson_corr'] = performance_list.corrP
