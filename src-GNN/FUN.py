@@ -224,5 +224,5 @@ def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance
     """
     with open(f'{result_exp_dir}/training_summary.txt', 'w') as f:
         f.write(summary)
-    print(summary)
+    # print(summary)
     log.info(summary)
