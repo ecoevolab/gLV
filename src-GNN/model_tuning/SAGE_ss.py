@@ -191,7 +191,12 @@ loss_fn = nn.MSELoss()
 eval_interval = 50
 patience = 2
 batch_size = 30
-
+for i, row in tuning_df.iterrows():
+    #-------------------------------
+    # Section: Declare model hyperparameters
+    #-------------------------------
+    size = row['train_size']
+    print(size)
 for i, row in tuning_df.iterrows():
     #-------------------------------
     # Section: Declare model hyperparameters
@@ -230,7 +235,6 @@ for i, row in tuning_df.iterrows():
     #------------------------
     total_bytes = len(pickle.dumps(train_data))
     tuning_df.loc[i, 'eval_size'] = len(eval_data)
-    tuning_df.loc[i, 'train_size'] = len(train_data)
     tuning_df.loc[i, 'accuracy_idx'] = performance_list.acc
     tuning_df.loc[i, 'pearson_corr'] = performance_list.corrP
     tuning_df.loc[i, 'spearman_corr'] = performance_list.corrS
