@@ -98,7 +98,7 @@ from tqdm import tqdm
 from torch_geometric.utils import unbatch
 from torch_geometric.loader import DataLoader
 
-def training_fn(model_declared, device, data_train, data_eval, weights_path, loss_fn, optimizer, epochs, eval_every=50, patience=2, batch_size=30):
+def training_fn(model_declared, device, data_train, data_eval, weights_path, loss_fn, optimizer, epochs, batch_size=30):
     #------------------------------------------
     # Section: Declare training variables
     model_declared.train()
@@ -172,19 +172,20 @@ def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance
     summary = f"""
     Model Training Summary
     =========================
-    Model variant: {row['model_id']}
+    Model variant: All samples
     Model: {model_declared}
-    Samples for training {row['train_size']}
+    Samples for training {row['train_size'].item()}
     Optimizer lr:   {optimizer.param_groups[0]['lr']}
-    Number of epochs: {row['epochs']}
-    Model layers: {row['layers']}
-    Model hidden channels: {row['channels']}
+    Number of epochs: {row['epochs'].item()}
+    Model layers: {row['layers'].item()}
+    Model hidden channels: {row['channels'].item()}
     -----------------------------------------------
     Seed: {extra_info.n_seed}
     DataLoaders batch size: {extra_info.batch_size}
     Training data paths: \n{train_dirs}
     -----------------------------------------------
     Validation data path: \n{eval_dirs}\n
+    -----------------------------------------------
     Validation samples: {extra_info.validation_samples}
     Pearson Correlation:  {performance_list.corrP}    
     Spearman Correlation: {performance_list.corrS}   
