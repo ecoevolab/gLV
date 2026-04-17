@@ -107,9 +107,9 @@ def training_fn(model_declared, device, data_train, data_eval, weights_path, los
     stop_early = False           # Early stopping flag
     metrics_list, performance_list = None, None            
     # Early stopping variables
-    best_model = None          # Best model weights
-    best_loss = float('inf')   # Best loss
-    no_improve = 0             # counter for no improvement
+    # best_model = None          # Best model weights
+    # best_loss = float('inf')   # Best loss
+    # no_improve = 0             # counter for no improvement
     #---------------------
     # Section: Create batches of data
     loader_train = DataLoader(data_train, batch_size, shuffle=True)
@@ -145,34 +145,6 @@ def training_fn(model_declared, device, data_train, data_eval, weights_path, los
         if epoch % 10 == 0:
             log.info(f"Epoch {epoch}: Loss = {epoch_loss}, Elapsed time: {elapsed:.2f}")
         #----------------------
-        # Section: Early stopping if evaluation loss does not improve for patience epochs
-        #----------------------
-        # Evalaution every 50 epochs
-        if epoch % eval_every == 0:
-            log.info(f"Checking early stopping at epoch {epoch} ")
-            eval_loss = 0
-            try:        
-                model_declared.eval()
-                with torch.no_grad():
-                    for batch in loader_eval:
-                        batch = batch.to(device)
-                        out = model_declared(batch)
-                        loss = loss_fn(out, batch.y)
-                        eval_loss += loss.item()
-                log.info(f"Evaluation loss at epoch {epoch}: {eval_loss}")
-            finally:
-                model_declared.train()
-            # If evaluation loss does not improve, increase counter
-            if eval_loss <= best_loss:
-                best_loss = eval_loss
-                no_improve = 0
-                best_model = model_declared.state_dict()  # Save best model weights
-            else :
-                no_improve += 1
-            if no_improve >= patience:
-                log.info(f"Early stopping at epoch {epoch}, no improvement for {eval_every * patience} epochs.")
-                stop_early = True
-        #----------------------
         # Section: Evaluate model
         #----------------------
         # Model stops or is last epoch
@@ -183,7 +155,7 @@ def training_fn(model_declared, device, data_train, data_eval, weights_path, los
             # Save weights
             torch.save({
                 'epoch': epoch,
-                'model_state_dict': best_model if best_model is not None else model_declared.state_dict(),
+                'model_state_dict': model_declared.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': epoch_loss
             }, weights_path)
@@ -203,14 +175,12 @@ def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance
     Model variant: {row['model_id']}
     Model: {model_declared}
     Samples for training {row['train_size']}
-    Optimizer LR:   {optimizer.param_groups[0]['lr']}
+    Optimizer lr:   {optimizer.param_groups[0]['lr']}
     Number of epochs: {row['epochs']}
     Model layers: {row['layers']}
     Model hidden channels: {row['channels']}
     -----------------------------------------------
     Seed: {extra_info.n_seed}
-    Evaluation interval: {extra_info.eval_interval} epochs
-    Early stopping patience: {extra_info.patience} evaluations
     DataLoaders batch size: {extra_info.batch_size}
     Training data paths: \n{train_dirs}
     -----------------------------------------------
@@ -224,5 +194,4 @@ def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance
     """
     with open(f'{result_exp_dir}/training_summary.txt', 'w') as f:
         f.write(summary)
-    # print(summary)
     log.info(summary)
