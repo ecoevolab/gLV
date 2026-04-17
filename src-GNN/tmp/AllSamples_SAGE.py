@@ -1,5 +1,5 @@
 """
-Generate new single model variant and append it to the list of variants.
+Run best SAGE variant with all available training samples.
 
 Previously hyperparameters were already tested and the best ones were selected.
 After determining the hyperparameters, sample size was tested and a tendency was observed
@@ -8,8 +8,9 @@ where more samples increased the performance of the model.
 Therefore, model will be set to best model based on the previous hyperparameter tuning, and the sample size will be set to all available samples for training.
 Hyperparameter optimization path: /home/mriveraceron/glv-research/tuning_results/SAGE-hpo
 
-14-March-2026
+17-April-2026
 """
+
 
 
 # Imports
@@ -55,7 +56,7 @@ from FUN import collect_metrics, compute_metrics, training_fn, summarize, seed_f
 #-----------------------
 # Set up logging
 #-----------------------
-results_dir = '/home/mriveraceron/glv-research/AllSamples_models/SAGE_best'
+results_dir = '/home/mriveraceron/glv-research/best_models/SAGE'
 os.makedirs(results_dir, exist_ok=True)
 
 def make_logger(name, filepath):
@@ -99,29 +100,15 @@ installed = {dist.metadata['Name']: dist.metadata['Version'] for dist in metadat
 
 for package, version in sorted(installed.items()):
     pkglog.info(f"{package}=={version}")
-#-----------------------
-# Load the directory where model was stored
-#-----------------------
-tuning_dir = "/home/mriveraceron/glv-research/tuning_results/SAGE-hpo"
-variant_table = pd.read_csv(f'{tuning_dir}/tuning_results.csv').sort_values('pearson_corr', ascending=False).reset_index(drop=True)
 
-# Generate new row for new variant
-hyperparams = variant_table.iloc[[0]].reset_index(drop=True)
 
-row = pd.DataFrame({
-    'model_id': None,
-    'channels': hyperparams['channels'].iloc[0],
-    'layers': hyperparams['layers'].iloc[0],
-    'learning_rate': hyperparams['learning_rate'].iloc[0],
-    'train_size': None,
-    'eval_size': None,
-    'epochs': hyperparams['epochs'].iloc[0],
-    'accuracy_idx': None,
-    'pearson_corr': None,
-    'spearman_corr': None,
-    'elapsed_time': None,
-    'train_memory(mb)': None
-}, index=[0])
+#-----------------------
+# Choose best model
+#-----------------------
+# Previously best model was determined: 
+variants_table = pd.read_csv(f'/home/mriveraceron/glv-research/tuning_results/SAGE-hpo/tuning_results.csv').sort_values(by="pearson_corr", ascending=False)
+hyperparams = variants_table.iloc[0][['channels', 'layers', 'learning_rate', 'epochs']].to_frame().T
+log.info(f"Selected hyperparameters for new variant: {hyperparams.to_dict('records')[0]}")
 
 #-----------------------
 # Load data
@@ -172,6 +159,7 @@ class SAGE_Model(nn.Module):
         x = torch.sigmoid(x)
         return x  # [num_nodes]
 
+
 #-------------------------------
 # Section: Run model
 #-------------------------------
@@ -182,58 +170,81 @@ loss_fn = nn.MSELoss()
 
 # Declare model hyperparameters
 size = len(train_data)  # Use all available training samples for this variant
-lr = row['learning_rate'].iloc[0]
-model_name = row['model_id'].iloc[0]
-epochs = row['epochs'].iloc[0]
-channels = int(row['channels'].iloc[0])
-layers = int(row['layers'].iloc[0])
+lr = hyperparams['learning_rate'].iloc[0]
+epochs = hyperparams['epochs'].iloc[0]
+channels = int(hyperparams['channels'].iloc[0])
+layers = int(hyperparams['layers'].iloc[0])
+batch_size = 50
+log.info(f'>> Starting model training with train size {size} and learning rate {lr}')
 
-# Early stopping parameters
-eval_interval = 50
-patience = 2
-batch_size = 30
-log.info(f'>> Starting model {model_name} with train size {size} and learning rate {lr}')
-#------------------------
-# Section: Run model
-#------------------------
+# Running
 n_seed = 42
 seed_fn(seed=n_seed)
 # Model parameters
 model_declared = SAGE_Model(hidden_channels=channels,num_layers=layers).to(device)
 optimizer = optim.Adam(model_declared.parameters(), lr=lr)
 log.info(f'>> Variant results will be saved at: {results_dir}')
-# Slice data for training
-random.shuffle(train_data)
-# Run training function
-weights_path = f'{results_dir}/model_weights.pth'
+random.shuffle(train_data) # Shuffle data
+weights_path = f'{results_dir}/model_weights.pth'   # Path to save model weights
 try:
-    loss_history, metrics_list, performance_list, total_elapsed = training_fn(model_declared, device, train_data, eval_data, weights_path, loss_fn, optimizer, epochs, eval_interval, patience, batch_size)
+    loss_history, metrics_list, performance_list, total_elapsed = training_fn(model_declared, device, train_data, eval_data, weights_path, loss_fn, optimizer, epochs, batch_size)
 except ValueError as e:
     log.info(f"Error occurred: {e}")
+    
 #------------------------
 # Add results to dataframe
 #------------------------
 total_bytes = len(pickle.dumps(train_data))
-row = hyperparams.copy()  # Create a copy of the hyperparameters row
-row.loc[:, 'train_size'] = len(train_data)
-row.loc[:, 'accuracy_idx'] = performance_list.acc
-row.loc[:, 'pearson_corr'] = performance_list.corrP
-row.loc[:, 'spearman_corr'] = performance_list.corrS
-row.loc[:, 'train_memory(mb)'] = total_bytes / 1e6
-row.loc[:, 'eval_size'] = len(eval_data)
-row.loc[:, 'elapsed_time'] = total_elapsed
-# Save table every row
-row.to_csv(f'{results_dir}/tuning_results.csv', index=False)
+hyperparams['train_size'] = len(train_data)
+hyperparams['mem_usage(mb)'] = total_bytes / 1e6
+# Metrics
+hyperparams['accuracy_idx'] = performance_list.acc
+hyperparams['pearson_corr'] = performance_list.corrP
+hyperparams['spearman_corr'] = performance_list.corrS
+hyperparams['elapsed(seconds)'] = total_elapsed
+hyperparams['eval_size'] = len(eval_data)
+
+# Save row
+hyperparams.to_csv(f'{results_dir}/result_table.csv', index=False)
+pd.read_csv(f'{results_dir}/result_table.csv')
 
 #------------------------
 # Section: Generate summary
 #------------------------
-# Define namedtuple for results
-ExtraInfo = namedtuple('ExtraInfo', ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size'])
+def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, result_exp_dir, extra_info):
+    summary = f"""
+    Model Training Summary
+    =========================
+    Model variant: All samples
+    Model: {model_declared}
+    Samples for training {row['train_size'].item()}
+    Optimizer lr:   {optimizer.param_groups[0]['lr']}
+    Number of epochs: {row['epochs'].item()}
+    Model layers: {row['layers'].item()}
+    Model hidden channels: {row['channels'].item()}
+    -----------------------------------------------
+    Seed: {extra_info.n_seed}
+    DataLoaders batch size: {extra_info.batch_size}
+    Training data paths: \n{train_dirs}
+    -----------------------------------------------
+    Validation data path: \n{eval_dirs}\n
+    -----------------------------------------------
+    Validation samples: {extra_info.validation_samples}
+    Pearson Correlation:  {performance_list.corrP}    
+    Spearman Correlation: {performance_list.corrS}   
+    Maximum node accuracy: {performance_list.acc}  
+    Running time seconds: {extra_info.total_elapsed}
+    Epochs performed: {extra_info.epochs_runned}
+    """
+    with open(f'{result_exp_dir}/training_summary.txt', 'w') as f:
+        f.write(summary)
+    log.info(summary)
 
-# ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size']
-extra_info = ExtraInfo(len(loss_history), n_seed, total_elapsed, len(eval_data), eval_interval, patience, batch_size)
-summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, results_dir, extra_info)
+
+# Define namedtuple for results
+ExtraInfo = namedtuple('ExtraInfo', ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples',  'batch_size'])
+extra_info = ExtraInfo(len(loss_history), n_seed, total_elapsed, len(eval_data), batch_size)
+summarize(model_declared, optimizer, hyperparams, train_dirs, eval_dirs, performance_list, results_dir, extra_info)
 
 #------------------------
 # Section: Save metrics result_exp_dir
@@ -245,3 +256,4 @@ np.savez(f'{results_dir}/metric-values.npz',
     values_pred   = metrics_list.mp,
     loss_history  = loss_history
 )
+

@@ -1,13 +1,14 @@
 """
-Generate new single model variant and append it to the list of variants.
+Run best GraphConv variant with all available training samples.
 
 Previously hyperparameters were already tested and the best ones were selected.
 After determining the hyperparameters, sample size was tested and a tendency was observed
 where more samples increased the performance of the model.
 
-Therefore, new variant will include all available traning samples.
+Therefore, best model will be trained with all available training samples.
+Hyperparameter optimization path: /home/mriveraceron/glv-research/tuning_results/91074c4e25b4
 
-14-March-2026
+17-April-2026
 """
 
 
@@ -54,7 +55,7 @@ from FUN import collect_metrics, compute_metrics, training_fn, summarize, seed_f
 #-----------------------
 # Set up logging
 #-----------------------
-results_dir = '/home/mriveraceron/glv-research/tuning_results/GraphConv_sample_size/Variant_9'
+results_dir = '/home/mriveraceron/glv-research/best_models/GraphConv'
 os.makedirs(results_dir, exist_ok=True)
 
 def make_logger(name, filepath):
@@ -98,17 +99,15 @@ installed = {dist.metadata['Name']: dist.metadata['Version'] for dist in metadat
 
 for package, version in sorted(installed.items()):
     pkglog.info(f"{package}=={version}")
-#-----------------------
-# Load the directory where model was stored
-#-----------------------
-model_dir = "/home/mriveraceron/glv-research/tuning_results/GraphConv_sample_size"
-variant_table = pd.read_csv(f'{model_dir}/tuning_results.csv')
 
-# Generate new row for new variant
-new_row = pd.DataFrame([{'model_id': 'Variant_9', 'channels':64, 'layers':5, 'learning_rate':0.001, 'epochs':700}])
 
-# Append new row to the existing table
-new_df = pd.concat([variant_table, new_row], ignore_index=True)
+#-----------------------
+# Choose best model
+#-----------------------
+# Previously best model was determined: 
+variants_table = pd.read_csv(f'/home/mriveraceron/glv-research/tuning_results/91074c4e25b4/tuning_results.csv').sort_values(by="pearson_corr", ascending=False)
+hyperparams = variants_table.iloc[0][['channels', 'layers', 'learning_rate', 'epochs']].to_frame().T
+log.info(f"Selected hyperparameters for new variant: {hyperparams.to_dict('records')[0]}")
 
 #-----------------------
 # Load data
@@ -136,7 +135,7 @@ eval_data, eval_dirs = data_generator(data_dir, split='eval')
 #-------------------------------
 # Section: Declare model
 #-------------------------------
-class GraphConvModel(nn.Module):
+class GraphConv_Model(nn.Module):
     def __init__(self, hidden_channels=64, num_layers=5):
         super().__init__()
         self.convs = nn.ModuleList()
@@ -170,60 +169,81 @@ loss_fn = nn.MSELoss()
 
 # Declare model hyperparameters
 size = len(train_data)  # Use all available training samples for this variant
-lr = new_row['learning_rate'].iloc[0]
-model_name = new_row['model_id'].iloc[0]
-epochs = new_row['epochs'].iloc[0]
-channels = int(new_row['channels'].iloc[0])
-layers = int(new_row['layers'].iloc[0])
+lr = hyperparams['learning_rate'].iloc[0]
+epochs = hyperparams['epochs'].iloc[0]
+channels = int(hyperparams['channels'].iloc[0])
+layers = int(hyperparams['layers'].iloc[0])
+batch_size = 50
+log.info(f'>> Starting model training with train size {size} and learning rate {lr}')
 
-# Early stopping parameters
-eval_interval = 50
-patience = 2
-batch_size = 30
-log.info(f'>> Starting model {model_name} with train size {size} and learning rate {lr}')
-#------------------------
-# Section: Run model
-#------------------------
+# Running
 n_seed = 42
 seed_fn(seed=n_seed)
 # Model parameters
-model_declared = GraphConvModel(hidden_channels=channels,num_layers=layers).to(device)
+model_declared = GraphConv_Model(hidden_channels=channels,num_layers=layers).to(device)
 optimizer = optim.Adam(model_declared.parameters(), lr=lr)
 log.info(f'>> Variant results will be saved at: {results_dir}')
-# Slice data for training
-random.shuffle(train_data)
-# Run training function
-weights_path = f'{results_dir}/model_weights.pth'
+random.shuffle(train_data) # Shuffle data
+weights_path = f'{results_dir}/model_weights.pth'   # Path to save model weights
 try:
-    loss_history, metrics_list, performance_list, total_elapsed = training_fn(model_declared, device, train_data, eval_data, weights_path, loss_fn, optimizer, epochs, eval_interval, patience, batch_size)
+    loss_history, metrics_list, performance_list, total_elapsed = training_fn(model_declared, device, train_data, eval_data, weights_path, loss_fn, optimizer, epochs, batch_size)
 except ValueError as e:
     log.info(f"Error occurred: {e}")
+    
 #------------------------
 # Add results to dataframe
 #------------------------
 total_bytes = len(pickle.dumps(train_data))
-row = new_df.loc[new_df['model_id'] == 'Variant_9']
-row.loc[:, 'train_size'] = len(train_data)
-row.loc[:, 'accuracy_idx'] = performance_list.acc
-row.loc[:, 'pearson_corr'] = performance_list.corrP
-row.loc[:, 'spearman_corr'] = performance_list.corrS
-row.loc[:, 'mem_usage(mb)'] = total_bytes / 1e6
-row.loc[:, 'eval_size'] = len(eval_data)
-# Add row to dataframe
-new_df.loc[new_df['model_id'] == 'Variant_9'] = row
-# Save table every row
-# table_dir = '/home/mriveraceron/glv-research/tuning_results/GraphConv_sample_size'
-new_df.to_csv(f'{results_dir}/tuning_results_V2.csv', index=False)
+hyperparams['train_size'] = len(train_data)
+hyperparams['mem_usage(mb)'] = total_bytes / 1e6
+# Metrics
+hyperparams['accuracy_idx'] = performance_list.acc
+hyperparams['pearson_corr'] = performance_list.corrP
+hyperparams['spearman_corr'] = performance_list.corrS
+hyperparams['elapsed(seconds)'] = total_elapsed
+hyperparams['eval_size'] = len(eval_data)
+
+# Save row
+hyperparams.to_csv(f'{results_dir}/result_table.csv', index=False)
+pd.read_csv(f'{results_dir}/result_table.csv')
 
 #------------------------
 # Section: Generate summary
 #------------------------
-# Define namedtuple for results
-ExtraInfo = namedtuple('ExtraInfo', ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size'])
+def summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, result_exp_dir, extra_info):
+    summary = f"""
+    Model Training Summary
+    =========================
+    Model variant: All samples
+    Model: {model_declared}
+    Samples for training {row['train_size'].item()}
+    Optimizer lr:   {optimizer.param_groups[0]['lr']}
+    Number of epochs: {row['epochs'].item()}
+    Model layers: {row['layers'].item()}
+    Model hidden channels: {row['channels'].item()}
+    -----------------------------------------------
+    Seed: {extra_info.n_seed}
+    DataLoaders batch size: {extra_info.batch_size}
+    Training data paths: \n{train_dirs}
+    -----------------------------------------------
+    Validation data path: \n{eval_dirs}\n
+    -----------------------------------------------
+    Validation samples: {extra_info.validation_samples}
+    Pearson Correlation:  {performance_list.corrP}    
+    Spearman Correlation: {performance_list.corrS}   
+    Maximum node accuracy: {performance_list.acc}  
+    Running time seconds: {extra_info.total_elapsed}
+    Epochs performed: {extra_info.epochs_runned}
+    """
+    with open(f'{result_exp_dir}/training_summary.txt', 'w') as f:
+        f.write(summary)
+    log.info(summary)
 
-# ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples', 'eval_interval', 'patience', 'batch_size']
-extra_info = ExtraInfo(len(loss_history), n_seed, total_elapsed, len(eval_data), eval_interval, patience, batch_size)
-summarize(model_declared, optimizer, row, train_dirs, eval_dirs, performance_list, results_dir, extra_info)
+
+# Define namedtuple for results
+ExtraInfo = namedtuple('ExtraInfo', ['epochs_runned', 'n_seed', 'total_elapsed', 'validation_samples',  'batch_size'])
+extra_info = ExtraInfo(len(loss_history), n_seed, total_elapsed, len(eval_data), batch_size)
+summarize(model_declared, optimizer, hyperparams, train_dirs, eval_dirs, performance_list, results_dir, extra_info)
 
 #------------------------
 # Section: Save metrics result_exp_dir
