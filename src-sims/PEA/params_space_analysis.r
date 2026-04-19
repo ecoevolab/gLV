@@ -94,8 +94,8 @@ cat('>> The number of cores to use are: ', ncore, '\n')
 
 # Parallelize
 results_summary <- mclapply(
-  #seq_len(nrow(params_df)),
-  seq_len(200),
+  seq_len(nrow(params_df)),
+  # seq_len(200),
   wrapper,
   df_params       = params_df,
   mc.cores        = ncore
