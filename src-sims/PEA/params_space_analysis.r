@@ -111,6 +111,10 @@ arrow::write_feather(x = as.data.frame(result_df), sink = info_path)
 #-------------------------------------------
 library(dplyr)
 
+# result_dir <- "/mnt/data/sur/users/mrivera/Data/PEA"    # directory to save   
+# params_df <- data.table::fread('/mnt/data/sur/users/mrivera/Data/PEA/simulation_params.tsv')
+# result_df <- arrow::read_feather('/mnt/data/sur/users/mrivera/Data/PEA/params_space_smry.feather')
+
 summary_df <- params_df %>% 
 select( n_species, p_neg, p_noint, p_pos, id) %>%   # Select columns
 filter(id %in% result_df$id) %>%                    # Filter by ids in results
@@ -118,6 +122,16 @@ left_join(result_df, by = "id") %>%                 # Joint na counts
 group_by(n_species, p_neg, p_noint) %>%             # group by parameters
 summarise(na_count_mean= mean(na_count == TRUE, na.rm = TRUE), .groups = "drop") 
 
+# Add missing combinations with NA values for the heatmap
+missing_rows <- expand.grid(
+    p_noint      = 1,
+    p_neg        = unique(summary_df$p_neg),
+    n_species    = unique(summary_df$n_species)
+)
+missing_rows$na_count_mean <- NA  # will get the special color
+
+# Add to summary_df
+summary_df <- rbind(summary_df, missing_rows)
 tictoc::toc() 
 
 #------------------------------------------
@@ -139,38 +153,41 @@ custom_theme <- function(){
     legend.title    = element_text(size = 9, face = "bold"),
     legend.text     = element_text(size = 8),
     panel.grid      = element_blank(),
-    panel.border    = element_rect(color = "black", fill = NA, linewidth = 1.5),
+    # panel.border    = element_rect(color = "black", fill = NA, linewidth = 1.5),
     plot.margin     = margin(10, 15, 10, 10)
   )
 }
 
-# Create plot
 p <- ggplot(summary_df, aes(x = p_neg, y = p_noint, fill = na_count_mean)) +
-    facet_wrap(~ n_species, labeller = label_both) +
-    # Add tiles with heatmap colors
-    geom_tile(color = "white", linewidth = 0.25) +
-    scale_fill_gradientn(colours = c("#fee8c8", "#e34a33"), labels = scales::percent, values = c(0,1)) +
-    # Scale axes 
-    scale_x_continuous(labels = scales::percent, breaks = seq(0, 1, by = 0.1), expand = c(0, 0)) +
-    scale_y_continuous(labels = scales::percent, breaks = seq(0, 1, by = 0.1), expand = c(0, 0)) +
-    # theme_minimal(base_size = 11, base_family = "serif") +
-    # Custom theme adjustments
-    custom_theme() +
-    # Add labels
-    labs(
-        title    = "Proportion of failed simulations by parameter combination",
-        subtitle = "Arrows indicate the increase in null(gray) and negative (red) interactions",
-        x        = "Prop. negative interactions (off-diagonal and not null)",
-        y        = "Prop. null interactions (off-diagonal)",
-        fill     = "Failed\nsimulations"
-    ) +
-    # Highlighted row
-    geom_rect(xmin = -Inf, xmax = Inf, ymin = 0.95, ymax = 1.05, fill = alpha("#65e7eb77", 0.2), color = "white", linewidth = 0.6) +
-    # Negative interaction arrow
-    annotate("segment", x = 0, xend = 0.9, y = 0, yend = 0, colour = "#c0392b", linewidth = 0.9, arrow = arrow(length = unit(0.2, "cm"), type = "closed")) + 
-    # Null interaction arrow
-    annotate("segment", x = 0, xend = 0, y = 0, yend = 0.9, colour = "#808080", linewidth = 0.9, arrow = arrow(length = unit(0.2, "cm"), type = "closed"))
-    
+  facet_wrap(~ n_species, labeller = as_labeller(c("10" = "S = 10", "30" = "S = 30", "50" = "S = 50", "100" = "S = 100"))) +
+  # Add tiles with heatmap colors
+  geom_tile(color = "white", linewidth = 0.25) +
+  scale_fill_gradientn(colours = c("#fee8c8", "#e34a33"), labels = scales::percent, values = c(0,1), na.value = "#2c3e50") +
+  # Scale axes 
+  scale_x_continuous(labels = scales::percent, breaks = seq(0, 1, by = 0.1), expand = c(0, 0)) +
+  scale_y_continuous(labels = scales::percent, breaks = seq(0, 1, by = 0.1), expand = c(0, 0)) +
+  # theme_minimal(base_size = 11, base_family = "serif") +
+  # Custom theme adjustments
+  custom_theme() +
+  # Add labels
+  labs(
+      title    = "Proportion of failed simulations by parameter combination",
+      subtitle = "Arrows indicate the increase in null(gray) and negative (red) interactions",
+      x        = "Prop. negative interactions (off-diagonal and not null)",
+      y        = "Prop. null interactions (off-diagonal)",
+      fill     = "Failed\nsimulations"
+  ) +
+  # Not simulated row
+  annotate("text", x = 0.5, y = 1.0, label = "Excluded", color = "white", size = 3.5, fontface = "italic") +
+  # Selected column
+  geom_rect(xmin = 0.95, xmax = 1.05, ymin = -0.05, ymax = 0.95, fill = NA, color = "#2ecc71", linewidth = 0.4) +
+  annotate("text", x = 1, y = 0.5, label = "Chosen", color = "#2ecc71", size = 3.5, fontface = "italic", angle = 90) +
+  # geom_rect(xmin = 0.95, xmax = 1.05, ymin = -Inf, ymax = Inf,  color = "#a8d5b5", linewidth = 0.6) +
+  # Negative interaction arrow
+  annotate("segment", x = 0, xend = 1, y = 0, yend = 0, colour = "#c0392b", linewidth = 0.9, arrow = arrow(length = unit(0.2, "cm"), type = "closed")) + 
+  # Null interaction arrow
+  annotate("segment", x = 0, xend = 0, y = 0, yend = 0.9, colour = "#808080", linewidth = 0.9, arrow = arrow(length = unit(0.2, "cm"), type = "closed"))
+
 
 # Save plot in best quality
 ggsave(filename = file.path(result_dir, "params_space_heatmap.png"), plot = p, width = 10, height = 8, dpi = 300)
