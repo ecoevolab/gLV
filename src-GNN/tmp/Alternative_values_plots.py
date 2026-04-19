@@ -29,7 +29,12 @@ correlationS, _ = spearmanr(mt.flatten(), mp.flatten())
 import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots()
-hb = ax.hexbin(x=mp.flatten(), y=mt.flatten(), gridsize=30, cmap="Blues")
+# hb = ax.hexbin(x=mp.flatten(), y=mt.flatten(), gridsize=30, cmap="Blues")
+x = np.log1p(mp.flatten())
+y = np.log1p(mt.flatten())
+
+hb = ax.hexbin(x=x, y=y, gridsize=50, cmap='Blues', mincnt=1, bins='log')
+# hb = ax.hexbin(x=mp.flatten(), y=mt.flatten(), gridsize=50, cmap='Blues', xscale='log', yscale='log', mincnt=1)
 plt.colorbar(hb, ax=ax, label="Count")
 
 ax.plot([0, 1], [0, 1], 'r--', linewidth=1.5, label="Ideal")
