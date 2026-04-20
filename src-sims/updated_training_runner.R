@@ -47,7 +47,7 @@ generate_params <- function (n_reps = 100){
   return(dt)
 }
 
-n_reps = 1000
+n_reps = 2000
 df_params <- generate_params(n_reps)
 # Verify if ids are unique and in case they are, save the parameters.
 while (nrow(df_params) != length(unique(df_params$id))) {
