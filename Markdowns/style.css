@@ -24,11 +24,12 @@ h2 {
 }
 
 body {
-  max-width: 900px;
-  margin: 40px auto;
+  max-width: 2200px;
+  margin: auto;
   padding: 0 20px;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.7;
   color: #333;
   background: #ffffff;
 }
+
