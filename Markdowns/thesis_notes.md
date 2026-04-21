@@ -79,3 +79,9 @@ Data path: `/mnt/data/sur/users/mrivera/Data/Controls/Boosted_keystone`
 
 ## Impact quantification
 Community-level impact was assessed for both the full community and a sub-community restricted to surviving species. Relative abundance, dissimilarity, and keystoneness were computed independently for each case.
+
+Data path: `/mnt/data/sur/users/mrivera/Data/clean_controls/ImpactAnalysis_9ee93e`
+
+![Figure 12: Metric distributions for survival species with full-community extinctions impact]("/mnt/data/sur/users/mrivera/Data/clean_controls/ImpactAnalysis_9ee93e/full_metrics_distribution.png")
+
+![Figure 13: Metric distributions for survival species with sub-community extinctions impact]("/mnt/data/sur/users/mrivera/Data/clean_controls/ImpactAnalysis_9ee93e/sub_metrics_distribution.png")
