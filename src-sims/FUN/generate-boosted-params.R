@@ -19,49 +19,34 @@
 #' `M` Interaction matrix with diagonal `-0.5` and non diagonal elements with zeroes,
 #'  positive interactions or negatives. 
 
-gen_Kboost_params <- function(index) {
-  #-------------------Extract info--------------------------#
-  n_species <- as.numeric(index[["n_species"]])
-  # Extract ID
-  id <- index[["id"]]
-  #------------------Populations-----------------------------#
-  set.seed(as.numeric(index[["x0_seed"]]))
-  x0 <- stats::runif(n_species, min = 0.1, max = 1)
-  #------------------------Growth Rates---------------------#
-  set.seed(as.numeric(index[["mu_seed"]]))
-  mu <- stats::runif(n_species, min = 0.001, max = 1)
-  #--------------------Interactions-------------------------#
-  # Section: Define proportions for zero and negative values
-  p_noint <- as.numeric(index[["p_noint"]])
-  p_neg <- as.numeric(index[["p_neg"]])
-  k = as.numeric(index[["key"]])  # Keystone specie
-  #------------------------
-  # Define the number of interactions
-  # Removed diagonal elements n
-  total = (n_species**2) - n_species 
-  num_noint = floor(p_noint * total)      # null-interactions
-  remaining = total - num_noint           # Non-zero-interactions
-  num_negs = floor(p_neg * remaining)     # Negative interactions
-  num_pos = remaining - num_negs
-  #------------------------
-  # Create the interaction vector
-  set.seed(as.numeric(index[["A_seed"]]))
-  interaction_values <- c(rep(0, num_noint),-runif(num_negs, min = 0, max = 1),runif(num_pos, min = 0, max = 1))
-  # Shuffle the interaction vector
-  set.seed(as.numeric(index[["A_seed"]]))
-  interaction_values <- sample(interaction_values)
-  #------------------------
-  # Create matrix of TRUE masking
-  mask <- matrix(TRUE, n_species, n_species)    # mask matrix
-  diag(mask) <- FALSE                           # remove diagonal
-  # Generate matrix to fill
-  M <- matrix(NA, n_species, n_species)     # values matrix
-  M[mask] <- interaction_values             # add values
-  M[,k] = M[,k] * 10                        # Boost keystone effects
-  diag(M) <- -0.5                           # fill diagonal
-  # Optional: Round if needed
-  M <- round(M, digits = 5) 
-  # Return parameters as a list
-  params <- list(x0 = x0, M = M, mu = mu, id = id, n = n_species)
-  return(params)
+gen_Kboost_params <- function(row) {
+    # Load parameters
+    n  <- as.numeric(row[["n_species"]])
+    k  <- as.numeric(row[["key"]])
+    p_noint <- as.numeric(row[["p_noint"]])
+    p_neg   <- as.numeric(row[["p_neg"]])
+    # Abort if k does not exist
+    if (!("key" %in% names(row))) {
+      print('Aborting, k does not exist') 
+      return(NULL)
+    }
+    # Initial population
+    set.seed(as.numeric(row[["x0_seed"]]))
+    x0 <- runif(n, min = 0.1, max = 1)
+    # Growth rates
+    set.seed(as.numeric(row[["mu_seed"]]))
+    mu <- runif(n, min = 0.001, max = 1)
+    # Interaction counts
+    n_offdiag <- n^2 - n                                # off-diagonal elements 
+    n_noint   <- floor(p_noint * n_offdiag)             # null interactions
+    n_neg     <- floor(p_neg * (n_offdiag - n_noint))   # negative interactions
+    n_pos     <- n_offdiag - n_noint - n_neg            # positive interactions
+    # Interaction matrix
+    set.seed(as.numeric(row[["A_seed"]]))
+    M        <- matrix(NA, n, n)
+    diag(M)  <- -0.5
+    M[!diag(n)] <- sample( c(rep(0, n_noint),-runif(n_neg, min = 0, max = 1), runif(n_pos, min = 0, max = 1)) ) 
+    M[, k] <- M[, k] * 10
+    M  <- round(M, 5)
+    list(x0 = x0, M = M, mu = mu, id = row[["id"]], n = n)
 }
