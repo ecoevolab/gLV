@@ -38,6 +38,7 @@ generate_params <- function(samples = 100) {
   n_total   <- nrow(dt)
   all_seeds <- matrix(sample.int(3e6L, 3L * n_total, replace = FALSE), ncol = 3) 
   dt[, `:=`(
+      key     = sample(x = 1:30, size = n_total, replace = TRUE),  # keystone specie
       id       = ids::random_id(n = n_total, bytes = 4),
       x0_seed  = all_seeds[, 1],                                                  
       mu_seed  = all_seeds[, 2],                                                  
@@ -46,6 +47,7 @@ generate_params <- function(samples = 100) {
 }
 
 df_params <- generate_params(samples = 1000)
+# gen_Kboost_params(row = df_params[1, ])
 # Verify if ids are unique and in case they are, save the parameters.
 while (nrow(df_params) != length(unique(df_params$id))) {
   df_params <- generate_params(samples = 1000) # Repeat function
