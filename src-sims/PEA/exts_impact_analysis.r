@@ -97,20 +97,56 @@ build_topology <- function(A) {
 }
 
 #----------------------------------------------
+# Section: All extinctions function
+#----------------------------------------------
+sim_all_ext <- function(params) {
+  # Unperturbed community populations
+  x0      <- params$x0
+  rel_x0  <- x0 / sum(x0)
+  # Perturbate community
+  dplyr::bind_rows(lapply(1:params$n, function(i) {
+    # Remove species i from the parameters
+    tmp_params <- list(
+      x0 = x0[-i],
+      mu = params$mu[-i],
+      M  = params$M[-i, -i, drop = FALSE]
+    )
+    # Run simulation
+    new_out     <- solve_gLV(times = 1000, tmp_params)  
+    # population after extinction of species i
+    x_after     <- new_out[, ncol(new_out)]            
+    # population before extinction without species i
+    x_before    <- tmp_params$x0                          
+    # New extinctions after removing species i
+    n_ext       <- sum(x_after < 1e-6 & x_before > 1e-6)
+    bray_curtis <- 1 - (2 * sum(pmin(x_before, x_after))) / (sum(x_before) + sum(x_after))
+    # return df
+    data.frame(
+      specie           = i,
+      pop_initial      = x0[i],
+      rel_pop_initial  = rel_x0[i],
+      n_extinctions    = n_ext,
+      prop_extinctions = n_ext / length(x_before),
+      dissimilarity_bc = bray_curtis,
+      keystoneness     = bray_curtis * (1 - rel_x0[i]),
+      time_stability   = find_ts(new_out)
+    )
+  }))
+}
+
+#----------------------------------------------
 # Section: Sub-community impact function
 #----------------------------------------------
 library(dplyr)
-sim_sub_ext <- function(params, ext_threshold) {
+sim_sub_ext <- function(params, ext_threshold = 1e-06) {
   # Filter to surviving species
   rel_x0      <- params$x0 / sum(params$x0)
-  to_filter   <- which(rel_x0 >= ext_threshold)
-
+  to_filter   <- which(rel_x0 > ext_threshold)
   # Sub-community
   sub_x0  <- params$x0[to_filter]
   sub_mu  <- params$mu[to_filter]
   sub_M   <- params$M[to_filter, to_filter]
   rel_sub <- sub_x0 / sum(sub_x0)
-
   dplyr::bind_rows(lapply(seq_along(to_filter), function(i) {
       tmp_params <- list(
           x0 = sub_x0[-i],
