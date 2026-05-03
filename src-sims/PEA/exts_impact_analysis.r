@@ -17,7 +17,7 @@ start = Sys.time()
 # Indicate directories paths
 pdir <- "/mnt/data/sur/users/mrivera/Data/clean_controls"  # Parent-dir                                                
 id <- substr(ids::uuid(1, drop_hyphens = TRUE, use_time = TRUE), start=1, stop=6)            
-experiment_id <- paste0("ImpactAnalysis_", id) # Experiment-ID
+experiment_id <- paste0("Kboost_proof_", id) # Experiment-ID
 
 # Generate directory paths
 experiment_dir <- file.path(pdir, experiment_id)                    
