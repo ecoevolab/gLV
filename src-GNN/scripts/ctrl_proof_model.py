@@ -4,14 +4,15 @@ Generate proof of concept models
 2-May-2026
 """
 
-
+# Imports
 import os
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"  # Must be before torch import
 import sys
+import shutil
 import glob
 import time
 import random
 import logging
-import pickle
 from collections import namedtuple
 from functools import partial
 import importlib.metadata as metadata
@@ -33,6 +34,7 @@ from torch_geometric.utils import unbatch
 # Set up logging
 #-----------------------
 results_dir = '/home/mriveraceron/glv-research/Results/gnn_proof'
+shutil.rmtree(results_dir) if os.path.exists(results_dir) else None
 os.makedirs(results_dir, exist_ok=True)
 
 def make_logger(name, filepath):
@@ -79,108 +81,51 @@ for package, version in sorted(installed.items()):
 #-------------------------------
 # Section: Declare model
 #-------------------------------
-class GraphConv_AllFeats(nn.Module):
-    def __init__(self, hidden_channels=64, num_layers=5):
+class GraphConvModel(nn.Module):
+    def __init__(self, in_channels, hidden_channels=64, num_layers=5):
         super().__init__()
-        self.convs = nn.ModuleList()
-        # First layer: 1 -> hidden_channels
-        self.convs.append(GraphConv(13, hidden_channels))
-        # Middle layers: hidden_channels -> hidden_channels
-        for _ in range(num_layers - 2):
-            #self.convs.append(GATConv(hidden_channels*heads, hidden_channels, heads=heads))
-            self.convs.append(GraphConv(hidden_channels, hidden_channels))
-        # Last layer: hidden_channels -> 1
-        self.convs.append(GraphConv(hidden_channels, 1))
+        dims = [in_channels] + [hidden_channels] * (num_layers - 1) + [1]
+        self.convs = nn.ModuleList(GraphConv(dims[i], dims[i+1]) for i in range(num_layers))
     def forward(self, data):
         x, edge_index, edge_weight = data.x, data.edge_index, data.edge_weights
-        # Apply all layers except the last
-        for i, conv in enumerate(self.convs[:-1]):
-            x = conv(x, edge_index, edge_weight)
-            x = F.relu(x)
-        # Apply last layer with sigmoid
-        x = self.convs[-1](x, edge_index, edge_weight)
-        x = torch.sigmoid(x)
-        return x  # [num_nodes]
+        for conv in self.convs[:-1]:
+            x = F.relu(conv(x, edge_index, edge_weight))
+        return torch.sigmoid(self.convs[-1](x, edge_index, edge_weight))
 
-class GraphConv_dummy(nn.Module):
-    def __init__(self, hidden_channels=64, num_layers=5):
-        super().__init__()
-        self.convs = nn.ModuleList()
-        # First layer: 1 -> hidden_channels
-        self.convs.append(GraphConv(1, hidden_channels))        # At dummy input is 1
-        # Middle layers: hidden_channels -> hidden_channels
-        for _ in range(num_layers - 2):
-            #self.convs.append(GATConv(hidden_channels*heads, hidden_channels, heads=heads))
-            self.convs.append(GraphConv(hidden_channels, hidden_channels))
-        # Last layer: hidden_channels -> 1
-        self.convs.append(GraphConv(hidden_channels, 1))
-    def forward(self, data):
-        x, edge_index, edge_weight = data.x, data.edge_index, data.edge_weights
-        # Apply all layers except the last
-        for i, conv in enumerate(self.convs[:-1]):
-            x = conv(x, edge_index, edge_weight)
-            x = F.relu(x)
-        # Apply last layer with sigmoid
-        x = self.convs[-1](x, edge_index, edge_weight)
-        x = torch.sigmoid(x)
-        return x  # [num_nodes]
 
-def training_fn(model_declared, device, data_train, weights_path, loss_fn, optimizer, epochs, batch_size=30):
-    #------------------------------------------
-    # Section: Declare training variables
-    model_declared.train()
-    loss_history  =  []          # Loss at epoch
-    total_elapsed = 0            # Running time          
-    #---------------------
-    # Section: Create batches of data
+def training_fn(model, device, data_train, weights_path, loss_fn, optimizer, epochs, batch_size=30):
+    model.train()
     loader_train = DataLoader(data_train, batch_size, shuffle=True)
+    loss_history = []
+    total_elapsed = 0
     for epoch in tqdm(range(epochs), desc="Training"):
         start = time.time()
         epoch_loss = 0
-        #--------------------------
         for batch in loader_train:
-            #----------------------
-            # Move it to device and run model
-            # data = data_list[0]
             batch = batch.to(device)
             optimizer.zero_grad()
-            out = model_declared(batch)
+            out = model(batch)
             loss = loss_fn(out, batch.y)
-            # Verify if loss is finite
             if torch.isnan(loss):
-                log.error(f"NaN loss at epoch {epoch}, aborting.")
                 raise ValueError(f"NaN loss detected at epoch {epoch}")
-            loss.backward()         # Backpropagation, compute gradients
-            torch.nn.utils.clip_grad_norm_(model_declared.parameters(), max_norm=1.0) # Gradient clipping
-            optimizer.step()            # Update weights
-            epoch_loss += loss.item()   # Accumulate loss
-        #----------------------
-        # Append epoch loss to history
-        #----------------------
-        loss_history.append(epoch_loss)
-        # loss_history = np.append(loss_history, epoch_loss)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            epoch_loss += loss.item()
         elapsed = time.time() - start
         total_elapsed += elapsed
-        # Print every n epochs
+        loss_history.append(epoch_loss)
         if epoch % 100 == 0:
-            log.info(f"Epoch {epoch}: Loss = {epoch_loss}, Elapsed time: {elapsed:.2f}")
-        #----------------------
-        # Section: Evaluate model
-        #----------------------
-        # Model stops at last epoch
-        if epoch == epochs - 1:
-            loss_history = np.array(loss_history)
-            # Save weights
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model_declared.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': epoch_loss
-            }, weights_path)
-            break
-    # Summary
-    log.info(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
-    return  loss_history, total_elapsed
+            log.info(f"Epoch {epoch}: Loss={epoch_loss:.6f} | Time={elapsed:.2f}s")
+    # Save after all epochs
+    torch.save({
+        'epoch': epochs - 1,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': epoch_loss
+    }, weights_path)
+    log.info(f"Total elapsed: {total_elapsed:.2f}s ({total_elapsed/60:.2f} min)")
+    return np.array(loss_history), total_elapsed
 
 # Namedtuple
 MetricsResult     = namedtuple('MetricsResult', ['idxt', 'idxp', 'mt', 'mp', 'nodes'])
@@ -303,12 +248,9 @@ df = pd.DataFrame({
     'model':            ['full_feats', 'full_dummy', 'sub_feats', 'sub_dummy'],
     'train_size':       None,
     'eval_size':        None,
-    'tr_accuracy_idx':  None,
-    'tr_pearson_corr':  None,
-    'tr_spearman_corr': None,
-    'ev_accuracy_idx':  None,
-    'ev_pearson_corr':  None,
-    'ev_spearman_corr': None,
+    'ppv_idx':  None,
+    'pearson_corr':  None,
+    'spearman_corr': None,
     'elapsed_seconds':  None,
 })
 
@@ -327,27 +269,22 @@ Hidden channels: {hyperparams['channels']}
 Model layers: {hyperparams['layers']},
 Optimizer lr:   {hyperparams['lr']}
 Number of epochs: {hyperparams['epochs']}
-Seed used: {n_seed}
+Seed used: {n_seed}\n
 """
 with open(f'{results_dir}/training_summary.txt', 'w') as f:
     f.write(start_line)
 
-def summarize(model_name, model_declared, tr_size, ev_size, perf_tr, perf_ev, saving_path, elapsed):
+
+def summarize(model_name, model_declared, tr_size, ev_size, perf_ev, saving_path, elapsed):
     summary = f"""
     \n-----------------------------------------------
     Model name: {model_name}
     Model declared: {model_declared}
     Training samples: {tr_size}
-    Validation samples: {ev_size}
-
-    Pearson Correlation training:  {perf_tr.corrP}    
-    Spearman Correlation training: {perf_tr.corrS}   
-    Maximum node ppv training: {perf_tr.ppv} 
-
+    Validation samples: {ev_size} \n
     Pearson Correlation validation:  {perf_ev.corrP}    
     Spearman Correlation validation: {perf_ev.corrS}   
-    Maximum node ppv validation: {perf_ev.ppv} 
-
+    Maximum node ppv validation: {perf_ev.ppv} \n
     Running time seconds: {elapsed}
     Results saved at: {saving_path} \n
     """
@@ -355,62 +292,44 @@ def summarize(model_name, model_declared, tr_size, ev_size, perf_tr, perf_ev, sa
         f.write(summary)
     log.info(summary)
 
-# Testing line
-model_name, weights_file, npz_file, data_train, data_ev, dummy = run_configs[0]
 
-for model_name, weights_file, npz_file, data_train, data_ev, dummy in run_configs:
+def run_single(model_name, weights_file, npz_file, data_train, data_ev, dummy):
     # Model setup
-    if dummy:
-        model_declared = GraphConv_dummy(hidden_channels=channels, num_layers=layers).to(device)
-    else:
-        model_declared = GraphConv_AllFeats(hidden_channels=channels, num_layers=layers).to(device)
-    # Declare optimizer
-    optimizer      = optim.Adam(model_declared.parameters(), lr=lr)
-    log.info(f'>> Starting {model_name} training with train size {len(data_train)}, lr={lr}, epochs={epochs}')
-    # Create results directory
-    save_path = f'{results_dir}/{model_name}'
-    os.makedirs(save_path, exist_ok=True)
-    log.info(f'>> Model results will be saved at: {save_path}')
+    in_channels  = 1 if dummy else 13
+    model        = GraphConvModel(in_channels=in_channels, hidden_channels=channels, num_layers=layers).to(device)
+    optimizer    = optim.Adam(model.parameters(), lr=lr)
+    save_path    = f'{results_dir}/{model_name}'
     weights_path = os.path.join(save_path, weights_file)
-    # Get number of samples
     tr_size, ev_size = len(data_train), len(data_ev)
-    try:        
-        random.shuffle(data_train)
-        loss_history, total_elapsed = tr_loop(model_declared = model_declared, weights_path = weights_path, data_train=data_train, optimizer=optimizer)
-        # evaluate model
-        m_tr, p_tr = evaluate_split(data_train, model_declared, device, batch_size)
-        m_ev, p_ev = evaluate_split(data_ev,  model_declared, device, batch_size)
-        df.loc[df['model'] == model_name, [
-            'train_size', 'tr_accuracy_idx', 'tr_pearson_corr', 'tr_spearman_corr',
-            'eval_size', 'ev_accuracy_idx', 'ev_pearson_corr', 'ev_spearman_corr',
-            'elapsed_seconds'
-        ]] = [
-            tr_size, p_tr.ppv, p_tr.corrP, p_tr.corrS,
-            ev_size, p_ev.ppv, p_ev.corrP, p_ev.corrS,
-            total_elapsed,
-        ]
-        np.savez(os.path.join(save_path, npz_file),
-            idxt       = m_tr.idxt,
-            idxp_train = m_tr.idxp,
-            idxp_eval  = m_ev.idxp,
-            mt         = m_tr.mt,
-            mp_train   = m_tr.mp,
-            mp_eval    = m_ev.mp,
-            loss       = loss_history,
-            nodes_train = m_tr.nodes,
-            nodes_eval  = m_ev.nodes,
-        )
-        # Append summary
-        summarize(model_name = model_name, 
-                  model_declared = model_declared,
-                  tr_size=tr_size, 
-                  ev_size=ev_size, 
-                  perf_tr= p_tr, 
-                  perf_ev= p_ev,
-                  saving_path=save_path, 
-                  elapsed = total_elapsed)
-        # Save row
-        df.to_csv(f'{results_dir}/result_table.csv', index=False)
+    os.makedirs(save_path, exist_ok=True)
+    log.info(f'>> Starting {model_name} | train={tr_size} | lr={lr} | epochs={epochs}')
+    log.info(f'>> Results → {save_path}')
+    loss_history, total_elapsed = tr_loop(
+        model=model, weights_path=weights_path,
+        data_train=data_train, optimizer=optimizer
+    )
+    m_ev, p_ev = evaluate_split(data_ev, model, device, batch_size)
+    # Update dataframe
+    df.loc[df['model'] == model_name, ['train_size', 'eval_size', 'ppv_idx','pearson_corr', 
+                                       'spearman_corr', 'elapsed_seconds']
+                                       ] = [tr_size, ev_size, p_ev.ppv, p_ev.corrP, p_ev.corrS, total_elapsed]
+    # Save arrays
+    np.savez(os.path.join(save_path, npz_file), **{
+        'idxt': m_ev.idxt, 'idxp': m_ev.idxp,
+        'mt'  : m_ev.mt,   'mp'  : m_ev.mp,
+        'loss': loss_history, 'nodes': m_ev.nodes,
+    })
+    summarize(model_name=model_name, model_declared=model, tr_size=tr_size, 
+              ev_size=ev_size, perf_ev=p_ev, saving_path=save_path, elapsed=total_elapsed)
+    df.to_csv(f'{results_dir}/result_table.csv', index=False)
+
+
+# --- Loop ---
+for config in run_configs:
+    model_name, weights_file, npz_file, data_train, data_ev, dummy = config
+    try:
+        run_single(model_name, weights_file, npz_file, data_train, data_ev, dummy)
+        print(df)
     except ValueError as e:
         log.error(f"Training aborted for '{model_name}': {e}")
 
