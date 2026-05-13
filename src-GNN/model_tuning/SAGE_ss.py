@@ -132,15 +132,27 @@ tuning_df = pd.DataFrame({
 # Section: Declare model
 #-------------------------------
 class SageModel(nn.Module):
-    def __init__(self, in_channels, hidden_channels=64, num_layers=5):
+    def __init__(self, hidden_channels=64, num_layers=5):
         super().__init__()
-        dims = [in_channels] + [hidden_channels] * (num_layers - 1) + [1]
-        self.convs = nn.ModuleList(SAGEConv(dims[i], dims[i+1]) for i in range(num_layers))
+        self.convs = nn.ModuleList()
+        # First layer: 1 -> hidden_channels
+        self.convs.append(SAGEConv(13, hidden_channels))
+        # Middle layers: hidden_channels -> hidden_channels
+        for _ in range(num_layers - 2):
+            #self.convs.append(GATConv(hidden_channels*heads, hidden_channels, heads=heads))
+            self.convs.append(SAGEConv(hidden_channels, hidden_channels))
+        # Last layer: hidden_channels -> 1
+        self.convs.append(SAGEConv(hidden_channels, 1))
     def forward(self, data):
-        x, edge_index, edge_weight = data.x, data.edge_index, data.edge_weights
-        for conv in self.convs[:-1]:
-            x = F.relu(conv(x, edge_index, edge_weight))
-        return torch.sigmoid(self.convs[-1](x, edge_index, edge_weight))
+        x, edge_index = data.x, data.edge_index
+        # Apply all layers except the last
+        for i, conv in enumerate(self.convs[:-1]):
+            x = conv(x, edge_index)
+            x = F.relu(x)
+        # Apply last layer with sigmoid
+        x = self.convs[-1](x, edge_index)
+        x = torch.sigmoid(x)
+        return x  # [num_nodes]
 
 
 #-------------------------------
@@ -277,7 +289,7 @@ device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 loss_fn = nn.MSELoss()
 channels = 64
 layers = 5
-lr = 1e-03
+lr = 1e-05
 epochs = 700 
 batch_size = 40
 eval_loader = DataLoader(eval_data, batch_size=batch_size, shuffle=False)
@@ -310,7 +322,7 @@ for i, row in tuning_df.iterrows():
     seed_fn(seed=n_seed)
     # Model parameters
     data = random.sample(train_data, size) 
-    model = SageModel(in_channels=13, hidden_channels=channels, num_layers=layers).to(device)
+    model = SageModel(hidden_channels=channels, num_layers=layers).to(device)
     loss_history, total_elapsed = tr_loop(
         model=model,
         weights_path=f'{variant_dir}/model_weights.pth',
@@ -332,6 +344,7 @@ for i, row in tuning_df.iterrows():
         idxp  = model_metrics.idxp,
         mt   = model_metrics.mt,
         mp   = model_metrics.mp,
+        nodes = model_metrics.nodes,
         loss_history  = loss_history
     )
     #------------------------
