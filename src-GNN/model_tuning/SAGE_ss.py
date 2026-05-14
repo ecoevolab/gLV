@@ -105,28 +105,6 @@ eval_data = data_generator(data_dir, split='eval')
 
 log.info(f"Loaded data from: {data_dir} | Training samples: {len(train_data)} | Evaluation samples: {len(eval_data)}")
 
-#-------------------------------
-# Section: Generate grid
-#-------------------------------
-size = [1000,10000,25000,40000, len(train_data)] 
-names = [f'ss_{i}' for i in range(1, len(size)+1)]
-
-# Create a datafrane
-tuning_df = pd.DataFrame({
-    'model_id': names,
-    'train_size': size,
-    'elapsed(s)':None,
-    'mem_usage(mb)': None,
-    'channels': 64,
-    'layers': 5,
-    'learning_rate': 1e-03,
-    'epochs': 700,
-    'eval_size': None,
-    'ppv_idx': None,
-    'pearson_corr': None,
-    'spearman_corr': None
-})
-
 
 #-------------------------------
 # Section: Declare model
@@ -293,6 +271,28 @@ lr = 1e-05
 epochs = 700 
 batch_size = 40
 eval_loader = DataLoader(eval_data, batch_size=batch_size, shuffle=False)
+
+#-------------------------------
+# Section: Generate grid
+#-------------------------------
+size = [1000,10000,25000,40000, len(train_data)] 
+names = [f'ss_{i}' for i in range(1, len(size)+1)]
+
+# Create a datafrane
+tuning_df = pd.DataFrame({
+    'model_id': names,
+    'train_size': size,
+    'elapsed(s)':None,
+    'mem_usage(mb)': None,
+    'channels': channels,
+    'layers': layers,
+    'learning_rate': lr,
+    'epochs': epochs,
+    'eval_size': None,
+    'ppv_idx': None,
+    'pearson_corr': None,
+    'spearman_corr': None
+})
 
 tr_loop = partial(training_fn,
     device         = device,
