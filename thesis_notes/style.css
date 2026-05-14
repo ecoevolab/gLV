@@ -5,7 +5,7 @@ figure {
 img {
   display: block;
   margin: auto;
-  width: 50%;
+  width: 75%;
 }
 
 h1 {
@@ -24,7 +24,7 @@ h2 {
 }
 
 body {
-  max-width: 2200px;
+  max-width: 2000px;
   margin: auto;
   padding: 0 20px;
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
