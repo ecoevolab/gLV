@@ -1,11 +1,106 @@
 
+# Imports
+import os
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"  # Must be before torch import
+import logging
+import importlib.metadata as metadata
+import sys
+from collections import namedtuple
+import torch
+from torch_geometric.nn import GraphConv
+import torch.nn as nn
+import pandas as pd
+import numpy as np
+import torch.nn.functional as F
+import torch.optim as optim
+from torch_geometric.loader import DataLoader
+from torch_geometric.utils import unbatch
+from tqdm import tqdm
+import time
+from scipy.stats import pearsonr, spearmanr
+import random
+import glob
+from functools import partial
+import textwrap
+import shutil
+import pickle
+from itertools import product
+
+# Create result directory
+results_dir = '/home/mriveraceron/glv-research/updated_results/GraphConv_hpo'
+shutil.rmtree(results_dir) if os.path.exists(results_dir) else None
+os.makedirs(results_dir, exist_ok=True)
+
+
+def make_logger(name, filepath):
+    logger = logging.getLogger(name)
+    # info, warning, and error messages, but ignores debug.
+    logger.setLevel(logging.INFO)   
+    # Handler: Where does a log goes to? (file, console, etc.)
+    logger.handlers.clear()  # removes existing handlers 
+    # Propagate: when a logger handles a message, it also passes it up to its parent logger.
+    # With this messages do not appear twice
+    logger.propagate = False  # don't bubble up to root logger
+    formatter = logging.Formatter('%(asctime)s - %(message)s')
+    # File handler
+    file_handler = logging.FileHandler(filepath, mode='w')
+    file_handler.setFormatter(formatter)
+    # Console handler
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)  # Add timestamps
+    logger.addHandler(file_handler)         # Log to file
+    logger.addHandler(stream_handler)       # Log to console
+    return logger
+
+
+# Two independent loggers
+log     = make_logger('run_log',  f'{results_dir}/run_log.txt')
+pkglog  = make_logger('pkg_log',  f'{results_dir}/pkgs_log.txt')
+
+#  Route FUN.py logs into run_log 
+fun_logger = logging.getLogger("FUN")
+fun_logger.setLevel(logging.INFO)
+fun_logger.handlers.clear()
+fun_logger.propagate = False
+for handler in log.handlers:       # reuse run_log handlers
+    fun_logger.addHandler(handler)
+
+
+# Print imported packages and versions 
+installed = {dist.metadata['Name']: dist.metadata['Version'] for dist in metadata.distributions()}
+
+for package, version in sorted(installed.items()):
+    pkglog.info(f"{package}=={version}")
+    
+
+#-------------------------
+# Section: Generate data
+#-------------------------
+# Data for training
+def data_generator(data_path, split=5000):
+    data_list = []
+    paths = glob.glob(f'{data_path}/*.pt')
+    if not paths:
+        raise FileNotFoundError(f"No .pt files found under {data_path}/")
+    for path in paths:
+        data = torch.load(path, weights_only=False)
+        data_list.extend(data)
+    log.info(f"Total samples generated: {len(data_list)}")
+    return data_list[:split]
+
+# Generate training data
+data_path = '/home/mriveraceron/glv-research/data_null/d2f93775a813_train'
+train_data = data_generator(data_path = data_path, split = 5000)
+log.info(f"Loaded data from: {data_path} | Training samples: {len(train_data)}")
+
+# Generate evaluation data
+eval_data = data_generator(data_path = '/home/mriveraceron/glv-research/data_null/efa83c9fafa0_eval', split = 1000)
+log.info(f"Loaded data from: {data_path} | Evaluation samples: {len(eval_data)}")
+
 
 #-------------------------------
 # Section: Generate grid
 #-------------------------------
-from itertools import product
-import pandas as pd
-
 layers = [5,10]
 LearnR = [1e-1, 1e-3, 1e-5, 1e-7]
 channels = [64,128]
@@ -15,24 +110,22 @@ names = [f'Variant_{i}' for i in range(1, len(pairs)+1)]
 # Create a datafrane
 tuning_df = pd.DataFrame({
     'model_id': names,
+    'tr_size':None,
     'channels': [l[2] for l in pairs],
     'layers': [l[0] for l in pairs],
     'learning_rate': [l[1] for l in pairs],
     'epochs': 700,
-    'accuracy_idx': None,
+    'elapsed(s)': None,
+    'eval_size': None,
+    'ppv_idx': None,
     'pearson_corr': None,
-    'spearman_corr': None
+    'spearman_corr': None,
 })
 
 #-------------------------------
 # Section: Declare model
 #-------------------------------
-import torch 
-import torch.nn as nn
-import torch.nn.functional as F
-from torch_geometric.nn import GraphConv
-
-class model(nn.Module):
+class GraphConv_Model(nn.Module):
     def __init__(self, hidden_channels=64, num_layers=5):
         super().__init__()
         self.convs = nn.ModuleList()
@@ -40,320 +133,220 @@ class model(nn.Module):
         self.convs.append(GraphConv(13, hidden_channels))
         # Middle layers: hidden_channels -> hidden_channels
         for _ in range(num_layers - 2):
-            #self.convs.append(GATConv(hidden_channels*heads, hidden_channels, heads=heads))
             self.convs.append(GraphConv(hidden_channels, hidden_channels))
         # Last layer: hidden_channels -> 1
         self.convs.append(GraphConv(hidden_channels, 1))
     def forward(self, data):
-        x, edge_index, edge_weight = data.x, data.edge_index, data.edge_weights
+        x, edge_index = data.x, data.edge_index
         # Apply all layers except the last
-        for i, conv in enumerate(self.convs[:-1]):
-            x = conv(x, edge_index, edge_weight)
+        for conv in self.convs[:-1]:
+            x = conv(x, edge_index)
             x = F.relu(x)
         # Apply last layer with sigmoid
-        x = self.convs[-1](x, edge_index, edge_weight)
+        x = self.convs[-1](x, edge_index)
         x = torch.sigmoid(x)
         return x  # [num_nodes]
 
+
 #-------------------------------
-# Section: Evaluation function at last epoch
+# Section: Evaluation functions
 #-------------------------------
+
+# Namedtuple
+MetricsResult     = namedtuple('MetricsResult', ['idxt', 'idxp', 'mt', 'mp', 'nodes'])
+PerformanceResult = namedtuple('PerformanceResult', ['ppv', 'corrP', 'corrS'])
+
 def collect_metrics(loader, model_declared, device):
-    idxt, idxp, mt, mp = [], [], [], []
+    idxt, idxp, mt, mp, nodes = [], [], [], [], []
     try:
         model_declared.eval()
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to(device)
                 out = model_declared(batch)
-                y_list = unbatch(batch.y, batch.batch)
-                out_list = unbatch(out, batch.batch)
-                for y, o in zip(y_list, out_list):
-                    idxt.append(torch.argmax(y, dim=0))
-                    idxp.append(torch.argmax(o, dim=0))
+                for y, o in zip(unbatch(batch.y, batch.batch), unbatch(out, batch.batch)):
+                    idxt.append(torch.argmax(y, dim=0))   # 0-dim tensor
+                    idxp.append(torch.argmax(o, dim=0))   # 0-dim tensor
                     mt.append(y)
                     mp.append(o)
-        # Convert to arrays
-        idxt = torch.stack(idxt).cpu().numpy()
-        idxp = torch.stack(idxp).cpu().numpy()
-        mt = torch.cat(mt).cpu().numpy()
-        mp = torch.cat(mp).cpu().numpy()
-        return idxt, idxp, mt, mp
+                    nodes.append(y.shape[0])              # plain int
     finally:
         model_declared.train()
-    
-#-------------------------------
-# Section: Training function 
-#-------------------------------
-import glob
-import time
-import random
-import pandas as pd
-from tqdm import tqdm
-import os
+    return MetricsResult(
+            torch.cat(idxt).cpu().numpy(),   # stack, not cat
+            torch.cat(idxp).cpu().numpy(),   # stack, not cat
+            torch.cat(mt).cpu().numpy(),
+            torch.cat(mp).cpu().numpy(),
+            np.array(nodes),                   # np.array, not torch.cat
+        )
 
-from torch_geometric.utils import unbatch
-from torch_geometric.loader import DataLoader
+def compute_metrics(metrics_list):
+    idxt, idxp = metrics_list.idxt, metrics_list.idxp
+    mt, mp = metrics_list.mt, metrics_list.mp
+    ppv = np.mean(np.array(idxt) == np.array(idxp))
+    if np.std(mt) == 0 or np.std(mp) == 0:
+        log.warning("Cannot compute correlation: one input is constant.")
+        correlationP = correlationS = float('nan')
+    else:
+        correlationP, _ = pearsonr(mt.flatten(), mp.flatten())
+        correlationS, _ = spearmanr(mt.flatten(), mp.flatten())
+    return PerformanceResult(ppv, correlationP, correlationS)
 
-def training_DLloop(model_declared, device, all_data, weights_path, loss_fn, optimizer, epochs=100):
-    #------------------------------------------
-    model_declared.train()
-    loss_history  =  []                   # Loss at epoch
-    mt, mp, idxt, idxp = None, None, None, None
-    total_elapsed = 0                   # Running time
-    is_last_epoch = False
-    # Early stopping
-    patience = np.floor(epochs * 0.2)   # Epochs to wait
-    best_loss = float('inf')            # Best loss
-    no_improve = 0
-    #---------------------
-    # Section: Create batches of data
-    loader = DataLoader(all_data, batch_size=30, shuffle=False)
-    for epoch in tqdm(range(epochs), desc="Training"):
-        start = time.time()
-        epoch_loss = 0
-        #--------------------------
-        for batch in loader:
-            #----------------------
-            # Move it to device and run model
-            # data = data_list[0]
-            batch = batch.to(device)
-            optimizer.zero_grad()
-            out = model_declared(batch)
-            loss = loss_fn(out, batch.y)
-            loss.backward()
-            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
-            epoch_loss += loss.item()   # Accumulate loss
-            if torch.isnan(loss):
-                tqdm.write(f"NaN loss detected at epoch {epoch}, stopping.")
-                is_last_epoch = True
-                break
-        #----------------------
-        # Append epoch loss to history
-        #----------------------
-        loss_history = np.append(loss_history, epoch_loss)
-        elapsed = time.time() - start
-        total_elapsed += elapsed
-        # Print every n epochs
-        if epoch % 10 == 0:
-            tqdm.write(f"Epoch {epoch}: Loss = {epoch_loss}, Elapsed time: {elapsed:.2f}")
-        #----------------------
-        # Section: At last epochs
-        #----------------------
-        # If it last epoch...
-        if epoch == epochs - 1:
-            is_last_epoch = True
-        #----------------------
-        # Section: Early stopping
-        #----------------------
-        if epoch_loss < best_loss:
-            best_loss = epoch_loss
-            no_improve = 0
-        else :
-            no_improve += 1
-        if no_improve >= patience:
-            tqdm.write(f"Early stopping at epoch {epoch}, no improvement for {patience} epochs.")
-            is_last_epoch = True  
-        #----------------------
-        # Section: Evaluate model
-        #----------------------
-        if is_last_epoch:
-            loss_history = np.array(loss_history)
-            idxt, idxp, mt, mp = collect_metrics(loader, model_declared, device)
-            # Save weights
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model_declared.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': epoch_loss
-            }, weights_path)
-            break
-    # Summary
-    print(f'>> the total elapsed time with {epochs} epochs is {total_elapsed:.2f} seconds ( {total_elapsed/60:.2f} minutes)')   
-    return  loss_history, mt, mp, idxt, idxp, total_elapsed
+def evaluate_split(eval_loader, model, device):
+    metrics     = collect_metrics(eval_loader, model, device)
+    performance = compute_metrics(metrics)
+    return metrics, performance
 
 #-------------------------------
 # Section: Seeding function
 #-------------------------------
-import torch.optim as optim
-import numpy as np
-import random
-
 def seed_fn(seed=42):
-    # Set ALL seeds for full reproducibility
-    torch.manual_seed(seed)                 # Seed CPU 
-    torch.cuda.manual_seed(seed)            # Seed GPU
-    np.random.seed(seed)                    # Seed numpy
-    random.seed(seed)                       # Seed python random
-    torch.backends.cudnn.deterministic = True   # Ensure deterministic behavior
-    torch.backends.cudnn.benchmark = False 
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)        
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True, warn_only=True) 
 
-#------------------------------
-# Section: Helper function to handle NaN
-#-------------------------------
-def fmt(value, decimals=4):
-    val = value.item() if hasattr(value, 'item') else value
-    if val != val:  # NaN check (NaN != NaN is always True)
-        return 'NaN'
-    return f'{val:.{decimals}f}'
-
-#------------------------------
-# Section: Runner function
-#-------------------------------
-import torch.optim as optim
-import matplotlib.pyplot as plt
-from scipy.stats import pearsonr
-from scipy.stats import spearmanr
-
-def wrapper(experiment_dir, row, all_data):
-    #----------------------
-    # Get variant information
-    name = row.loc['model_id']
-    lr = row.loc['learning_rate']
-    layers = row.loc['layers']
-    channels = row.loc['channels']
-    epochs = row.loc['epochs']
-    #---------------------
-    # Set seed and run model
-    loss_fn = nn.MSELoss()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    n_seed = 42
-    seed_fn(n_seed)
-    model_declared = model(hidden_channels=int(channels), num_layers=int(layers)).to(device)
-    optimizer = optim.Adam(model_declared.parameters(), lr=lr)
-    print('Starting training of model:', name, '\n')
-    print('The number of epochs will be:', epochs, '\n')
-    print('The optimizer LR will be:', optimizer.param_groups[0]['lr'], '\n')
-    #----------------------
-    # Declare directory to save model weights
-    model_results_dir = os.path.join(experiment_dir, name)
-    os.makedirs(model_results_dir, exist_ok=True)
-    weights_path = os.path.join(model_results_dir, f'model-weights.pth')
-    loss_history, metrics_true, metrics_pred, idx_max_true, idx_max_pred, total_elapsed = training_DLloop(model_declared, device, all_data, weights_path, loss_fn, optimizer, epochs)
-    # Save output
-    np.savez(f'{model_results_dir}/{name}-values.npz',
-        max_idx_true  = idx_max_true,
-        max_idx_pred  = idx_max_pred,
-        values_true   = metrics_true,
-        values_pred   = metrics_pred,
-        loss_history  = loss_history
-    )
-    #-------------------------------
-    # Section: Loss plot
-    #-------------------------------
-    plt.figure(figsize=(10, 5))
-    plt.plot(loss_history)
-    plt.title("Loss over time")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.grid(True)
-    plt.savefig(f'{model_results_dir}/DataLoss_plot.png')
-    plt.close()
-    #-------------------------------
-    # Section: Expected vs predicted maximum node
-    #-------------------------------
-    # Calculate accuracy
-    accuracy = np.mean(np.array(idx_max_true) == np.array(idx_max_pred))
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.scatter(idx_max_pred, idx_max_true, color='steelblue', s=80)
-    ax.text(0.95, 0.95, f'Accuracy: {accuracy:.2f}', transform=ax.transAxes,ha='right', va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-    ax.set_xlabel('Predicted max node', fontsize=13)
-    ax.set_ylabel('Expected max node', fontsize=13)
-    ax.set_title('Predicted maximum node', fontsize=15)
-    ax.grid(True, linestyle='--', alpha=0.6)
-    plt.tight_layout()
-    plt.savefig(f'{model_results_dir}/Indexes_plot.png',dpi=150)
-    plt.close()
-    #-------------------------------
-    # Section: Expected vs predicted values
-    #-------------------------------
-    # Generate correlations
-    # Case scenario: One vector is just one value (constant)
-    if np.std(metrics_true) == 0 or np.std(metrics_pred) == 0:
-        print("Cannot compute correlation: one input is constant.")
-        correlationP = float('nan')
-        correlationS = float('nan')
-    else:
-        correlationP, _ = pearsonr(metrics_true.flatten(), metrics_pred.flatten())
-        correlationS, _ = spearmanr(metrics_true.flatten(), metrics_pred.flatten())
-    # Plot
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.scatter(x = metrics_pred, y = metrics_true, color='steelblue', s=80)
-    ax.text(0.95, 0.95, 
-        f'Pearson Correlation: {correlationP:.4f}\nSpearman Correlation: {correlationS:.4f}',
-        transform=ax.transAxes, ha='right', va='top',
-        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
-    )
-    ax.set_xlabel('Predicted values', fontsize=13)
-    ax.set_ylabel('Expected values', fontsize=13)
-    ax.set_title('Keystoneness values', fontsize=15)
-    ax.grid(True, linestyle='--', alpha=0.6)
-    plt.tight_layout()
-    plt.savefig(f'{model_results_dir}/Values_plot.png',dpi=150)
-    plt.close()
-    #-------------------------------
-    # Generate Summary
-    #-------------------------------
-    summary = f"""
-    Model Training Summary
-    =========================
-    Model variant: {name}
-    Model: {model_declared}
-    Optimizer LR:   {optimizer.param_groups[0]['lr']}
-    Number of epochs: {epochs}
-    Model layers: {layers}
-    Model hidden channels: {channels}
-    Seed: {n_seed}
-    Data path: {experiment_data}
-    -----------------------------------------------
-    Pearson Correlation:  {fmt(correlationP)}  
-    Spearman Correlation: {fmt(correlationS)}  
-    Maximum node accuracy: {fmt(accuracy)}  
-    Running time seconds: {total_elapsed}
-    """
-    with open(f'{model_results_dir}/training_summary.txt', 'w') as f:
-        f.write(summary)
-    print(summary)
-    return accuracy, correlationP, correlationS
 
 #-------------------------------
-# Section: Generate data
+# Section: Summary function
 #-------------------------------
-import os
-import glob
-
-# Experiment data
-tensors_dir = '/home/mriveraceron/glv-research/data_tensors/'
-experiment_name = '91074c4e25b4'
-experiment_data = os.path.join(tensors_dir,experiment_name)
-batched_paths = glob.glob(f"{experiment_data}/TrainBatch_*.pt")
-
-all_data = []
-for path in batched_paths:
-    all_data.extend(torch.load(path, weights_only=False))
+def summarize(model_name, model, tr_size, ev_size, perf_tr, saving_path, elapsed):
+    summary = textwrap.dedent(f"""
+        \n-----------------------------------------------
+        Model name:          {model_name}
+        Model declared:\n      {model}
+        Training samples:    {tr_size}
+        Validation samples:  {ev_size} \n
+        Pearson Correlation:   {perf_tr.corrP}
+        Spearman Correlation:  {perf_tr.corrS}
+        Maximum node PPV:      {perf_tr.ppv} \n
+        Running time:   {elapsed:.2f}s ({elapsed/60:.2f} min)
+        Results saved:  {saving_path}\n
+    """).strip()
+    log.info(summary)
+    return summary
 
 #-------------------------------
-# Section: Create results directory
+# Section: Training function 
 #-------------------------------
-result_dir = '/home/mriveraceron/glv-research/tuning_results'
-experiment_dir = os.path.join(result_dir, experiment_name)
-print('The experiment result directory will be:', experiment_dir, '\n')
-os.makedirs(experiment_dir, exist_ok=True)
+def training_fn(model, model_name, device, data_train, weights_path, loss_fn, optimizer, epochs, batch_size=30):
+    model.train()
+    log.info(f'Starting training of model {model_name} \n')
+    data = DataLoader(data_train, batch_size, shuffle = True)
+    loss_history = []
+    total_elapsed = 0
+    for epoch in tqdm(range(epochs), desc="Training"):
+        start = time.time()
+        epoch_loss = 0
+        for d in data:
+            d = d.to(device)
+            # optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
+            out = model(d)
+            loss = loss_fn(out, d.y)
+            if torch.isnan(loss):
+                raise ValueError(f"NaN loss detected at epoch {epoch}")
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            # epoch_loss += loss.item()
+            epoch_loss += loss.detach()
+        epoch_elapsed = time.time() - start		# Epoch elapsed time
+        total_elapsed += epoch_elapsed			# Add it to model elapsed time
+        loss_history.append(epoch_loss.item())			# Append loss
+        if epoch % 50 == 0:
+            log.info(f"Epoch {epoch}: Loss={epoch_loss:.6f} | Time={epoch_elapsed:.2f}s")
+    # Save after all epochs
+    torch.save({
+        'epoch': epochs - 1,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': epoch_loss
+    }, weights_path)
+    log.info(f"Total elapsed: {total_elapsed:.2f}s ({total_elapsed/60:.2f} min)")
+    return np.array(loss_history), total_elapsed
 
 
-# Testing line
-row = tuning_df.iloc[1]
-accuracy, correlationP, correlationS = wrapper(experiment_dir, row, all_data)
+#-------------------------------
+# Section: Run model
+#-------------------------------
 
-# In the runner loop
+# Constant model parameters
+device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+loss_fn = nn.MSELoss()
+epochs = 700 
+batch_size = 40
+tr_size = len(train_data)
+ev_size = len(eval_data)
+eval_loader = DataLoader(eval_data, batch_size=batch_size, shuffle=False)
+
+# Shuffle training data and declare function
+tr_loop = partial(training_fn,
+    data_train     = train_data,
+    device         = device,
+    loss_fn        = loss_fn,
+    epochs         = epochs,
+    batch_size     = batch_size,
+)
+
+# Pre-define result columns to update (avoids repeated string literals)
+RESULT_COLS = ['ppv_idx', 'pearson_corr', 'spearman_corr', 'eval_size', 'tr_size', 'elapsed(s)']
+RESULTS_CSV = f'{results_dir}/tuning_results.csv'
+
 for i, row in tuning_df.iterrows():
-    accuracy, corrP, corrS = wrapper(experiment_dir, row, all_data)
-    tuning_df.loc[i, 'accuracy_idx'] = accuracy
-    tuning_df.loc[i, 'pearson_corr'] = corrP
-    tuning_df.loc[i, 'spearman_corr'] = corrS
-
-tmp = tuning_df.sort_values("pearson_corr", ascending=False)
-tmp.to_csv(f'{experiment_dir}/tuning_results.csv', index=False)  # save after each run
-# test = pd.read_csv(f'{experiment_dir}/tuning_results.csv')
-# print(tmp.to_markdown(index=False))
+    # ── Unpack config ──────────────────────────────────────────────
+    lr         = row['learning_rate']
+    model_name = row['model_id']
+    epochs     = row['epochs']
+    channels   = int(row['channels'])
+    layers     = int(row['layers'])
+    save_dir   = f'{results_dir}/{model_name}'
+    log.info(f'>> Starting model {model_name} | Train size: {tr_size}')
+    # ── Setup ──────────────────────────────────────────────────────
+    os.makedirs(save_dir, exist_ok=True)
+    log.info(f'>> Results will be saved at: {save_dir}')
+    seed_fn(seed=42)
+    model = GraphConv_Model(hidden_channels=channels, num_layers=layers).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    # ── Train ──────────────────────────────────────────────────────
+    loss_history, total_elapsed = tr_loop(
+        model=model,
+        model_name = model_name,
+        weights_path=f'{save_dir}/model_weights.pth',
+        optimizer=optimizer,
+    )
+    log.info(f'Finished training in {total_elapsed:.2f}s')
+    # ── Evaluate ───────────────────────────────────────────────────
+    model_metrics, model_performance = evaluate_split(eval_loader, model, device)
+    summarize(
+        model_name=model_name, model=model,
+        tr_size=tr_size, ev_size=ev_size,
+        perf_tr=model_performance,
+        saving_path=save_dir, elapsed=total_elapsed,
+    )
+    # ── Save predictions ───────────────────────────────────────────
+    preds_path = f'{save_dir}/prediction_values.npz'
+    np.savez(
+        preds_path,
+        idxt=model_metrics.idxt,
+        idxp=model_metrics.idxp,
+        mt=model_metrics.mt,
+        mp=model_metrics.mp,
+        nodes=model_metrics.nodes,
+        loss_history=loss_history,
+    )
+    log.info(f'>> Predictions saved at: {preds_path}')
+    # ── Update results dataframe ───────────────────────────────────
+    tuning_df.loc[i, RESULT_COLS] = [
+        model_performance.ppv,
+        model_performance.corrP,
+        model_performance.corrS,
+        ev_size,
+        tr_size,
+        total_elapsed,
+    ]
+    tuning_df.to_csv(RESULTS_CSV, index=False)
