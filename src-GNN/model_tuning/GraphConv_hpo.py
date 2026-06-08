@@ -85,7 +85,9 @@ def data_generator(data_path, split=5000):
     for path in paths:
         data = torch.load(path, weights_only=False)
         data_list.extend(data)
-    log.info(f"Total samples generated: {len(data_list)}")
+    random.seed(42)  # For reproducibility
+    random.shuffle(data_list)
+    # log.info(f"Total samples generated: {len(data_list)}")
     return data_list[:split]
 
 # Generate training data
@@ -94,7 +96,8 @@ train_data = data_generator(data_path = data_path, split = 5000)
 log.info(f"Loaded data from: {data_path} | Training samples: {len(train_data)}")
 
 # Generate evaluation data
-eval_data = data_generator(data_path = '/home/mriveraceron/glv-research/data_null/efa83c9fafa0_eval', split = 1000)
+data_path = '/home/mriveraceron/glv-research/data_null/efa83c9fafa0_eval'
+eval_data = data_generator(data_path, split = 1000)
 log.info(f"Loaded data from: {data_path} | Evaluation samples: {len(eval_data)}")
 
 
