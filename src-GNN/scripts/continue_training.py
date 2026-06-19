@@ -25,26 +25,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GraphConv, SAGEConv
 import logging
-import importlib.metadata as metadata
 import sys
-from collections import namedtuple
 import torch
-import torch.nn as nn
-import pandas as pd
 import numpy as np
-import torch.nn.functional as F
 import torch.optim as optim
-from torch_geometric.loader import DataLoader
-from torch_geometric.utils import unbatch
-from tqdm import tqdm
-import time
-from scipy.stats import pearsonr, spearmanr
 import random
 import glob
-from functools import partial
 import textwrap
 import shutil
-import pickle
 
 
 # Section: Declare logging configuration and handler to redirect the logs to a file.
@@ -76,21 +64,22 @@ def make_logger(name, filepath):
     logger.addHandler(stream_handler)       # Log to console
     return logger
 
-def reroute_logger(source_name: str, target_logger: logging.Logger) -> None:
-    # Redirect functions logger's output into another logger's handlers.
-    source_logger = logging.getLogger(source_name)
-    source_logger.setLevel(logging.INFO)
-    # remove existing handlers and prevent propagation to avoid duplicate logs
-    source_logger.handlers.clear() 
-    source_logger.propagate = False
-    for handler in target_logger.handlers:
-        source_logger.addHandler(handler)
- 
-# Two independent loggers
-log     = make_logger('run_log',  f'{results_dir}/run_log.txt')
+# Reroute prints to logger file
+class StreamToLogger:
+    def __init__(self, logger, level=logging.INFO):
+        self.logger = logger
+        self.level = level
+    def write(self, message):
+        message = message.strip()
+        if message:
+            self.logger.log(self.level, message)
+    def flush(self):
+        pass
 
-# Reroute evaluation logger to the main logger to keep all logs in a single file.
-reroute_logger('FUN', log)
+# Generate log file and redirect stdout to it. All prints will be in the log file.
+log     = make_logger('run_log',  f'{results_dir}/run_log.txt')
+sys.stdout = StreamToLogger(log, logging.INFO)
+ 
 
 #-------------------------------
 # Section: Declare model
@@ -109,6 +98,7 @@ class GraphConv_model(nn.Module):
             x = F.relu(conv(x, edge_index, edge_weight))
         return torch.sigmoid(self.convs[-1](x, edge_index, edge_weight))
     
+
 class SAGE_model(nn.Module):
     def __init__(self, in_channels, hidden_channels=64, num_layers=5):
         super().__init__()
@@ -140,7 +130,7 @@ eval_data = data_generator(data_dir, split='eval')
 
 print(f"Loaded data from: {data_dir} | Training samples: {len(train_data)} | Evaluation samples: {len(eval_data)}")
 
-
+#-------------------------
 # Section: Seed function for reproducibility
 def seed_fn(seed=42):
     torch.manual_seed(seed)
@@ -152,11 +142,12 @@ def seed_fn(seed=42):
     torch.backends.cudnn.benchmark = False
     torch.use_deterministic_algorithms(True, warn_only=True) 
 
+
 # Section: Summary function to log training results
-def summarize(model_name, model, tr_size, ev_size, perf_tr, saving_path, elapsed):
+def summarize( model, tr_size, ev_size, perf_tr, saving_path, elapsed):
     summary = textwrap.dedent(f"""
         \n-----------------------------------------------
-        Model name:          {model_name}
+        Model name:          {model.__class__.__name__ }
         Model declared:\n      {model}
         Training samples:    {tr_size}
         Validation samples:  {ev_size} \n
@@ -164,13 +155,74 @@ def summarize(model_name, model, tr_size, ev_size, perf_tr, saving_path, elapsed
         Spearman Correlation:  {perf_tr.corrS}
         Maximum node PPV:      {perf_tr.ppv} \n
         Running time:   {elapsed:.2f}s ({elapsed/60:.2f} min)
-        Results saved:  {saving_path}\n
+        Results saved:  \n{saving_path}\n
     """).strip()
-    log.info(summary)
-    return summary
+    with open(f'{results_dir}/training_summary.txt', 'w') as f:
+        f.write(summary)
+    print('>> Training summary generated!')
 
 
+#------------------------------------------------------------
 # Section: Source training and evaluation functions.
+import sys
+sys.path.append('/home/mriveraceron/glv-research/gLV/src-GNN/FUN')
+from training_fun import training_fn
+from evaluation_fun import collect_metrics, compute_metrics, evaluate_split
 
-
+#------------------------------------------------------------
 # Section: Train model and evaluate it
+# Declare model
+device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = GraphConv_model(in_channels=13, hidden_channels=64, num_layers=5)
+model.to(device)
+loss_fn = nn.MSELoss()
+extra_epochs = 10 
+batch_size = 40
+optimizer = optim.Adam(model.parameters())
+
+# Load previously trained model weights and continue training. 
+pretrained_weights_path = '/home/mriveraceron/glv-research/updated_results/GraphConv_ss/ss_5/model_weights.pth'
+checkpoint = torch.load(pretrained_weights_path, weights_only=False)
+
+# Current model weights, loss and optimizer
+model.load_state_dict(checkpoint['model_state_dict'])
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+epoch = checkpoint['epoch']
+total_epochs = epoch + extra_epochs
+loss = checkpoint['loss']
+print(f"Loaded model weights from {pretrained_weights_path} | Current epoch: {epoch} | Current epoch loss: {loss:.6f}")
+
+# Continue training
+new_weights_path = f'{results_dir}/model_weights.pth'
+loss_history, train_elapsed = training_fn(model, device, train_data[1:1000], new_weights_path, loss_fn, optimizer, extra_epochs, batch_size=30)
+
+# Save the new parameters
+torch.save({
+    'epoch': total_epochs,
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'loss': loss_history[-1],
+}, new_weights_path)
+
+
+#------------------------------------------------------------
+# Evaluate the model 
+checkpoint = torch.load(new_weights_path, weights_only=False)
+metrics, performance = evaluate_split(eval_data, model, device, batch_size=30)
+
+# Generate summary
+summarize(model, tr_size = len(train_data), ev_size = len(eval_data), 
+          perf_tr = performance, 
+          saving_path = f'{results_dir}/model_summary.txt', 
+          elapsed = train_elapsed)
+
+"""
+Once we retrained our model we save the perdictions for later plotting or comparing purposes.
+npz file will be composed of:
+    - idxt: Node index with the maximum observed target value (e.g. 'keystoneness')
+    - idxp: Node index with the maximum predicted target value (e.g. 'keystoneness')
+    - mt: Observed true target values 
+    - mp: Predicted true target values
+
+"""
+np.savez(f'{results_dir}/metrics.npz', **metrics._asdict(), **performance._asdict())
