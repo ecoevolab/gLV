@@ -33,13 +33,12 @@ import numpy as np
 import time
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
-import logging
 
 
-# Option 1: via the instance
+# Declare function
 def training_fn(model, device, data_train, weights_path, loss_fn, optimizer, epochs, batch_size=30):
     model.train()
-    log.info(f'Starting training of model {model.__class__.__name__ } \n')
+    print(f'Starting training of model {model.__class__.__name__ } \n')
     data = DataLoader(data_train, batch_size, shuffle = True)
     loss_history = []
     total_elapsed = 0
@@ -63,7 +62,7 @@ def training_fn(model, device, data_train, weights_path, loss_fn, optimizer, epo
         total_elapsed += epoch_elapsed			# Add it to model elapsed time
         loss_history.append(epoch_loss.item())			# Append loss
         if epoch % 50 == 0:
-            log.info(f"Epoch {epoch}: Loss={epoch_loss:.6f} | Time={epoch_elapsed:.2f}s")
+            print(f"Epoch {epoch}: Loss={epoch_loss:.6f} | Time={epoch_elapsed:.2f}s")
     # Save after all epochs
     torch.save({
         'epoch': epochs - 1,
@@ -71,5 +70,5 @@ def training_fn(model, device, data_train, weights_path, loss_fn, optimizer, epo
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': epoch_loss
     }, weights_path)
-    log.info(f"Total elapsed: {total_elapsed:.2f}s ({total_elapsed/60:.2f} min)")
+    print(f"Total elapsed: {total_elapsed:.2f}s ({total_elapsed/60:.2f} min)")
     return np.array(loss_history), total_elapsed

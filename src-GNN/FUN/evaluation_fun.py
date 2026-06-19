@@ -38,7 +38,6 @@ import torch
 import numpy as np
 from collections import namedtuple
 from scipy.stats import pearsonr, spearmanr
-import logging
 from torch_geometric.utils import unbatch
 from torch_geometric.loader import DataLoader
 
@@ -74,6 +73,7 @@ def collect_metrics(eval_data, model, device):
             np.array(nodes),                   
         )
 
+
 # Function to compute performance metrics (PPV, Pearson's r, Spearman's rho) based on collected metrics.
 def compute_metrics(metrics_list):
     idxt, idxp = metrics_list.idxt, metrics_list.idxp
@@ -81,12 +81,13 @@ def compute_metrics(metrics_list):
     ppv = np.mean(np.array(idxt) == np.array(idxp))
     # Check for constant arrays before computing correlations to avoid errors
     if np.std(mt) == 0 or np.std(mp) == 0:
-        log.warning("Cannot compute correlation: one input is constant.")
+        print("Cannot compute correlation: one input is constant.")
         correlationP = correlationS = float('nan')
     else:
         correlationP, _ = pearsonr(mt.flatten(), mp.flatten())
         correlationS, _ = spearmanr(mt.flatten(), mp.flatten())
     return PerformanceResult(ppv, correlationP, correlationS)
+
 
 # Wrapper function to evaluate the model with evaluation data and compute performance metrics.
 def evaluate_split(eval_data, model, device, batch_size=30):
